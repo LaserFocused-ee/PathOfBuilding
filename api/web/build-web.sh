@@ -17,6 +17,10 @@ DIST="${DIST:-$HERE/dist}"
 POBWEB_REV=aead90ff705e511ca6b20e488cef093211570c27
 EMSDK_VERSION=6.0.6
 EMSDK_REV=708dcbcc9ee23bc7d2dad44fc90db377e38b771c # emsdk main, 2026-11-12
+# Software BC7 decoder (used when the GPU lacks BPTC): the C++ library and the bindings of the npm
+# package pob-web uses (texture2ddecoder-wasm 1.2.2), rebuilt without dynamic code (step 2b).
+T2D_REV=a111654b8b891e72b8dca19a0f06551dcf63b1a0         # K0lb3/texture2ddecoder, the package's submodule
+T2D_BINDINGS_REV=f1acf3bd55281346b48929f281212b244f2bfe70 # fatal10110/texture2ddecoder-wasm v1.2.2
 mkdir -p "$B/bin"
 
 # 1. Toolchain: emsdk.
@@ -51,6 +55,27 @@ PATCHES_SUM="$( (echo "$POBWEB_REV $EMSDK_VERSION"; cat "$HERE"/patches/*.patch)
 if [ ! -f "$P/packages/driver/dist/release/driver.wasm" ] || [ "$(cat "$STAMP" 2>/dev/null)" != "$PATCHES_SUM" ]; then
   (cd "$P" && deno task repo driver-build >"$B/driver-build.log" 2>&1)
   echo "$PATCHES_SUM" >"$STAMP"
+fi
+
+# 2b. The published decoder module compiles its bindings with `new Function`, which the serve
+# contract's Content-Security-Policy refuses; this build uses -sDYNAMIC_EXECUTION=0 and no eval.
+T2D="$B/texture2ddecoder"
+pin() { # pin <dir> <url> <rev>
+  [ -d "$1/.git" ] || git clone -q "$2" "$1"
+  [ "$(git -C "$1" rev-parse HEAD)" = "$3" ] || { git -C "$1" fetch -q origin "$3" 2>/dev/null || true; git -C "$1" checkout -q -f "$3"; }
+}
+if [ "$(cat "$T2D/out/.pins" 2>/dev/null)" != "$T2D_REV $T2D_BINDINGS_REV $EMSDK_VERSION" ]; then
+  pin "$T2D/lib" https://github.com/K0lb3/texture2ddecoder.git "$T2D_REV"
+  pin "$T2D/bindings" https://github.com/fatal10110/texture2ddecoder-wasm.git "$T2D_BINDINGS_REV"
+  mkdir -p "$T2D/out"
+  TS="$T2D/lib/src/Texture2DDecoder"
+  em++ "$TS"/{bcn,pvrtc,etc,atc,astc,crunch,unitycrunch}.cpp "$T2D/bindings/wasm_bindings.cpp" -I"$TS" \
+    -D__LITTLE_ENDIAN__=1 -O3 -std=c++17 --bind -sDYNAMIC_EXECUTION=0 -sALLOW_MEMORY_GROWTH=1 -sALLOW_TABLE_GROWTH=1 \
+    -sMODULARIZE=1 -sEXPORT_NAME=createModule -sEXPORT_ES6=1 -sENVIRONMENT=web,worker -sFILESYSTEM=0 \
+    -sDISABLE_EXCEPTION_CATCHING=0 '-sINCOMING_MODULE_JS_API=["locateFile"]' \
+    -o "$T2D/out/texture2ddecoder.js" >"$B/texture2ddecoder-build.log" 2>&1
+  if grep -q 'new Function\|eval(' "$T2D/out/texture2ddecoder.js"; then echo "decoder still uses dynamic code" >&2; exit 1; fi
+  echo "$T2D_REV $T2D_BINDINGS_REV $EMSDK_VERSION" >"$T2D/out/.pins"
 fi
 
 # 3. Parse checker: the browser VM's parser, built natively (tools/parse-check.c).
@@ -88,7 +113,7 @@ mkdir -p "$P/packages/view"
 cp -r "$HERE/src/." "$P/packages/view/"
 mv "$P/packages/view/view.deno.json" "$P/packages/view/deno.json"
 (cd "$P" && deno check packages/view/main.ts)
-(cd "$P" && POB_VERSION_ID="$VERSION_ID" POB_WEB_OUT="$DIST" deno task vite build --config packages/view/vite.config.ts >"$B/view-build.log" 2>&1) ||
+(cd "$P" && POB_VERSION_ID="$VERSION_ID" POB_WEB_OUT="$DIST" POB_WEB_DECODER_DIR="$T2D/out" deno task vite build --config packages/view/vite.config.ts >"$B/view-build.log" 2>&1) ||
   { tail -n 30 "$B/view-build.log"; exit 1; }
 mkdir -p "$DIST/pob"
 cp -al "$OUT" "$DIST/pob/$VERSION_ID" 2>/dev/null || cp -r "$OUT" "$DIST/pob/$VERSION_ID"

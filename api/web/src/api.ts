@@ -1,5 +1,5 @@
 // The few HTTP API calls the browser view makes. Same origin only; the session cookie set by
-// POST /v1/session authenticates them (see README.md, "Server contract").
+// POST /v1/session authenticates them (see README.md, "Serve contract").
 
 export interface BuildMeta {
   id: string;
@@ -12,6 +12,11 @@ export interface BuildMeta {
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string) {
     super(message);
+  }
+
+  /** A refusal the same request would get again (bad input, missing route or build, too large). */
+  get permanent(): boolean {
+    return this.status >= 400 && this.status < 500 && ![401, 408, 409, 429].includes(this.status);
   }
 }
 

@@ -13,7 +13,7 @@
     "lineWidth": 120
   },
   "tasks": {
-    "check": "deno fmt --check && deno lint && deno check tools src/sync.ts src/api.ts && deno test --allow-read tools src"
+    "check": "deno fmt --check && deno lint && deno check tools src/sync.ts src/api.ts src/content.ts && deno test --allow-read tools src"
   },
   "compilerOptions": {
     "lib": [

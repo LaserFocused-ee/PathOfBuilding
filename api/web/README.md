@@ -40,8 +40,11 @@ The pack step:
 5. builds the page (`src/`) inside pob-web's workspace with Vite, after a type check against the driver.
 
 Before the driver build, `patches/*.patch` are applied to pob-web (each change is explained in its patch);
-`pob-web-build-name.patch` lets the page pass the server's build name with a build code, so Path of Building's "Current
-build" field shows it instead of "Imported build". The driver is rebuilt when the patches change.
+`pob-web-load-build.patch` lets the page pass the server's build name with a build code, so Path of Building's "Current
+build" field shows it instead of "Imported build", and makes a load of a code Path of Building cannot read fail instead
+of leaving the previous build on screen. The driver is rebuilt when a patch or a pin changes. The software BC7 texture
+decoder (used on GPUs without BPTC) is rebuilt from source without dynamic code, so the Content-Security-Policy below
+holds without `'unsafe-eval'`; `BPTC_SUPPORT_OVERRIDE=false build-web.sh` forces that decoder for testing.
 
 Checks for this directory: `cd api/web && deno task check` (format, lint, type check, unit tests).
 

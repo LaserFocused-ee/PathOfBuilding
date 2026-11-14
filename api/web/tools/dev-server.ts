@@ -5,7 +5,7 @@
 import { serveDir } from "@std/http/file-server";
 import { fromFileUrl } from "@std/path";
 
-const dist = fromFileUrl(new URL("../dist", import.meta.url));
+const dist = Deno.env.get("POB_WEB_DIST") ?? fromFileUrl(new URL("../dist", import.meta.url));
 const api = Deno.env.get("POB_API_URL") ?? "http://127.0.0.1:8080";
 const token = Deno.env.get("POB_API_TOKEN") ?? "";
 

@@ -2,6 +2,7 @@
 // (pob-web's driver) and keeps it in step with the server (sync.ts).
 import { Driver } from "pob-driver/driver";
 import { api, ApiError, type BuildMeta, isBuildId } from "./api.ts";
+import { buildContent } from "./content.ts";
 import { BuildSync, type SyncState } from "./sync.ts";
 
 declare const __POB_ASSETS__: string;
@@ -29,6 +30,7 @@ function text(el: HTMLElement, value: string) {
 
 // Sign-in: shown whenever the server answers 401. The token is sent once and not stored by the page.
 function signIn(): Promise<void> {
+  const interrupted = document.querySelector<HTMLElement>("[data-screen]:not([hidden])")?.dataset.screen;
   show("signin");
   const form = $("#signin-form") as HTMLFormElement;
   const input = $("#signin-token") as HTMLInputElement;
@@ -41,6 +43,7 @@ function signIn(): Promise<void> {
       try {
         await api.signIn(input.value.trim());
         input.value = "";
+        if (interrupted === "list" || interrupted === "view") show(interrupted);
         resolve();
       } catch (e) {
         text(error, e instanceof ApiError && e.status === 401 ? "That token was refused." : `Sign-in failed: ${e}`);
@@ -93,13 +96,15 @@ function describe(state: SyncState): string {
     case "loading":
       return "Loading build…";
     case "failed":
-      return `Load failed: ${state.reason}`;
+      return `Stopped: ${state.reason}`;
     case "synced":
       return `Saved · revision ${state.revision}`;
     case "saving":
       return "Saving…";
     case "save_failed":
-      return `Not saved (${state.reason}); retrying`;
+      return state.retrying
+        ? `Not saved (${state.reason}); retrying`
+        : `Not saved: the server refused this version (${state.reason}). Change the build or reload the page.`;
     case "conflict":
       return `The build changed on the server (revision ${state.serverRevision}) while you were editing.`;
     case "deleted":
@@ -190,35 +195,43 @@ async function viewPage(id: string) {
 
   const sync = new BuildSync(
     {
+      // A session that ends mid-edit asks for the token again and carries on, edits kept.
       load: async () => {
-        const [code, latest] = await Promise.all([api.code(id), api.build(id)]);
+        const [code, latest] = await withSession(() => Promise.all([api.code(id), api.build(id)]));
         showName(latest.name);
         return code;
       },
       save: async (code, base) => {
-        const saved = await api.saveCode(id, code, base);
+        const saved = await withSession(() => api.saveCode(id, code, base));
         // ponytail: the bar follows a rename that an overwrite kept; Path of Building's own name field updates on the next load
         if (saved !== "stale") showName(saved.name);
         return saved;
       },
-      revision: () => api.build(id).then((b) => b.revision),
+      revision: () => withSession(() => api.build(id)).then((b) => b.revision),
     },
     {
       // Shown, not just parsed: Path of Building applies the build at once but draws it over the next frames.
       load: async (code) => {
-        await driver.loadBuildFromCode(`${name}\n${code.trim()}`); // named load: patches/pob-web-build-name.patch
+        await driver.loadBuildFromCode(`${name}\n${code.trim()}`); // named load: patches/pob-web-load-build.patch
         await drawn(2);
       },
       read: () => driver.getBuildCode(),
+      content: buildContent,
     },
     (s) => {
       text(state, describe(s));
       conflict.hidden = s.kind !== "conflict";
+      $("#retry").hidden = s.kind !== "failed";
       state.dataset.kind = s.kind;
     },
   );
   $("#conflict-reload").onclick = () => sync.resolve("reload");
   $("#conflict-overwrite").onclick = () => sync.resolve("overwrite");
+  $("#retry").onclick = () => sync.start();
+  // ponytail: an edit made in the last tick before leaving is not yet seen; the 2 s tick bounds that window
+  addEventListener("beforeunload", (event) => {
+    if (sync.unsaved) event.preventDefault();
+  });
   await sync.start();
   setInterval(() => sync.poll(), POLL_MS);
   follow(id, sync, conn);
@@ -233,7 +246,13 @@ function follow(id: string, sync: BuildSync, conn: HTMLElement, delay = 1000) {
     text(conn, "Live");
     conn.dataset.kind = "live";
     delay = 1000;
-    void sync.serverRevision(Number(JSON.parse(event.data).revision));
+    let revision: number;
+    try {
+      revision = Number(JSON.parse(event.data).revision);
+    } catch {
+      return console.warn("Ignored an event the page cannot read");
+    }
+    if (Number.isInteger(revision)) void sync.serverRevision(revision);
   };
   source.addEventListener("hello", onRevision);
   source.addEventListener("change", onRevision);
@@ -244,9 +263,16 @@ function follow(id: string, sync: BuildSync, conn: HTMLElement, delay = 1000) {
   source.onerror = () => {
     text(conn, "Disconnected · reconnecting");
     conn.dataset.kind = "down";
-    if (source.readyState === EventSource.CLOSED) {
-      setTimeout(() => follow(id, sync, conn, Math.min(delay * 2, 30_000)), delay);
-    }
+    if (source.readyState !== EventSource.CLOSED) return;
+    // Refused (EventSource does not say why): a lapsed session asks for the token, then reconnect.
+    setTimeout(async () => {
+      try {
+        await withSession(() => api.build(id));
+      } catch {
+        // not reachable or gone: the retry below tries again
+      }
+      follow(id, sync, conn, Math.min(delay * 2, 30_000));
+    }, delay);
   };
 }
 

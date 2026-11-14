@@ -117,6 +117,7 @@
       display: flex;
       gap: 0.5rem;
     }
+    #retry,
     #conflict button {
       padding: 0.15rem 0.5rem;
     }
@@ -165,6 +166,7 @@
         <span id="build-name"></span>
         <span id="connection" role="status">Connecting…</span>
         <span id="sync-state" role="status" aria-live="polite"></span>
+        <button id="retry" type="button" hidden>Try again</button>
         <span id="conflict" hidden>
           <button id="conflict-reload" type="button">Load server version</button>
           <button id="conflict-overwrite" type="button">Keep mine (overwrite)</button>
