@@ -11,22 +11,34 @@ export interface FetchResult {
   body: string;
 }
 
-const PROFILE = /^https:\/\/www\.pathofexile\.com\/account\/view-profile\/([^/?#]+)$/;
+const GAME_HOST = "www.pathofexile.com"; // the relay matches on host name, so this does too
+const PROFILE_PATH = "/account/view-profile/";
 const CHARACTER_WINDOW =
   /^https:\/\/www\.pathofexile\.com\/character-window\/(get-characters|get-passive-skills|get-items)\?/;
 export const EXACT_NAME = "The account name must match exactly: upper and lower case and the #number included.";
 
-/** The answer to the profile-page request, made here; null for any other URL (those go to the relay). */
+/**
+ * The answer to any profile-page request, made here: never null for a profile URL, so none reaches the relay
+ * (400 unless it is exactly one name segment). Null for any other URL; those go to the relay.
+ */
 export function profileStandIn(url: string): FetchResult | null {
-  const match = PROFILE.exec(url);
-  if (!match) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.hostname !== GAME_HOST || !parsed.pathname.startsWith(PROFILE_PATH)) return null;
+  const refused = { status: 400, headers: {}, body: "" };
+  const segment = parsed.pathname.slice(PROFILE_PATH.length);
+  if (!segment || segment.includes("/") || parsed.search || parsed.hash) return refused;
   let name: string;
   try {
-    name = decodeURIComponent(match[1]);
+    name = decodeURIComponent(segment);
   } catch {
-    return { status: 400, headers: {}, body: "" };
+    return refused;
   }
-  if (name.includes("/")) return { status: 400, headers: {}, body: "" };
+  if (name.includes("/")) return refused;
   // Path of Building reads the name from a ".../view-profile/<name>/characters" link, "#" written as "-".
   const link = `/account/view-profile/${name.replaceAll("#", "-")}/characters`;
   return { status: 200, headers: { "content-type": "text/html" }, body: `<a href="${link}">characters</a>` };
@@ -36,11 +48,7 @@ export function profileStandIn(url: string): FetchResult | null {
 export function accountNote(url: string, result: FetchResult): string | null {
   const match = CHARACTER_WINDOW.exec(url);
   if (!match) return null;
-  if (result.status >= 400) {
-    const challenged = Object.entries(result.headers)
-      .some(([k, v]) => k.toLowerCase() === "cf-mitigated" && v === "challenge");
-    return `Path of Exile refused the request (${result.status}${challenged ? ", its bot check" : ""}). ${EXACT_NAME}`;
-  }
+  if (result.status >= 400) return `Path of Exile refused the request (${result.status}). ${EXACT_NAME}`;
   if (match[1] === "get-characters" && result.body.trim() === "[]") {
     return `Path of Exile returned no characters for that account. ${EXACT_NAME}`;
   }

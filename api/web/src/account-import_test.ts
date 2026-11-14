@@ -19,10 +19,23 @@ Deno.test("a hyphen inside the name survives Path of Building's reading", () => 
 
 Deno.test("only the profile page is answered here; everything else goes to the relay", () => {
   assertEquals(profileStandIn(`${site}character-window/get-characters?accountName=a%231&realm=pc`), null);
-  assertEquals(profileStandIn(`${site}account/view-profile/a%231/characters`), null);
   assertEquals(profileStandIn(`https://pathofexile.com.evil.test/account/view-profile/a%231`), null);
   assertEquals(profileStandIn(`${site}account/view-profile/a%2Fb`)?.status, 400);
   assertEquals(profileStandIn(`${site}account/view-profile/%E0%A4%A`)?.status, 400);
+});
+
+Deno.test("every profile-page URL is answered here, so none reaches the relay", () => {
+  // Path of Building encodes only "#" in the name, so a typed "/", "?" or a second segment changes the URL's shape.
+  for (
+    const odd of [
+      "a%231/characters",
+      "a&b/c%231",
+      "a&b?c%231",
+      "a%231#x",
+      "",
+    ]
+  ) assertEquals(profileStandIn(`${site}account/view-profile/${odd}`)?.status, 400, odd);
+  assertEquals(profileStandIn(`http://WWW.pathofexile.com/account/view-profile/a%231`)?.status, 200);
 });
 
 Deno.test("a refused character request says the name must match exactly, with the status", () => {
@@ -33,12 +46,6 @@ Deno.test("a refused character request says the name must match exactly, with th
   });
   assertStringIncludes(note!, "(404)");
   assertStringIncludes(note!, EXACT_NAME);
-  const screened = accountNote(`${site}character-window/get-characters?accountName=a%231&realm=pc`, {
-    status: 403,
-    headers: { "cf-mitigated": "challenge" },
-    body: "",
-  });
-  assertStringIncludes(screened!, "403, its bot check");
 });
 
 Deno.test("an empty character list says the name must match exactly; a good one says nothing", () => {

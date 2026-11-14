@@ -13,7 +13,7 @@ tree the API server's workers run, so the page and the API calculate the same nu
 
 Path of Building's own downloads (import from a build-site link, character import by account name) go through the
 server's relay, never from the browser to those sites. Character import by account name: the page answers Path of
-Building's profile-page request itself with the name as typed (that page is not reachable through the relay), so the
+Building's profile-page request itself with the name as typed (the game site screens that page from the server), so the
 name must match exactly, upper and lower case and the #number included; an empty or refused character list says so above
 the view, with the status. Nothing is retried. Sign-in with a Path of Exile account is not available in the page. Builds
 saved with Path of Building's own Save button stay in the browser's storage. Logic and tests: `src/account-import.ts`.
