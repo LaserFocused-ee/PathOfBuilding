@@ -30,10 +30,10 @@ describe("TradeHelpers trade hash matching", function()
 		end)
 
 		it("matches a legacy '#'-valued option and returns its value", function()
-			local tradeId, value = tradeHelpers.findTradeIdOption("Grants Level 20 Summon Bestial Snake Skill",
-				"explicit")
-			assert.equal("explicit.stat_2878779644", tradeId)
-			assert.equal(3, value)
+			local tradeId, value = tradeHelpers.findTradeIdOption(
+				"Maximum number of Raised Zombies is Doubled\nCannot have Minions other than Raised Zombies", "explicit")
+			assert.equal("explicit.stat_56473917", tradeId)
+			assert.equal(6, value)
 		end)
 
 		it("matches an exact-text option and returns no value", function()

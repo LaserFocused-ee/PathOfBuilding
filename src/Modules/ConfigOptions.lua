@@ -174,6 +174,11 @@ return {
 	{ var = "conditionFullLife", type = "check", label = "Are you always on Full ^xE05030Life?", ifCond = "FullLife", tooltip = FullLifeTooltip, apply = function(val, modList, enemyModList)
 		modList:NewMod("Condition:FullLife", "FLAG", true, "Config")
 	end },
+	{ var = "missingUnreservedLifePercent", type = "countAllowZero", label = "Missing unreserved Life % (override):", ifStat = "MissingUnreservedLifePercent",
+		tooltip = "For recovery scaling per missing unreserved Life.\nBlank assumes full unreserved Life, or Petrified Blood's non-flask recovery limit:\n50% maximum Life (55% with the Low Life mastery), accounting for reservation.\nAn explicit value, including 0, overrides this assumption.\nDoes not change other Full/Low Life settings.",
+		apply = function(val, modList, enemyModList)
+		modList:NewMod("MissingUnreservedLifePercent", "OVERRIDE", math.max(0, math.min(100, val)), "Config")
+	end },
 	{ var = "conditionLowLife", type = "check", label = "Are you always on Low ^xE05030Life?", ifCond = "LowLife", tooltip = LowLifeTooltip, apply = function(val, modList, enemyModList)
 		modList:NewMod("Condition:LowLife", "FLAG", true, "Config")
 	end },
@@ -1387,6 +1392,9 @@ Huge sets the radius to 11.
 	end },
 	{ var = "conditionConsumed12SteelShardsRecently", type = "check", label = "Consumed 12 Steel Shards Recently?", ifCond = "Consumed12SteelShardsRecently", apply = function(val, modList, enemyModList)
 		modList:NewMod("Condition:Consumed12SteelShardsRecently", "FLAG", true, "Config", { type = "Condition", var = "Combat" })
+	end },
+	{ var = "conditionConsumed8SteelShardsRecently", type = "check", label = "Consumed 8 Steel Shards Recently?", ifCond = "Consumed8SteelShardsRecently", apply = function(val, modList, enemyModList)
+		modList:NewMod("Condition:Consumed8SteelShardsRecently", "FLAG", true, "Config", { type = "Condition", var = "Combat" })
 	end },
 	{ var = "conditionGainedPowerChargeRecently", type = "check", label = "Gained a Power Charge Recently?", ifCond = "GainedPowerChargeRecently", apply = function(val, modList, enemyModList)
 		modList:NewMod("Condition:GainedPowerChargeRecently", "FLAG", true, "Config", { type = "Condition", var = "Combat" })
