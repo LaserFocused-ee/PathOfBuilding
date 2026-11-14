@@ -337,3 +337,17 @@ void test("every error code the Lua worker raises is a registered code", async (
   assert.ok(codes.size >= 4, [...codes].join(","));
   assert.deepEqual([...codes].filter((c) => !isErrorCode(c)), []);
 });
+
+void test("no write route declares its result as any or unknown", () => {
+  const loose = (t: { def: { type: string } }) => ["any", "unknown"].includes(t.def.type);
+  const writes = routes.filter((r) => !r.readOnly);
+  assert.ok(writes.length >= 80, `${writes.length} write routes`);
+  let mutations = 0;
+  for (const r of writes) {
+    assert.ok(!loose(r.output), `${r.name} declares no output shape`);
+    const result = (r.output as { shape?: Record<string, { def: { type: string } }> }).shape?.result;
+    if (result) mutations += 1;
+    if (result) assert.ok(!loose(result), `${r.name} declares no result shape`);
+  }
+  assert.ok(mutations >= 70, `${mutations} mutation routes carry a result`);
+});

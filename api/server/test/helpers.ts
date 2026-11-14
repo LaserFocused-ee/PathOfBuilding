@@ -1,4 +1,5 @@
 // Shared test setup: temporary data directories, a server on an ephemeral loopback port, a JSON client.
+import { rmSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -13,8 +14,15 @@ export const TOKEN = "test-token-0123456789abcdef0123456789abcdef";
 export const ROOT = resolve(import.meta.dirname, "../../../..");
 export const FIXTURES = resolve(import.meta.dirname, "../../test/fixtures");
 
+/** Directories this process made; a test file that is cut off or fails before `close()` still removes them when the process exits. */
+const made = new Set<string>();
+process.on("exit", () => {
+  for (const d of made) rmSync(d, { recursive: true, force: true });
+});
+
 export async function tempDir(prefix: string): Promise<{ path: string; remove: () => Promise<void> }> {
   const path = await mkdtemp(join(tmpdir(), `pob-api-${prefix}-`));
+  made.add(path);
   return { path, remove: () => rm(path, { recursive: true, force: true }) };
 }
 
