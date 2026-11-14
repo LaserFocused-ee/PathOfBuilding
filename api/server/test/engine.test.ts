@@ -309,7 +309,7 @@ void test("MCP over HTTP: list tools, read a loaded build's stats, failures are 
   await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${srv.port}/mcp`), { requestInit: { headers: { authorization: `Bearer ${TOKEN}` } } }));
   try {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_items", "pob_lookup", "pob_skills", "pob_stats", "pob_tree"]);
+    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_evaluate", "pob_items", "pob_lookup", "pob_skills", "pob_stats", "pob_tree"]);
     assert.equal(tools.find((t) => t.name === "pob_stats")?.annotations?.readOnlyHint, true);
     const res = await client.callTool({ name: "pob_stats", arguments: { action: "sidebar", id: fresh } });
     assert.ok(!res.isError);
@@ -330,7 +330,7 @@ void test("MCP over stdio lists the same tools", async (t) => {
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(ROOT, "api/server/dist/src/stdio.js")], env: { POB_DATA_DIR: dir.path, HOME: dir.path, LOG_LEVEL: "warn" }, stderr: "ignore" }));
   try {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_items", "pob_lookup", "pob_skills", "pob_stats", "pob_tree"]);
+    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_evaluate", "pob_items", "pob_lookup", "pob_skills", "pob_stats", "pob_tree"]);
   } finally {
     await client.close();
   }

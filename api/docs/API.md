@@ -18,9 +18,10 @@ GET inputs go in the query string (lists comma-separated); POST inputs are a JSO
 | `pob_skills` | no | `get`, `group_text`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_items` | no | `list`, `get`, `add`, `add_unique`, `add_rare`, `modify`, `edit`, `anoint`, `enchant`, `craft`, `equip`, `unequip`, `set_active`, `delete`, `weapon_set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `notes`, `set_notes` |
+| `pob_evaluate` | yes | `what_if`, `node_power`, `compare_item`, `gem_rank`, `anoint_rank`, `unique_rank`, `compare_specs`, `compare_item_sets`, `compare_builds` |
 | `pob_lookup` | yes | `gems`, `uniques`, `bases`, `nodes`, `node`, `config` |
 
-Not yet routed (no actions, so not listed by the server): `pob_evaluate`, `pob_trade`.
+Not yet routed (no actions, so not listed by the server): `pob_trade`.
 
 ## Routes
 
@@ -869,6 +870,87 @@ Replace the build notes.
 - Read-only: no; worker: `config.set_notes`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"type":"string","maxLength":100000},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["text","id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/evaluate/:id/what-if`
+
+What the build would be with changes, without making them: nodes added or removed, an item in a slot, a flask or tincture toggled, conditions on. Answers only the stats that differ.
+
+- Name: `evaluate.what_if` (MCP `pob_evaluate` action `what_if`)
+- Read-only: yes; worker: `evaluate.what_if`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"addNodes":{"minItems":1,"maxItems":200,"type":"array","items":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"}},"removeNodes":{"minItems":1,"maxItems":200,"type":"array","items":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"}},"slot":{"type":"string","minLength":1,"maxLength":60,"description":"Item slot as Path of Building names it: Weapon 1, Weapon 2, Weapon 1 Swap, Weapon 2 Swap, Helmet, Body Armour, Gloves, Boots, Amulet, Ring 1, Ring 2, Belt, Flask 1 to Flask 5, or Jewel <node id> for a passive tree socket"},"item":{"description":"Item id from `items list` (or give `text`)","type":"integer","minimum":1,"maximum":1000000},"text":{"description":"Item text as copied in game or from Path of Building (instead of `item`)","type":"string","minLength":1,"maxLength":20000},"toggleFlask":{"description":"Flask slot whose active state flips","type":"string","minLength":1,"maxLength":60},"toggleTincture":{"description":"Tincture slot whose active state flips","type":"string","minLength":1,"maxLength":60},"conditions":{"description":"Condition names switched on, as the calculator knows them","maxItems":50,"type":"array","items":{"type":"string","minLength":1,"maxLength":100}},"fields":{"description":"Output keys to compare (`Minion.<key>` for the minion's) instead of the sidebar stats","maxItems":100,"type":"array","items":{"type":"string","minLength":1,"maxLength":100}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","boolean","string","null"]},"after":{"type":["number","boolean","string","null"]}},"required":["before","after"]},"description":"Only the stats that differ; null = not shown / absent"}},"required":["changed"]}`
+
+### `POST /v1/evaluate/:id/node-power`
+
+Passive node power for a stat, from the tree's heat map calculation: unallocated nodes show what allocating gains, allocated nodes what removing changes. Masteries are listed once per effect; cluster notables and ascendancy nodes are left out. Sorted by power, highest first.
+
+- Name: `evaluate.node_power` (MCP `pob_evaluate` action `node_power`)
+- Read-only: yes; worker: `evaluate.node_power`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"stat":{"type":"string","minLength":1,"maxLength":60,"description":"A stat of Path of Building's power stat list, e.g. CombinedDPS, FullDPS, TotalDPS, Life, TotalEHP, Armour, MinionLife (`OffenceDefence` where noted)"},"depth":{"description":"Largest path distance (default 10; a whole tree can outlast the worker timeout)","type":"integer","minimum":1,"maximum":100},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["stat","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"stat":{"type":"string"},"total":{"type":"number"},"offset":{"type":"number"},"nodes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"number"},"name":{"type":"string"},"type":{"type":"string"},"allocated":{"type":"boolean"},"pathDist":{"type":"number"},"power":{"type":"number"},"pathPower":{"type":"number"},"defence":{"type":"number"}},"required":["id","name","type","allocated","pathDist","power"],"additionalProperties":{}}}},"required":["stat","total","offset","nodes"],"additionalProperties":{}}`
+
+### `POST /v1/evaluate/:id/compare-item`
+
+What an item would change in each slot it fits (default all of them), as the Items tab's comparison shows.
+
+- Name: `evaluate.compare_item` (MCP `pob_evaluate` action `compare_item`)
+- Read-only: yes; worker: `evaluate.compare_item`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"description":"Item id from `items list` (or give `text`)","type":"integer","minimum":1,"maximum":1000000},"text":{"description":"Item text as copied in game or from Path of Building (instead of `item`)","type":"string","minLength":1,"maxLength":20000},"slot":{"type":"string","minLength":1,"maxLength":60,"description":"Item slot as Path of Building names it: Weapon 1, Weapon 2, Weapon 1 Swap, Weapon 2 Swap, Helmet, Body Armour, Gloves, Boots, Amulet, Ring 1, Ring 2, Belt, Flask 1 to Flask 5, or Jewel <node id> for a passive tree socket"},"fields":{"description":"Output keys to compare (`Minion.<key>` for the minion's) instead of the sidebar stats","maxItems":100,"type":"array","items":{"type":"string","minLength":1,"maxLength":100}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"slots":{"type":"array","items":{"type":"object","properties":{"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","boolean","string","null"]},"after":{"type":["number","boolean","string","null"]}},"required":["before","after"]},"description":"Only the stats that differ; null = not shown / absent"},"slot":{"type":"string"},"equipped":{"type":["string","null"]}},"required":["changed","slot","equipped"]}}},"required":["slots"],"additionalProperties":{}}`
+
+### `POST /v1/evaluate/:id/gem-rank`
+
+Rank gems for a socket group with the gem box's own calculation: the stat with each candidate in that position, highest first (value is the stat itself, `base` is without the gem).
+
+- Name: `evaluate.gem_rank` (MCP `pob_evaluate` action `gem_rank`)
+- Read-only: yes; worker: `evaluate.gem_rank`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"gem":{"description":"Position the candidate goes into (default one past the last gem)","type":"integer","minimum":1,"maximum":100},"stat":{"type":"string","minLength":1,"maxLength":60,"description":"FullDPS, CombinedDPS, TotalDPS, AverageDamage, TotalDot, BleedDPS, IgniteDPS, TotalPoisonDPS or TotalEHP"},"support":{"description":"Only support gems (default true); false adds active gems with global effects","type":"boolean"},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["group","stat","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"stat":{"type":"string"},"base":{"type":"number"},"total":{"type":"number"},"gems":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"value":{"type":"number"}},"required":["name","value"],"additionalProperties":{}}}},"required":["stat","base","total","gems"],"additionalProperties":{}}`
+
+### `POST /v1/evaluate/:id/anoint-rank`
+
+Rank notables to anoint an item with, by the stat gained (the Anoint popup's sort). Name the item by id or by the slot it is in.
+
+- Name: `evaluate.anoint_rank` (MCP `pob_evaluate` action `anoint_rank`)
+- Read-only: yes; worker: `evaluate.anoint_rank`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"description":"Item id from `items list` (or give `text`)","type":"integer","minimum":1,"maximum":1000000},"slot":{"type":"string","minLength":1,"maxLength":60,"description":"Item slot as Path of Building names it: Weapon 1, Weapon 2, Weapon 1 Swap, Weapon 2 Swap, Helmet, Body Armour, Gloves, Boots, Amulet, Ring 1, Ring 2, Belt, Flask 1 to Flask 5, or Jewel <node id> for a passive tree socket"},"stat":{"type":"string","minLength":1,"maxLength":60,"description":"A stat of Path of Building's power stat list, e.g. CombinedDPS, FullDPS, TotalDPS, Life, TotalEHP, Armour, MinionLife (`OffenceDefence` where noted)"},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["stat","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"stat":{"type":"string"},"total":{"type":"number"},"notables":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"power":{"type":"number"}},"required":["name","power"],"additionalProperties":{}}}},"required":["stat","total","notables"],"additionalProperties":{}}`
+
+### `POST /v1/evaluate/:id/unique-rank`
+
+Rank the uniques that fit a slot by the stat with the unique equipped (the unique list's sort by stat; power is the stat's value, best slot).
+
+- Name: `evaluate.unique_rank` (MCP `pob_evaluate` action `unique_rank`)
+- Read-only: yes; worker: `evaluate.unique_rank`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"slot":{"type":"string","minLength":1,"maxLength":60,"description":"Item slot as Path of Building names it: Weapon 1, Weapon 2, Weapon 1 Swap, Weapon 2 Swap, Helmet, Body Armour, Gloves, Boots, Amulet, Ring 1, Ring 2, Belt, Flask 1 to Flask 5, or Jewel <node id> for a passive tree socket"},"stat":{"type":"string","minLength":1,"maxLength":60,"description":"A stat of Path of Building's power stat list, e.g. CombinedDPS, FullDPS, TotalDPS, Life, TotalEHP, Armour, MinionLife (`OffenceDefence` where noted)"},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["slot","stat","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"stat":{"type":"string"},"total":{"type":"number"},"uniques":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"power":{"type":"number"}},"required":["name","power"],"additionalProperties":{}}}},"required":["stat","total","uniques"],"additionalProperties":{}}`
+
+### `POST /v1/evaluate/:id/compare-specs`
+
+What switching from one tree to another changes (b against a; a is the active tree by default).
+
+- Name: `evaluate.compare_specs` (MCP `pob_evaluate` action `compare_specs`)
+- Read-only: yes; worker: `evaluate.compare_specs`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"a":{"description":"Tree number to start from (default the active tree)","type":"integer","minimum":1,"maximum":500},"b":{"type":"integer","minimum":1,"maximum":500,"description":"Tree number in the tree list, from 1"},"fields":{"description":"Output keys to compare (`Minion.<key>` for the minion's) instead of the sidebar stats","maxItems":100,"type":"array","items":{"type":"string","minLength":1,"maxLength":100}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["b","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","boolean","string","null"]},"after":{"type":["number","boolean","string","null"]}},"required":["before","after"]},"description":"Only the stats that differ; null = not shown / absent"}},"required":["changed"]}`
+
+### `POST /v1/evaluate/:id/compare-item-sets`
+
+What switching from one item set to another changes (b against a; a is the active set by default).
+
+- Name: `evaluate.compare_item_sets` (MCP `pob_evaluate` action `compare_item_sets`)
+- Read-only: yes; worker: `evaluate.compare_item_sets`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"a":{"description":"Item set number to start from (default the active set)","type":"integer","minimum":1,"maximum":500},"b":{"type":"integer","minimum":1,"maximum":500,"description":"Item set number to compare, from 1"},"fields":{"description":"Output keys to compare (`Minion.<key>` for the minion's) instead of the sidebar stats","maxItems":100,"type":"array","items":{"type":"string","minLength":1,"maxLength":100}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["b","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","boolean","string","null"]},"after":{"type":["number","boolean","string","null"]}},"required":["before","after"]},"description":"Only the stats that differ; null = not shown / absent"}},"required":["changed"]}`
+
+### `POST /v1/evaluate/:id/compare-builds`
+
+What differs between this build and another build: this build's stats as before, the other's as after.
+
+- Name: `evaluate.compare_builds` (MCP `pob_evaluate` action `compare_builds`)
+- Read-only: yes; worker: `stats.sidebar (stats.output with `fields`) on each build, diffed by the server`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"other":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"The build to compare with (its stats are the `after`)"},"fields":{"description":"Output keys to compare (`Minion.<key>` for the minion's) instead of the sidebar stats","maxItems":100,"type":"array","items":{"type":"string","minLength":1,"maxLength":100}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["other","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","boolean","string","null"]},"after":{"type":["number","boolean","string","null"]}},"required":["before","after"]},"description":"Only the stats that differ; null = not shown / absent"}},"required":["changed"]}`
 
 ### `GET /v1/lookup/gems`
 

@@ -109,6 +109,21 @@ const readRoute = <Z extends z.ZodObject<Shape>>(domain: Domain, area: string, a
     run: (svc, i) => svc.read(i.id, op, pick(i, args)),
   }), { id: buildId });
 
+/** A read-only worker op on a build's session that takes lists or item text: POST /v1/evaluate/:id/<action>. Nothing is stored. */
+const evalRoute = <Z extends z.ZodObject<Shape>>(action: string, summaryText: string, input: Z, output: z.ZodType, args: Args<Z> = []): Route =>
+  extended(route<Z, { id: string }>({
+    name: `evaluate.${action}`,
+    domain: "evaluate",
+    method: "POST",
+    path: `/v1/evaluate/:id/${action.replaceAll("_", "-")}`,
+    summary: summaryText,
+    input,
+    output,
+    readOnly: true,
+    workerOp: `evaluate.${action}`,
+    run: (svc, i) => svc.read(i.id, `evaluate.${action}`, pick(i, args)),
+  }), { id: buildId });
+
 const mutationOutput = z.object({
   result: any,
   changed: z.record(z.string(), z.object({ before: z.number().nullable(), after: z.number().nullable() })).describe("Sidebar stats that changed"),
@@ -163,6 +178,15 @@ const setIndex = z.number().int().min(1).max(500).describe("Config set number in
 const title = z.string().trim().min(1).max(100);
 const treeVersion = z.string().regex(/^\d+_\d+(_[a-z]+)?$/).describe("e.g. 3_30");
 const configValue = z.union([z.boolean(), z.number(), z.string().max(20000)]);
+
+// evaluate: what-if answers are stat differences; item text is Path of Building's copy format.
+const statValue = z.union([z.number(), z.boolean(), z.string()]);
+const changedStats = z.object({ changed: z.record(z.string(), z.object({ before: statValue.nullable(), after: statValue.nullable() })).describe("Only the stats that differ; null = not shown / absent") });
+const evalFields = z.array(z.string().trim().min(1).max(100)).max(100).optional().describe("Output keys to compare (`Minion.<key>` for the minion's) instead of the sidebar stats");
+const powerStatName = z.string().trim().min(1).max(60).describe("A stat of Path of Building's power stat list, e.g. CombinedDPS, FullDPS, TotalDPS, Life, TotalEHP, Armour, MinionLife (`OffenceDefence` where noted)");
+const evalItemText = z.string().min(1).max(20000).optional().describe("Item text as copied in game or from Path of Building (instead of `item`)");
+const evalItemRef = itemRef.optional().describe("Item id from `items list` (or give `text`)");
+const compareBuildsInput = z.object({ other: buildId.describe("The build to compare with (its stats are the `after`)"), fields: evalFields });
 
 export const routes: Route[] = [
   // builds
@@ -297,6 +321,28 @@ export const routes: Route[] = [
   mutateRoute("config", "config", "set_activate", "Make a config set the active one.", z.object({ index: setIndex }), ["index"]),
   readRoute("config", "config", "notes", "The build notes (Notes tab), with colour codes.", z.object({}), z.looseObject({ text: z.string() })),
   mutateRoute("config", "config", "set_notes", "Replace the build notes.", z.object({ text: z.string().max(100000) }), ["text"]),
+
+  // evaluate
+  evalRoute("what_if", "What the build would be with changes, without making them: nodes added or removed, an item in a slot, a flask or tincture toggled, conditions on. Answers only the stats that differ.", z.object({ addNodes: nodeList.optional(), removeNodes: nodeList.optional(), slot: itemSlot.optional(), item: evalItemRef, text: evalItemText, toggleFlask: itemSlot.optional().describe("Flask slot whose active state flips"), toggleTincture: itemSlot.optional().describe("Tincture slot whose active state flips"), conditions: z.array(z.string().trim().min(1).max(100)).max(50).optional().describe("Condition names switched on, as the calculator knows them"), fields: evalFields }), changedStats, ["addNodes", "removeNodes", "slot", "item", "text", "toggleFlask", "toggleTincture", "conditions", "fields"]),
+  evalRoute("node_power", "Passive node power for a stat, from the tree's heat map calculation: unallocated nodes show what allocating gains, allocated nodes what removing changes. Masteries are listed once per effect; cluster notables and ascendancy nodes are left out. Sorted by power, highest first.", z.object({ stat: powerStatName, depth: z.number().int().min(1).max(100).optional().describe("Largest path distance (default 10; a whole tree can outlast the worker timeout)"), limit, offset }), z.looseObject({ stat: z.string(), total: z.number(), offset: z.number(), nodes: z.array(z.looseObject({ id: z.number(), name: z.string(), type: z.string(), allocated: z.boolean(), pathDist: z.number(), power: z.number(), pathPower: z.number().optional(), defence: z.number().optional() })) }), ["stat", "depth", "limit", "offset"]),
+  evalRoute("compare_item", "What an item would change in each slot it fits (default all of them), as the Items tab's comparison shows.", z.object({ item: evalItemRef, text: evalItemText, slot: itemSlot.optional(), fields: evalFields }), z.looseObject({ slots: z.array(changedStats.extend({ slot: z.string(), equipped: z.string().nullable() })) }), ["item", "text", "slot", "fields"]),
+  evalRoute("gem_rank", "Rank gems for a socket group with the gem box's own calculation: the stat with each candidate in that position, highest first (value is the stat itself, `base` is without the gem).", z.object({ group: groupRef, gem: gemRef.optional().describe("Position the candidate goes into (default one past the last gem)"), stat: powerStatName.describe("FullDPS, CombinedDPS, TotalDPS, AverageDamage, TotalDot, BleedDPS, IgniteDPS, TotalPoisonDPS or TotalEHP"), support: z.boolean().optional().describe("Only support gems (default true); false adds active gems with global effects"), limit }), z.looseObject({ stat: z.string(), base: z.number(), total: z.number(), gems: z.array(z.looseObject({ name: z.string(), value: z.number() })) }), ["group", "gem", "stat", "support", "limit"]),
+  evalRoute("anoint_rank", "Rank notables to anoint an item with, by the stat gained (the Anoint popup's sort). Name the item by id or by the slot it is in.", z.object({ item: evalItemRef, slot: itemSlot.optional(), stat: powerStatName, limit }), z.looseObject({ stat: z.string(), total: z.number(), notables: z.array(z.looseObject({ name: z.string(), power: z.number() })) }), ["item", "slot", "stat", "limit"]),
+  evalRoute("unique_rank", "Rank the uniques that fit a slot by the stat with the unique equipped (the unique list's sort by stat; power is the stat's value, best slot).", z.object({ slot: itemSlot, stat: powerStatName, limit }), z.looseObject({ stat: z.string(), total: z.number(), uniques: z.array(z.looseObject({ name: z.string(), power: z.number() })) }), ["slot", "stat", "limit"]),
+  evalRoute("compare_specs", "What switching from one tree to another changes (b against a; a is the active tree by default).", z.object({ a: specIndex.optional().describe("Tree number to start from (default the active tree)"), b: specIndex, fields: evalFields }), changedStats, ["a", "b", "fields"]),
+  evalRoute("compare_item_sets", "What switching from one item set to another changes (b against a; a is the active set by default).", z.object({ a: setIndex.optional().describe("Item set number to start from (default the active set)"), b: setIndex.describe("Item set number to compare, from 1"), fields: evalFields }), changedStats, ["a", "b", "fields"]),
+  extended(route<typeof compareBuildsInput, { id: string }>({
+    name: "evaluate.compare_builds",
+    domain: "evaluate",
+    method: "POST",
+    path: "/v1/evaluate/:id/compare-builds",
+    summary: "What differs between this build and another build: this build's stats as before, the other's as after.",
+    input: compareBuildsInput,
+    output: changedStats,
+    readOnly: true,
+    workerOp: "stats.sidebar (stats.output with `fields`) on each build, diffed by the server",
+    run: (svc, i) => svc.compareBuilds(i.id, i.other, i.fields),
+  }), { id: buildId }),
 
   // lookup
   lookupRoute("gems", "/v1/lookup/gems", "Search gems by name and tag, with requirements at a level.", z.object({ query: z.string().max(100).optional(), tag: z.string().max(50).optional(), support: z.boolean().optional(), level: z.number().int().min(1).max(40).optional(), limit, offset }), pageOf("gems", z.looseObject({ id: z.string(), name: z.string(), support: z.boolean(), tags: strings, tagString: z.string().optional(), naturalMaxLevel: z.number().optional(), description: z.string().optional(), requirements: z.looseObject({ gemLevel: z.number(), level: z.number(), str: z.number(), dex: z.number(), int: z.number() }).optional() })), ["query", "tag", "support", "level", "limit", "offset"]),

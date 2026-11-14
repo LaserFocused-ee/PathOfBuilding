@@ -198,6 +198,15 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/config/:id/set-activate` | `pob_config` `set_activate` | Make a config set the active one. |
 | `GET /v1/config/:id/notes` | `pob_config` `notes` | The build notes (Notes tab), with colour codes. |
 | `POST /v1/config/:id/set-notes` | `pob_config` `set_notes` | Replace the build notes. |
+| `POST /v1/evaluate/:id/what-if` | `pob_evaluate` `what_if` | What the build would be with changes, without making them: nodes added or removed, an item in a slot, a flask or tincture toggled, conditions on. Answers only the stats that differ. |
+| `POST /v1/evaluate/:id/node-power` | `pob_evaluate` `node_power` | Passive node power for a stat, from the tree's heat map calculation: unallocated nodes show what allocating gains, allocated nodes what removing changes. Masteries are listed once per effect; cluster notables and ascendancy nodes are left out. Sorted by power, highest first. |
+| `POST /v1/evaluate/:id/compare-item` | `pob_evaluate` `compare_item` | What an item would change in each slot it fits (default all of them), as the Items tab's comparison shows. |
+| `POST /v1/evaluate/:id/gem-rank` | `pob_evaluate` `gem_rank` | Rank gems for a socket group with the gem box's own calculation: the stat with each candidate in that position, highest first (value is the stat itself, `base` is without the gem). |
+| `POST /v1/evaluate/:id/anoint-rank` | `pob_evaluate` `anoint_rank` | Rank notables to anoint an item with, by the stat gained (the Anoint popup's sort). Name the item by id or by the slot it is in. |
+| `POST /v1/evaluate/:id/unique-rank` | `pob_evaluate` `unique_rank` | Rank the uniques that fit a slot by the stat with the unique equipped (the unique list's sort by stat; power is the stat's value, best slot). |
+| `POST /v1/evaluate/:id/compare-specs` | `pob_evaluate` `compare_specs` | What switching from one tree to another changes (b against a; a is the active tree by default). |
+| `POST /v1/evaluate/:id/compare-item-sets` | `pob_evaluate` `compare_item_sets` | What switching from one item set to another changes (b against a; a is the active set by default). |
+| `POST /v1/evaluate/:id/compare-builds` | `pob_evaluate` `compare_builds` | What differs between this build and another build: this build's stats as before, the other's as after. |
 | `GET /v1/lookup/gems` | `pob_lookup` `gems` | Search gems by name and tag, with requirements at a level. |
 | `GET /v1/lookup/uniques` | `pob_lookup` `uniques` | Search uniques by name or by a line of their text. |
 | `GET /v1/lookup/bases` | `pob_lookup` `bases` | Search item bases by name and type. |

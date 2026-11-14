@@ -1,4 +1,5 @@
 // Build operations that span the store, the pool, events and the fetcher. Routes call these.
+import { z } from "zod";
 import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
 import type { Events } from "./events.js";
@@ -29,6 +30,11 @@ interface Mutation {
 }
 
 export type Realm = "pc" | "xbox" | "sony";
+
+type StatValue = number | boolean | string;
+const statValue = z.union([z.number(), z.boolean(), z.string()]);
+const sidebarReply = z.object({ stats: z.array(z.looseObject({ key: z.string().optional(), value: z.number().optional() })) });
+const outputReply = z.object({ output: z.record(z.string(), statValue) });
 
 /** One entry of character-window/get-characters (the fields the Import tab reads). */
 interface SiteCharacter {
@@ -302,6 +308,27 @@ export class Service {
   async history(id: string): Promise<Output> {
     const meta = await this.store.get(id);
     return { result: { id, revision: meta.revision, history: [...meta.history].reverse() }, warnings: [] };
+  }
+
+  /** What differs between two builds: the stats of `other` against this build's (stats.sidebar of each; stats.output when `fields` names keys). */
+  async compareBuilds(id: string, other: string, fields?: string[]): Promise<Output> {
+    const stats = async (build: string) => {
+      const r = fields ? await this.read(build, "stats.output", { fields }) : await this.read(build, "stats.sidebar", {});
+      const values = new Map<string, StatValue>();
+      if (fields) {
+        for (const [k, v] of Object.entries(outputReply.parse(r.result).output)) values.set(k, v);
+      } else {
+        for (const s of sidebarReply.parse(r.result).stats) if (s.key !== undefined && s.value !== undefined) values.set(s.key, s.value);
+      }
+      return { values, warnings: r.warnings };
+    };
+    const [a, b] = [await stats(id), await stats(other)];
+    const changed: Record<string, { before: StatValue | null; after: StatValue | null }> = {};
+    for (const key of new Set([...a.values.keys(), ...b.values.keys()])) {
+      const [before, after] = [a.values.get(key), b.values.get(key)];
+      if (before !== after) changed[key] = { before: before ?? null, after: after ?? null };
+    }
+    return { result: { changed }, warnings: [...a.warnings, ...b.warnings] };
   }
 
   /** A read-only worker command on a build's session, or on the lookup session when no build is named. */

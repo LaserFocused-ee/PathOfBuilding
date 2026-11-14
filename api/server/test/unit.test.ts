@@ -153,7 +153,7 @@ void test("failed credential window: limit inside a minute, then clear", () => {
 
 void test("mcp: tools come from the route table with accurate read-only hints", () => {
   const defs = toolDefs();
-  assert.deepEqual(defs.map((d) => d.name), ["pob_build", "pob_stats", "pob_tree", "pob_skills", "pob_items", "pob_config", "pob_lookup"]);
+  assert.deepEqual(defs.map((d) => d.name), ["pob_build", "pob_stats", "pob_tree", "pob_skills", "pob_items", "pob_config", "pob_evaluate", "pob_lookup"]);
   assert.equal(defs.find((d) => d.name === "pob_build")?.readOnly, false);
   assert.equal(defs.find((d) => d.name === "pob_stats")?.readOnly, true);
   assert.ok(!defs.some((d) => d.routes.some((r) => r.stream)), "the event stream is not an MCP action");
