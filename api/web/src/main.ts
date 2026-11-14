@@ -3,6 +3,7 @@
 import { Driver } from "pob-driver/driver";
 import { api, ApiError, type BuildMeta, isBuildId } from "./api.ts";
 import { buildContent } from "./content.ts";
+import { safeExternalUrl } from "./links.ts";
 import { BuildSync, type SyncState } from "./sync.ts";
 
 declare const __POB_ASSETS__: string;
@@ -10,8 +11,8 @@ declare const __POB_ASSETS__: string;
 // the build holds. Builds can come from anyone, so only http and https leave the page, without an opener.
 const openWindow = globalThis.open.bind(globalThis);
 globalThis.open = (url?: string | URL, target?: string) => {
-  const href = String(url ?? "");
-  if (!/^https?:\/\//i.test(href)) {
+  const href = safeExternalUrl(url);
+  if (href === null) {
     console.warn("Refused to open a link that is not http or https");
     return null;
   }
@@ -64,8 +65,18 @@ async function withSession<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+async function signOut() {
+  try {
+    await api.signOut();
+  } catch (e) {
+    console.warn("Sign-out request failed", e);
+  }
+  location.assign("/");
+}
+
 async function listPage(note = "") {
   show("list");
+  $("#signout-list").onclick = () => void signOut();
   const status = $("#list-status");
   const list = $("#build-list");
   text(status, "Loading builds…");
@@ -114,6 +125,7 @@ function describe(state: SyncState): string {
 
 async function viewPage(id: string) {
   show("view");
+  $("#signout-view").onclick = () => void signOut(); // unsent edits: the beforeunload guard asks
   const state = $("#sync-state");
   const conn = $("#connection");
   const conflict = $("#conflict");
@@ -146,7 +158,13 @@ async function viewPage(id: string) {
     });
 
   const driver = new Driver("release", __POB_ASSETS__, {
-    onError: (error) => console.error(error),
+    onError: (error) => {
+      console.error(error);
+      const message = error instanceof Error ? error.message : String(error);
+      const shown = $("#driver-error");
+      text(shown, `Path of Building reported an error: ${message.slice(0, 300)}`);
+      shown.hidden = false;
+    },
     onFrame: () => {
       frames++;
       for (let i = frameWaiters.length - 1; i >= 0; i--) {
@@ -228,6 +246,7 @@ async function viewPage(id: string) {
   $("#conflict-reload").onclick = () => sync.resolve("reload");
   $("#conflict-overwrite").onclick = () => sync.resolve("overwrite");
   $("#retry").onclick = () => sync.start();
+
   // ponytail: an edit made in the last tick before leaving is not yet seen; the 2 s tick bounds that window
   addEventListener("beforeunload", (event) => {
     if (sync.unsaved) event.preventDefault();

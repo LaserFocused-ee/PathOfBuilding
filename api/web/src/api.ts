@@ -49,6 +49,7 @@ async function call<T>(method: string, path: string, body?: unknown, headers: Re
 export const api = {
   /** Exchanges the API token for a session cookie once; the token is not kept by the page. */
   signIn: (token: string) => call<void>("POST", "/v1/session", undefined, { authorization: `Bearer ${token}` }),
+  signOut: () => call<void>("DELETE", "/v1/session"),
   builds: () => call<{ builds: BuildMeta[] }>("GET", "/v1/builds").then((r) => r.builds),
   build: (id: string) => call<{ build: BuildMeta }>("GET", `/v1/builds/${id}`).then((r) => r.build),
   code: (id: string) => call<{ code: string; revision: number }>("GET", `/v1/builds/${id}/code`),
