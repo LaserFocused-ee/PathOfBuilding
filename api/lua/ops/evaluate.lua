@@ -211,6 +211,58 @@ return function(W)
 		return { stat = args.stat, total = #list, offset = offset, nodes = page }
 	end
 
+	-- args: candidates? (node ids or exact names; default every unallocated passive next to the allocated tree), fields?,
+	-- sortBy? (an output key: largest gain first), limit?, offset?. Each candidate is scored on its own with the path
+	-- that reaches it (as the tree's hover does), through the calculator; the build is not changed.
+	local maxCandidates = 200 -- ponytail: one full calculation each, within the worker's time for a call
+	function ops.passives(args)
+		local b = W.build()
+		local spec = b.spec
+		local list = {}
+		if args.candidates ~= nil then
+			if type(args.candidates) ~= "table" or #args.candidates == 0 then bad("candidates is a list of node ids or exact names") end
+			for _, ref in ipairs(args.candidates) do
+				local node = nodeOf(spec, ref)
+				if node.alloc then bad(W.strip(node.dn) .. " is allocated already") end
+				if node.type == "Mastery" then bad(W.strip(node.dn) .. " is a mastery: score its effects with node_power or what_if") end
+				if not node.path or #node.path == 0 then bad(W.strip(node.dn) .. " cannot be reached from the allocated tree") end
+				list[#list + 1] = node
+			end
+		else
+			for _, node in pairs(spec.nodes) do
+				if not node.alloc and not node.ascendancyName and node.pathDist == 1 and node.path
+					and (node.type == "Normal" or node.type == "Notable" or node.type == "Keystone") then
+					list[#list + 1] = node
+				end
+			end
+		end
+		if #list > maxCandidates then bad(#list .. " candidates; at most " .. maxCandidates .. " per call") end
+		local fields = fieldsOf(args)
+		local sortBy = args.sortBy
+		if sortBy ~= nil and type(sortBy) ~= "string" then bad("sortBy is an output key") end
+		local calcFunc, calcBase = calculator(b)
+		local base = values(b, calcBase, fields)
+		if sortBy and fields and base[sortBy] == nil then bad("sortBy " .. sortBy .. " is not one of the fields") end
+		local scored = {}
+		for _, node in ipairs(list) do
+			local add = {}
+			for _, n in ipairs(node.path) do add[n] = true end
+			local changed = diff(base, values(b, calcFunc({ addNodes = add }), fields))
+			local gain = 0
+			local c = sortBy and changed[sortBy]
+			if c and type(c.after) == "number" then gain = c.after - (type(c.before) == "number" and c.before or 0) end
+			scored[#scored + 1] = { id = node.id, name = W.strip(node.dn), type = node.type, points = #node.path, changed = changed, gain = sortBy and gain or nil }
+		end
+		table.sort(scored, function(x, y)
+			if sortBy and x.gain ~= y.gain then return x.gain > y.gain end
+			return x.id < y.id
+		end)
+		local limit, offset = math.min(tonumber(args.limit) or 50, maxCandidates), math.max(tonumber(args.offset) or 0, 0)
+		local page = {}
+		for i = offset + 1, math.min(offset + limit, #scored) do page[#page + 1] = scored[i] end
+		return { total = #scored, offset = offset, sortBy = sortBy, candidates = page }
+	end
+
 	-- args: item (id) or text, slot? (default every slot it fits), fields?. The item in each slot in place of what it holds.
 	function ops.compare_item(args)
 		local b = W.build()

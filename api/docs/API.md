@@ -12,13 +12,13 @@ GET inputs go in the query string (lists comma-separated); POST inputs are a JSO
 
 | Tool | Read-only | Actions |
 | --- | --- | --- |
-| `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `ui_controls`, `ui_invoke`, `export_xml`, `replace_code`, `export_code`, `save_point`, `history` |
+| `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `loadout_list`, `loadout_activate`, `loadout_new`, `ui_controls`, `ui_invoke`, `export_xml`, `replace_code`, `export_code`, `save_point`, `history` |
 | `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `versions` |
 | `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `export_url`, `import_url`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `convert` |
 | `pob_skills` | no | `get`, `group_text`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_skill_options`, `set_spectres`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_items` | no | `list`, `get`, `add`, `add_unique`, `add_rare`, `modify`, `edit`, `anoint`, `enchant`, `craft`, `equip`, `unequip`, `set_active`, `delete`, `weapon_set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `notes`, `set_notes`, `party_get`, `party_import`, `party_clear`, `party_set`, `party_effects` |
-| `pob_evaluate` | yes | `what_if`, `node_power`, `compare_item`, `gem_rank`, `anoint_rank`, `unique_rank`, `compare_specs`, `compare_item_sets`, `compare_builds` |
+| `pob_evaluate` | yes | `what_if`, `passives`, `node_power`, `compare_item`, `gem_rank`, `anoint_rank`, `unique_rank`, `compare_specs`, `compare_item_sets`, `compare_builds` |
 | `pob_lookup` | yes | `gems`, `uniques`, `bases`, `nodes`, `node`, `config` |
 
 Not yet routed (no actions, so not listed by the server): `pob_trade`.
@@ -160,6 +160,33 @@ Character level and the Auto/Manual level mode (auto follows points spent).
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"level":{"type":"integer","minimum":1,"maximum":100},"autoLevel":{"type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
 
+### `GET /v1/loadouts/:id/list`
+
+The Loadouts dropdown: trees whose title matches an item set, a skill set and a config set (or share a `{id}` link), the one in use, and the active set of each tab. A tab with a single set matches every tree.
+
+- Name: `build.loadout_list` (MCP `pob_build` action `loadout_list`)
+- Read-only: yes; worker: `loadouts.list`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"loadouts":{"type":"array","items":{"type":"string"}},"active":{"type":["string","null"]},"sets":{"type":"object","properties":{"tree":{"type":"string"},"items":{"type":"string"},"skills":{"type":"string"},"config":{"type":"string"}},"required":["tree","items","skills","config"],"additionalProperties":{}}},"required":["loadouts","active","sets"],"additionalProperties":{}}`
+
+### `POST /v1/loadouts/:id/activate`
+
+Switch tree, item set, skill set and config set to a loadout in one step, as picking it in the Loadouts dropdown does.
+
+- Name: `build.loadout_activate` (MCP `pob_build` action `loadout_activate`)
+- Read-only: no; worker: `loadouts.activate`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":100,"description":"Loadout as `loadout_list` gives it"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["name","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/loadouts/:id/new`
+
+Make a loadout and switch to it: copies of the active tree, item set, skill set and config set under one title, or with `empty` four new empty sets (New Loadout). The answer lists loadouts that stopped matching (a tab that had one set now has two).
+
+- Name: `build.loadout_new` (MCP `pob_build` action `loadout_new`)
+- Read-only: no; worker: `loadouts.new`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":100,"description":"Title for the four sets; no braces"},"empty":{"type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["name","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
 ### `GET /v1/ui/:id/controls`
 
 The controls of a tab by name (name, type, label or text, state, shown, enabled, a dropdown's choices, and the `ui_invoke` actions each takes now).
@@ -234,7 +261,7 @@ Server-sent events: `hello` with the current revision, then `change` (revision, 
 
 ### `GET /v1/stats/:id/sidebar`
 
-The sidebar stat list as Path of Building shows it: label, value, formatted text.
+The sidebar stat list as Path of Building shows it: label, value, formatted text. Labels are not unique (the player's and the minion's `Hit DPS` share one); `key` and `actor` tell them apart.
 
 - Name: `stats.sidebar` (MCP `pob_stats` action `sidebar`)
 - Read-only: yes; worker: `stats.sidebar`
@@ -477,7 +504,7 @@ Convert the active tree to another tree version (default the latest); `keepOld` 
 
 ### `GET /v1/skills/:id/get`
 
-The Skills tab: socket groups with their gems and active skills, the main socket group, skill sets and gem options.
+The Skills tab: socket groups with their gems and active skills, the main socket group, skill sets and gem options. `mainSocketGroup` is one group number for the whole build, not per skill set (as in Path of Building): it points at the same position in every set.
 
 - Name: `skills.get` (MCP `pob_skills` action `get`)
 - Read-only: yes; worker: `skills.get`
@@ -499,7 +526,7 @@ Add a socket group from gems or from copy text (the Paste button). Gem names res
 
 - Name: `skills.add_group` (MCP `pob_skills` action `add_group`)
 - Read-only: no; worker: `skills.add_group`
-- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"description":"Copy format: optional `Label:` and `Slot:` lines, then `<gem> <level>/<quality> [DISABLED] <count>` per line","type":"string","minLength":1,"maxLength":20000},"gems":{"description":"Gems of the group, in order; level defaults to 20","minItems":1,"maxItems":12,"type":"array","items":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":100},"level":{"type":"integer","minimum":1,"maximum":40,"description":"Gem level (1-40)"},"quality":{"type":"integer","minimum":0,"maximum":23,"description":"Gem quality (0-23)"},"enabled":{"type":"boolean"},"count":{"type":"integer","minimum":1,"maximum":99,"description":"Gem count"}},"required":["name"]}},"label":{"type":"string","maxLength":50,"description":"Group label (up to 50 characters)"},"slot":{"type":"string","minLength":1,"maxLength":50,"description":"Item slot name such as Body Armour or Weapon 1, or None"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"description":"Copy format: optional `Label:` and `Slot:` lines, then `<gem> <level>/<quality> [DISABLED] <count>` per line","type":"string","minLength":1,"maxLength":20000},"gems":{"description":"Gems of the group, in order; a gem without `level` gets the level the `defaultGemLevel` option picks (as a gem added by hand); copy text carries its own levels","minItems":1,"maxItems":12,"type":"array","items":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":100},"level":{"type":"integer","minimum":1,"maximum":40,"description":"Gem level (1-40)"},"quality":{"type":"integer","minimum":0,"maximum":23,"description":"Gem quality (0-23)"},"enabled":{"type":"boolean"},"count":{"type":"integer","minimum":1,"maximum":99,"description":"Gem count"}},"required":["name"]}},"label":{"type":"string","maxLength":50,"description":"Group label (up to 50 characters)"},"slot":{"type":"string","minLength":1,"maxLength":50,"description":"Item slot name such as Body Armour or Weapon 1, or None"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
 
 ### `POST /v1/skills/:id/update-group`
@@ -531,7 +558,7 @@ Move a socket group to another position in the list; the main skill stays the sa
 
 ### `POST /v1/skills/:id/set-main`
 
-Make a socket group the main one, and optionally pick which of its active skills is the main skill.
+Make a socket group the main one, and optionally pick which of its active skills is the main skill. The main group is one number for the whole build, not per skill set: setting it in one set changes the main group of every set to the group at that position.
 
 - Name: `skills.set_main` (MCP `pob_skills` action `set_main`)
 - Read-only: no; worker: `skills.set_main`
@@ -540,7 +567,7 @@ Make a socket group the main one, and optionally pick which of its active skills
 
 ### `POST /v1/skills/:id/set-gem`
 
-Change a gem of a group (name, level, quality, enabled, count); a position one past the last gem adds one (name required).
+Change a gem of a group (name, level, quality, enabled, count); a position one past the last gem adds one (name required), at the level the `defaultGemLevel` option picks unless `level` is given.
 
 - Name: `skills.set_gem` (MCP `pob_skills` action `set_gem`)
 - Read-only: no; worker: `skills.set_gem`
@@ -961,6 +988,15 @@ What the build would be with changes, without making them: nodes added or remove
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"addNodes":{"minItems":1,"maxItems":200,"type":"array","items":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"}},"removeNodes":{"minItems":1,"maxItems":200,"type":"array","items":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"}},"slot":{"type":"string","minLength":1,"maxLength":60,"description":"Item slot as Path of Building names it: Weapon 1, Weapon 2, Weapon 1 Swap, Weapon 2 Swap, Helmet, Body Armour, Gloves, Boots, Amulet, Ring 1, Ring 2, Belt, Flask 1 to Flask 5, or Jewel <node id> for a passive tree socket"},"item":{"description":"Item id from `items list` (or give `text`)","type":"integer","minimum":1,"maximum":1000000},"text":{"description":"Item text as copied in game or from Path of Building (instead of `item`)","type":"string","minLength":1,"maxLength":20000},"toggleFlask":{"description":"Flask slot whose active state flips","type":"string","minLength":1,"maxLength":60},"toggleTincture":{"description":"Tincture slot whose active state flips","type":"string","minLength":1,"maxLength":60},"conditions":{"description":"Condition names switched on, as the calculator knows them","maxItems":50,"type":"array","items":{"type":"string","minLength":1,"maxLength":100}},"fields":{"description":"Output keys to compare (`Minion.<key>` for the minion's) instead of the sidebar stats","maxItems":100,"type":"array","items":{"type":"string","minLength":1,"maxLength":100}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","boolean","string","null"]},"after":{"type":["number","boolean","string","null"]}},"required":["before","after"]},"description":"Only the stats that differ; null = not shown / absent"}},"required":["changed"]}`
 
+### `POST /v1/evaluate/:id/passives`
+
+Score candidate passives one at a time without allocating them: each with the path that reaches it, through the calculator. Answers the stats that differ per candidate. Default candidates: every unallocated passive next to the allocated tree (ascendancy nodes and masteries left out).
+
+- Name: `evaluate.passives` (MCP `pob_evaluate` action `passives`)
+- Read-only: yes; worker: `evaluate.passives`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"candidates":{"description":"Node ids or exact names; each is scored with its path from the allocated tree","minItems":1,"maxItems":200,"type":"array","items":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"}},"fields":{"description":"Output keys to compare (`Minion.<key>` for the minion's) instead of the sidebar stats","maxItems":100,"type":"array","items":{"type":"string","minLength":1,"maxLength":100}},"sortBy":{"description":"Output key; candidates sorted by its gain, largest first (otherwise by node id)","type":"string","minLength":1,"maxLength":100},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"total":{"type":"number"},"offset":{"type":"number"},"sortBy":{"type":"string"},"candidates":{"type":"array","items":{"type":"object","properties":{"id":{"type":"number"},"name":{"type":"string"},"type":{"type":"string"},"points":{"type":"number","description":"Points the candidate and its path cost"},"gain":{"type":"number"},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","boolean","string","null"]},"after":{"type":["number","boolean","string","null"]}},"required":["before","after"]},"description":"Only the stats that differ; null = not shown / absent"}},"required":["id","name","type","points","changed"],"additionalProperties":{}}}},"required":["total","offset","candidates"],"additionalProperties":{}}`
+
 ### `POST /v1/evaluate/:id/node-power`
 
 Passive node power for a stat, from the tree's heat map calculation: unallocated nodes show what allocating gains, allocated nodes what removing changes. Masteries are listed once per effect; cluster notables and ascendancy nodes are left out. Sorted by power, highest first.
@@ -1035,7 +1071,7 @@ What differs between this build and another build: this build's stats as before,
 
 ### `GET /v1/lookup/gems`
 
-Search gems by name and tag, with requirements at a level.
+Search gems by name and tag, with requirements at a level. `requirements` is absent at a `level` the game data has no row for: some gems list levels only up to `naturalMaxLevel` (Convocation stops at 1).
 
 - Name: `lookup.gems` (MCP `pob_lookup` action `gems`)
 - Read-only: yes; worker: `lookup.gems`

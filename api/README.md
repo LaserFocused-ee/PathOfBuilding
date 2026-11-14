@@ -120,6 +120,9 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/builds/:id/restore` | `pob_build` `restore` | Restore a deleted build with its history. |
 | `POST /v1/builds/:id/revert` | `pob_build` `revert` | Make a kept revision current again (as a new revision). |
 | `POST /v1/builds/:id/settings` | `pob_build` `settings` | Character level and the Auto/Manual level mode (auto follows points spent). |
+| `GET /v1/loadouts/:id/list` | `pob_build` `loadout_list` | The Loadouts dropdown: trees whose title matches an item set, a skill set and a config set (or share a `{id}` link), the one in use, and the active set of each tab. A tab with a single set matches every tree. |
+| `POST /v1/loadouts/:id/activate` | `pob_build` `loadout_activate` | Switch tree, item set, skill set and config set to a loadout in one step, as picking it in the Loadouts dropdown does. |
+| `POST /v1/loadouts/:id/new` | `pob_build` `loadout_new` | Make a loadout and switch to it: copies of the active tree, item set, skill set and config set under one title, or with `empty` four new empty sets (New Loadout). The answer lists loadouts that stopped matching (a tab that had one set now has two). |
 | `GET /v1/ui/:id/controls` | `pob_build` `ui_controls` | The controls of a tab by name (name, type, label or text, state, shown, enabled, a dropdown's choices, and the `ui_invoke` actions each takes now). |
 | `POST /v1/ui/:id/invoke` | `pob_build` `ui_invoke` | A stopgap for actions that have no named op: click a button, type in a box, tick a checkbox or pick a dropdown entry on a tab's control, as `ui_controls` lists them. Hidden or disabled controls, actions the control does not take, and controls that save to a file, reach the network or leave the build are refused. |
 | `GET /v1/builds/:id/xml` | `pob_build` `export_xml` | A build's XML at the current or a kept revision. |
@@ -128,7 +131,7 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/builds/:id/save-points` | `pob_build` `save_point` | Mark the current revision as a save point (kept past history pruning). |
 | `GET /v1/builds/:id/history` | `pob_build` `history` | Revisions kept for a build, newest first (last 50 plus save points). |
 | `GET /v1/builds/:id/events` | HTTP only | Server-sent events: `hello` with the current revision, then `change` (revision, cause, changed stats) and `deleted`. |
-| `GET /v1/stats/:id/sidebar` | `pob_stats` `sidebar` | The sidebar stat list as Path of Building shows it: label, value, formatted text. |
+| `GET /v1/stats/:id/sidebar` | `pob_stats` `sidebar` | The sidebar stat list as Path of Building shows it: label, value, formatted text. Labels are not unique (the player's and the minion's `Hit DPS` share one); `key` and `actor` tell them apart. |
 | `GET /v1/stats/:id/output` | `pob_stats` `output` | The full calculated output table; `fields` selects keys. |
 | `GET /v1/stats/:id/skills` | `pob_stats` `skills` | Per-skill outputs for every socket group and the Full DPS total. |
 | `GET /v1/stats/:id/breakdown` | `pob_stats` `breakdown` | How one output value is built (the Calcs tab breakdown). |
@@ -155,14 +158,14 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/tree/:id/spec-delete` | `pob_tree` `spec_delete` | Delete a tree from the tree list (not the last one). |
 | `POST /v1/tree/:id/spec-activate` | `pob_tree` `spec_activate` | Make a tree in the tree list the active one. |
 | `POST /v1/tree/:id/convert` | `pob_tree` `convert` | Convert the active tree to another tree version (default the latest); `keepOld` converts a copy. |
-| `GET /v1/skills/:id/get` | `pob_skills` `get` | The Skills tab: socket groups with their gems and active skills, the main socket group, skill sets and gem options. |
+| `GET /v1/skills/:id/get` | `pob_skills` `get` | The Skills tab: socket groups with their gems and active skills, the main socket group, skill sets and gem options. `mainSocketGroup` is one group number for the whole build, not per skill set (as in Path of Building): it points at the same position in every set. |
 | `GET /v1/skills/:id/group-text` | `pob_skills` `group_text` | A socket group as Path of Building copies it (paste it back with `add_group`). |
 | `POST /v1/skills/:id/add-group` | `pob_skills` `add_group` | Add a socket group from gems or from copy text (the Paste button). Gem names resolve as the gem box does; unknown names fail. |
 | `POST /v1/skills/:id/update-group` | `pob_skills` `update_group` | Change a socket group's label, item slot, enabled and Full DPS flags (and the count of an item-granted group). |
 | `POST /v1/skills/:id/delete-group` | `pob_skills` `delete_group` | Delete a socket group. |
 | `POST /v1/skills/:id/move-group` | `pob_skills` `move_group` | Move a socket group to another position in the list; the main skill stays the same group. |
-| `POST /v1/skills/:id/set-main` | `pob_skills` `set_main` | Make a socket group the main one, and optionally pick which of its active skills is the main skill. |
-| `POST /v1/skills/:id/set-gem` | `pob_skills` `set_gem` | Change a gem of a group (name, level, quality, enabled, count); a position one past the last gem adds one (name required). |
+| `POST /v1/skills/:id/set-main` | `pob_skills` `set_main` | Make a socket group the main one, and optionally pick which of its active skills is the main skill. The main group is one number for the whole build, not per skill set: setting it in one set changes the main group of every set to the group at that position. |
+| `POST /v1/skills/:id/set-gem` | `pob_skills` `set_gem` | Change a gem of a group (name, level, quality, enabled, count); a position one past the last gem adds one (name required), at the level the `defaultGemLevel` option picks unless `level` is given. |
 | `POST /v1/skills/:id/delete-gem` | `pob_skills` `delete_gem` | Remove a gem from a group. |
 | `POST /v1/skills/:id/set-imbued` | `pob_skills` `set_imbued` | Set a group's Imbued Support (needs the group socketed in an item slot), or None to clear it. |
 | `POST /v1/skills/:id/optimise-sockets` | `pob_skills` `optimise_sockets` | Reorder a socketed group's gems to match the item's socket colours (the Optimise Sockets button). |
@@ -209,6 +212,7 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/party/:id/set` | `pob_config` `party_set` | Set party text boxes and toggles; text is parsed (Rebuild All), as when typed in the advanced boxes. |
 | `POST /v1/party/:id/effects` | `pob_config` `party_effects` | Turn party effects off (Disable Party Effects; the data stays) or back on (Rebuild All parses the boxes again). |
 | `POST /v1/evaluate/:id/what-if` | `pob_evaluate` `what_if` | What the build would be with changes, without making them: nodes added or removed, an item in a slot, a flask or tincture toggled, conditions on. Answers only the stats that differ. |
+| `POST /v1/evaluate/:id/passives` | `pob_evaluate` `passives` | Score candidate passives one at a time without allocating them: each with the path that reaches it, through the calculator. Answers the stats that differ per candidate. Default candidates: every unallocated passive next to the allocated tree (ascendancy nodes and masteries left out). |
 | `POST /v1/evaluate/:id/node-power` | `pob_evaluate` `node_power` | Passive node power for a stat, from the tree's heat map calculation: unallocated nodes show what allocating gains, allocated nodes what removing changes. Masteries are listed once per effect; cluster notables and ascendancy nodes are left out. Sorted by power, highest first. |
 | `POST /v1/evaluate/:id/compare-item` | `pob_evaluate` `compare_item` | What an item would change in each slot it fits (default all of them), as the Items tab's comparison shows. |
 | `POST /v1/evaluate/:id/gem-rank` | `pob_evaluate` `gem_rank` | Rank gems for a socket group with the gem box's own calculation: the stat with each candidate in that position, highest first (value is the stat itself, `base` is without the gem). |
@@ -217,7 +221,7 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/evaluate/:id/compare-specs` | `pob_evaluate` `compare_specs` | What switching from one tree to another changes (b against a; a is the active tree by default). |
 | `POST /v1/evaluate/:id/compare-item-sets` | `pob_evaluate` `compare_item_sets` | What switching from one item set to another changes (b against a; a is the active set by default). |
 | `POST /v1/evaluate/:id/compare-builds` | `pob_evaluate` `compare_builds` | What differs between this build and another build: this build's stats as before, the other's as after. |
-| `GET /v1/lookup/gems` | `pob_lookup` `gems` | Search gems by name and tag, with requirements at a level. |
+| `GET /v1/lookup/gems` | `pob_lookup` `gems` | Search gems by name and tag, with requirements at a level. `requirements` is absent at a `level` the game data has no row for: some gems list levels only up to `naturalMaxLevel` (Convocation stops at 1). |
 | `GET /v1/lookup/uniques` | `pob_lookup` `uniques` | Search uniques by name or by a line of their text. |
 | `GET /v1/lookup/bases` | `pob_lookup` `bases` | Search item bases by name and type. |
 | `GET /v1/lookup/nodes` | `pob_lookup` `nodes` | Search passive tree nodes by name or stat text (the tree search box). |

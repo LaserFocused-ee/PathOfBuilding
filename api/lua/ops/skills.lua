@@ -106,6 +106,13 @@ return function(W)
 		for _, gem in ipairs(g.gemList) do
 			if not gem.gemData then W.fail("invalid_input", "unknown gem " .. tostring(gem.nameSpec)) end
 		end
+		-- A gem given without a level gets the one the Default gem level box picks, as a gem added by hand does.
+		if args.text == nil then
+			for i, given in ipairs(args.gems) do
+				if given.level == nil and g.gemList[i] then g.gemList[i].level = tab:ProcessGemLevel(g.gemList[i].gemData) end
+			end
+			tab:ProcessSocketGroup(g)
+		end
 		return { group = #tab.socketGroupList }
 	end)
 

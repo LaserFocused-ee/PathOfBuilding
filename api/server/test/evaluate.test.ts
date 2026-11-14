@@ -199,6 +199,28 @@ void test("node_power: allocated nodes show their removal, masteries one entry p
   assert.deepEqual(full.nodes.map((n) => [n.name, n.pathDist, n.power]), [["Elemental Overload", 5, 2450.8169864801], ["Trickery", 5, 1109.8215415379]]);
 });
 
+type Candidate = { id: number; name: string; type: string; points: number; gain?: number; changed: Changed };
+void test("passives: each candidate scored with its path, sorted by gain; equals allocating it for real; build untouched", async () => {
+  const rev = await revisionOf(base);
+  const before = await code(base);
+  const p = await ev<{ total: number; offset: number; sortBy: string; candidates: Candidate[] }>(base, "passives", { fields: ["CombinedDPS", "Life"], sortBy: "CombinedDPS", limit: 2 });
+  assert.deepEqual([p.total, p.offset, p.sortBy], [19, 0, "CombinedDPS"]);
+  // The same numbers as node_power's next-to-the-tree nodes.
+  assert.deepEqual(p.candidates.map((c) => [c.id, c.name, c.points, c.gain]), [[44983, "Fire Damage", 1, 652.71102623259], [57264, "Spell Damage and Mana", 1, 601.66816666667]]);
+
+  // A node two points away is scored with its path (node_power's pathPower), and that is what allocating it gives.
+  const far = await ev<{ candidates: Candidate[] }>(base, "passives", { candidates: [12852, "Spell Damage and Mana"], fields: ["CombinedDPS"] });
+  assert.deepEqual(far.candidates.map((c) => [c.id, c.points, c.changed.CombinedDPS?.before, c.changed.CombinedDPS?.after]), [[12852, 2, 7672.7473304598, 8836.9145987352], [57264, 1, 7672.7473304598, 8274.4154971265]]);
+  const copy = await dup(base);
+  await mutate("tree", copy, "allocate", { nodes: [12852] });
+  assert.equal(await stat(copy, "CombinedDPS"), far.candidates[0]?.changed.CombinedDPS?.after);
+
+  assert.deepEqual([await revisionOf(base), await code(base)], [rev, before]);
+  fails(await evaluate(base, "passives", { candidates: [2292] }), 400, "invalid_input"); // allocated
+  fails(await evaluate(base, "passives", { candidates: [5726] }), 400, "invalid_input"); // a mastery
+  fails(await evaluate(base, "passives", { fields: ["Life"], sortBy: "CombinedDPS" }), 400, "invalid_input");
+});
+
 void test("gem_rank: the gem box's values; the top support really added, and one swapped in at a position", async () => {
   const r = await ev<{ stat: string; base: number; total: number; gems: Array<{ name: string; value: number }> }>(base, "gem-rank", { group: 1, stat: "CombinedDPS", limit: 3 });
   assert.deepEqual([r.stat, r.base, r.total], ["CombinedDPS", 7672.7473304598, 108]);

@@ -39,9 +39,9 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `builds.set_class` | S | done | `tree.set_class`; edit.test.ts |
 | `builds.set_ascendancy` | H | done | `tree.set_ascendancy`; edit.test.ts |
 | `builds.set_bloodline` | H | done | `tree.set_bloodline`; edit.test.ts |
-| `builds.loadouts.list` | S | open | No combined loadout route; trees, skill sets, item sets and config sets are each listed by their own route |
-| `builds.loadouts.switch` | X | open | Same: switch each set with `tree.spec_activate`, `skills.set_activate`, `items.set_activate`, `config.set_activate` |
-| `builds.loadouts.new` | X | open | Same: add each set with its own `set_new` route |
+| `builds.loadouts.list` | S | done | `build.loadout_list` (Build.lua SyncLoadouts) |
+| `builds.loadouts.switch` | X | done | `build.loadout_activate` (the Loadouts dropdown) |
+| `builds.loadouts.new` | X | done | `build.loadout_new`: copies of the active sets, or `empty` (New Loadout) |
 | `builds.set_main_skill` | S | done | `skills.set_main`, `skills.set_skill_options`; skills.test.ts, skills2.test.ts |
 | `builds.spectre_library` | S | done | `skills.set_spectres`; skills2.test.ts |
 | `builds.progress_estimate` | X | done | `stats.points` (points, ascendancy, required level, act); engine.test.ts |
@@ -95,7 +95,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `tree.search` | S | done | `lookup.nodes`; engine.test.ts |
 | `tree.node_info` / `node_text` | S, H | done | `lookup.node` (stats, links, path length, mastery effects); engine.test.ts. Differences: `evaluate.what_if` |
 | `tree.node_power` | S | done | `evaluate.node_power`; evaluate.test.ts |
-| `tree.power_report` | H | done | `evaluate.node_power` (ranked, paged list); evaluate.test.ts |
+| `tree.power_report` | H | done | `evaluate.node_power` (ranked, paged list); per-candidate stat differences with paths: `evaluate.passives`; evaluate.test.ts |
 | `tree.timeless.search` | S | open | No route |
 | `tree.timeless.read_seed` | H | F3 | Data lookup, not yet routed |
 | `tree.timeless.trade_url` | S | F3 | Trade stage |
@@ -261,7 +261,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 
 | Domain | Total | done | ui | store | not needed | F3 | open |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| builds | 30 | 12 | 0 | 9 | 2 | 0 | 7 |
+| builds | 30 | 15 | 0 | 9 | 2 | 0 | 4 |
 | import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
 | tree | 27 | 18 | 0 | 0 | 0 | 2 | 7 |
 | skills | 17 | 14 | 0 | 0 | 0 | 1 | 2 |
@@ -272,7 +272,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | trade | 11 | 0 | 0 | 0 | 0 | 11 | 0 |
 | notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 102 | 1 | 9 | 8 | 28 | 39 |
+| **Total** | 187 | 105 | 1 | 9 | 8 | 28 | 36 |
 
 ## MCP tools
 
