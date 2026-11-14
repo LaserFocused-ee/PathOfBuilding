@@ -243,7 +243,7 @@ void test("every route refuses an unknown parameter, naming the ones it takes", 
 });
 
 // Query values for routes that need them, per build (OccVortex is on tree 3_13, before masteries).
-const readParams = (id: string): Record<string, string> => ({ key: "Life", query: "Life", nodeId: id === fresh ? "16123" : "46842", to: "Arcane Potency", group: "1" });
+const readParams = (id: string): Record<string, string> => ({ key: "Life", query: "Life", nodeId: id === fresh ? "16123" : "46842", to: "Arcane Potency", group: "1", item: "1" });
 
 /** Path and query for one read-only GET route on a build. */
 const readUrl = (r: (typeof routes)[number], id: string): string => {
@@ -264,7 +264,7 @@ void test("no read-only route changes the build: the session's code is the same 
     const before = ok(await srv.call<{ code: string }>("GET", `/v1/builds/${id}/code`)).code;
     for (const r of reads) {
       const res = await srv.call("GET", readUrl(r, id));
-      if (!(id === occ && r.name === "tree.mastery_options")) assert.equal(res.status, 200, `${r.name} on ${id}: ${JSON.stringify(res.body.error)}`);
+      if (!(id === occ && r.name === "tree.mastery_options") && !(id === fresh && r.name === "items.get")) assert.equal(res.status, 200, `${r.name} on ${id}: ${JSON.stringify(res.body.error)}`);
       const after = ok(await srv.call<{ code: string }>("GET", `/v1/builds/${id}/code`)).code;
       assert.equal(after, before, `${r.name} changed the build`);
     }
@@ -275,7 +275,7 @@ void test("every read-only route's output matches its declared schema, and none 
   for (const r of routes.filter((x) => !x.stream)) assert.ok(!["unknown", "any"].includes(r.output.def.type), `${r.name} declares no output shape`);
   // build.characters asks the game site, which a test must not.
   for (const r of routes.filter((x) => x.method === "GET" && x.readOnly && !x.stream && x.name !== "build.characters")) {
-    const res = await srv.call("GET", readUrl(r, fresh));
+    const res = await srv.call("GET", readUrl(r, r.name === "items.get" ? occ : fresh)); // the fresh build has no items
     assert.equal(res.status, 200, `${r.name}: ${JSON.stringify(res.body.error)}`);
     const parsed = r.output.safeParse(res.body.result);
     assert.ok(parsed.success, `${r.name} output does not match its schema: ${parsed.success ? "" : JSON.stringify(parsed.error.issues.slice(0, 5))}`);
@@ -309,7 +309,7 @@ void test("MCP over HTTP: list tools, read a loaded build's stats, failures are 
   await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${srv.port}/mcp`), { requestInit: { headers: { authorization: `Bearer ${TOKEN}` } } }));
   try {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_lookup", "pob_skills", "pob_stats", "pob_tree"]);
+    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_items", "pob_lookup", "pob_skills", "pob_stats", "pob_tree"]);
     assert.equal(tools.find((t) => t.name === "pob_stats")?.annotations?.readOnlyHint, true);
     const res = await client.callTool({ name: "pob_stats", arguments: { action: "sidebar", id: fresh } });
     assert.ok(!res.isError);
@@ -330,7 +330,7 @@ void test("MCP over stdio lists the same tools", async (t) => {
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(ROOT, "api/server/dist/src/stdio.js")], env: { POB_DATA_DIR: dir.path, HOME: dir.path, LOG_LEVEL: "warn" }, stderr: "ignore" }));
   try {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_lookup", "pob_skills", "pob_stats", "pob_tree"]);
+    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_items", "pob_lookup", "pob_skills", "pob_stats", "pob_tree"]);
   } finally {
     await client.close();
   }

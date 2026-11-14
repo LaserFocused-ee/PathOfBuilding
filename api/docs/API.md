@@ -16,10 +16,11 @@ GET inputs go in the query string (lists comma-separated); POST inputs are a JSO
 | `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `versions` |
 | `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `export_url`, `import_url`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `convert` |
 | `pob_skills` | no | `get`, `group_text`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
+| `pob_items` | no | `list`, `get`, `add`, `add_unique`, `add_rare`, `modify`, `edit`, `anoint`, `enchant`, `craft`, `equip`, `unequip`, `set_active`, `delete`, `weapon_set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `notes`, `set_notes` |
 | `pob_lookup` | yes | `gems`, `uniques`, `bases`, `nodes`, `node`, `config` |
 
-Not yet routed (no actions, so not listed by the server): `pob_items`, `pob_evaluate`, `pob_trade`.
+Not yet routed (no actions, so not listed by the server): `pob_evaluate`, `pob_trade`.
 
 ## Routes
 
@@ -606,6 +607,186 @@ Make a skill set the active one.
 - Name: `skills.set_activate` (MCP `pob_skills` action `set_activate`)
 - Read-only: no; worker: `skills.set_activate`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Skill set number in the set list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/items/:id/list`
+
+The Items tab: every item in the list, every slot with the item in it (and flask active state), item sets, the active weapon set.
+
+- Name: `items.list` (MCP `pob_items` action `list`)
+- Read-only: yes; worker: `items.list`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"number"},"name":{"type":"string"},"baseName":{"type":"string"},"rarity":{"type":"string"},"type":{"type":"string"},"title":{"type":"string"},"quality":{"type":"number"},"sockets":{"type":"string"},"equipped":{"type":"array","items":{"type":"string"}},"corrupted":{"type":"boolean"}},"required":["id","name","baseName","rarity","equipped","corrupted"],"additionalProperties":{}}},"slots":{"type":"array","items":{"type":"object","properties":{"slot":{"type":"string"},"item":{"type":"number"},"active":{"type":"boolean"}},"required":["slot"],"additionalProperties":{}}},"sets":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"title":{"type":"string"},"active":{"type":"boolean"}},"required":["index","title","active"],"additionalProperties":{}}},"weaponSet":{"type":"number"}},"required":["items","slots","sets","weaponSet"],"additionalProperties":{}}`
+
+### `GET /v1/items/:id/get`
+
+One item: its text, mods in force for its selected variant, roll ranges, anoints, variants and the slots it fits.
+
+- Name: `items.get` (MCP `pob_items` action `get`)
+- Read-only: yes; worker: `items.get`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["item","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"number"},"name":{"type":"string"},"baseName":{"type":"string"},"rarity":{"type":"string"},"type":{"type":"string"},"title":{"type":"string"},"quality":{"type":"number"},"sockets":{"type":"string"},"equipped":{"type":"array","items":{"type":"string"}},"corrupted":{"type":"boolean"},"raw":{"type":"string"},"enchants":{"type":"array","items":{"type":"string"}},"implicits":{"type":"array","items":{"type":"string"}},"explicits":{"type":"array","items":{"type":"string"}},"anoints":{"type":"array","items":{"type":"string"}},"variant":{"type":"number"},"altVariant":{"type":"number"},"variants":{"type":"array","items":{"type":"string"}},"ranges":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"line":{"type":"string"},"range":{"type":"number"}},"required":["index","line","range"],"additionalProperties":{}}},"validSlots":{"type":"array","items":{"type":"string"}}},"required":["id","name","baseName","rarity","equipped","corrupted","raw","enchants","implicits","explicits","anoints","ranges","validSlots"],"additionalProperties":{}}`
+
+### `POST /v1/items/:id/add`
+
+Add an item from its text (copied in game or from Path of Building), as Ctrl+V on the item list does. Text Path of Building cannot read fails.
+
+- Name: `items.add` (MCP `pob_items` action `add`)
+- Read-only: no; worker: `items.add`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"type":"string","minLength":1,"maxLength":20000},"equip":{"description":"Where a new item goes: `auto` (default; its own slot, if empty), `none`, or a slot name","type":"string","minLength":1,"maxLength":60},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["text","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/add-unique`
+
+Add a unique from the unique database by name (a `lookup uniques` name or title), optionally with a variant.
+
+- Name: `items.add_unique` (MCP `pob_items` action `add_unique`)
+- Read-only: no; worker: `items.add_unique`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":200},"variant":{"description":"Variant number, from 1, for uniques that have variants","type":"integer","minimum":1,"maximum":100},"equip":{"description":"Where a new item goes: `auto` (default; its own slot, if empty), `none`, or a slot name","type":"string","minLength":1,"maxLength":60},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["name","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/add-rare`
+
+Add a rare from the rare template database by name (e.g. `Armour Helmet`).
+
+- Name: `items.add_rare` (MCP `pob_items` action `add_rare`)
+- Read-only: no; worker: `items.add_rare`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":200},"equip":{"description":"Where a new item goes: `auto` (default; its own slot, if empty), `none`, or a slot name","type":"string","minLength":1,"maxLength":60},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["name","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/modify`
+
+Change an item as its editor does: variant, quality, sockets and links, mod roll ranges, catalyst. Saved over the item.
+
+- Name: `items.modify` (MCP `pob_items` action `modify`)
+- Read-only: no; worker: `items.modify`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"variant":{"type":"integer","minimum":1,"maximum":100},"altVariant":{"description":"Second variant, for items that have one","type":"integer","minimum":1,"maximum":100},"quality":{"type":"integer","minimum":0,"maximum":99},"sockets":{"description":"Socket colours R G B W A with - for links and a space between groups, e.g. `R-G-B B`; only adds sockets","type":"string","minLength":1,"maxLength":40},"ranges":{"maxItems":20,"type":"array","items":{"type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":100,"description":"Position in the item's `ranges`, from 1"},"value":{"type":"number","minimum":0,"maximum":1}},"required":["index","value"]}},"catalyst":{"description":"Crafted rings, amulets and belts: 0 none, 1 Abrasive, 2 Accelerating, 3 Dextral, 4 Fertile, 5 Imbued, 6 Intrinsic, 7 Noxious, 8 Prismatic, 9 Sinistral, 10 Tempering, 11 Turbulent, 12 Unstable","type":"integer","minimum":0,"maximum":12},"catalystQuality":{"type":"integer","minimum":0,"maximum":99},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["item","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/edit`
+
+Replace an item's text (the Edit... button); the item keeps its id and slot. Text Path of Building cannot read fails.
+
+- Name: `items.edit` (MCP `pob_items` action `edit`)
+- Read-only: no; worker: `items.edit`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"text":{"type":"string","minLength":1,"maxLength":20000},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["item","text","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/anoint`
+
+Anoint an amulet (or another anointable item) with notables, one per anoint slot, in order; an empty list removes the anoints.
+
+- Name: `items.anoint` (MCP `pob_items` action `anoint`)
+- Read-only: no; worker: `items.anoint`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"notables":{"maxItems":4,"type":"array","items":{"type":"string","minLength":1,"maxLength":200}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["item","notables","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/enchant`
+
+Enchant an item from the Enchant popup (helmet, gloves, boots, weapon and similar). The enchantment is matched by its text, exactly or by one unique part of it.
+
+- Name: `items.enchant` (MCP `pob_items` action `enchant`)
+- Read-only: no; worker: `items.enchant`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"enchantment":{"type":"string","minLength":1,"maxLength":300},"source":{"description":"Where it comes from, e.g. Eternal Labyrinth (the default is the first listed)","type":"string","minLength":1,"maxLength":100},"skill":{"description":"For skill enchantments (helmets), the skill","type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["item","enchantment","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/craft`
+
+Craft a new item from a base (the Craft item... popup), pick crafting bench mods in its affix boxes, and add it. A mod is matched by the text of its affix box entry, e.g. `+# to maximum Life`.
+
+- Name: `items.craft` (MCP `pob_items` action `craft`)
+- Read-only: no; worker: `items.craft`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"base":{"type":"string","minLength":1,"maxLength":200,"description":"Base type name, e.g. Astral Plate"},"rarity":{"description":"Default RARE","type":"string","enum":["NORMAL","MAGIC","RARE"]},"title":{"type":"string","minLength":1,"maxLength":100},"affixes":{"maxItems":6,"type":"array","items":{"type":"object","properties":{"slot":{"type":"integer","minimum":1,"maximum":6,"description":"Affix box, from 1 (prefixes first)"},"mod":{"type":"string","minLength":1,"maxLength":300},"roll":{"description":"0 to 1 across the mod's tiers and range; default 1","type":"number","minimum":0,"maximum":1}},"required":["slot","mod"]}},"equip":{"description":"Where a new item goes: `auto` (default; its own slot, if empty), `none`, or a slot name","type":"string","minLength":1,"maxLength":60},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["base","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/equip`
+
+Put an item in a slot, as the slot's dropdown does. An item the slot does not take fails.
+
+- Name: `items.equip` (MCP `pob_items` action `equip`)
+- Read-only: no; worker: `items.equip`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"slot":{"type":"string","minLength":1,"maxLength":60,"description":"Item slot as Path of Building names it: Weapon 1, Weapon 2, Weapon 1 Swap, Weapon 2 Swap, Helmet, Body Armour, Gloves, Boots, Amulet, Ring 1, Ring 2, Belt, Flask 1 to Flask 5, or Jewel <node id> for a passive tree socket"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["item","slot","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/unequip`
+
+Empty a slot (the item stays in the list).
+
+- Name: `items.unequip` (MCP `pob_items` action `unequip`)
+- Read-only: no; worker: `items.unequip`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"slot":{"type":"string","minLength":1,"maxLength":60,"description":"Item slot as Path of Building names it: Weapon 1, Weapon 2, Weapon 1 Swap, Weapon 2 Swap, Helmet, Body Armour, Gloves, Boots, Amulet, Ring 1, Ring 2, Belt, Flask 1 to Flask 5, or Jewel <node id> for a passive tree socket"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["slot","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/set-active`
+
+Switch a flask's or tincture's Active box on or off.
+
+- Name: `items.set_active` (MCP `pob_items` action `set_active`)
+- Read-only: no; worker: `items.set_active`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"slot":{"type":"string","minLength":1,"maxLength":60,"description":"Item slot as Path of Building names it: Weapon 1, Weapon 2, Weapon 1 Swap, Weapon 2 Swap, Helmet, Body Armour, Gloves, Boots, Amulet, Ring 1, Ring 2, Belt, Flask 1 to Flask 5, or Jewel <node id> for a passive tree socket"},"active":{"type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["slot","active","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/delete`
+
+Delete an item from the list (it leaves every slot that held it).
+
+- Name: `items.delete` (MCP `pob_items` action `delete`)
+- Read-only: no; worker: `items.delete`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["item","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/weapon-set`
+
+Switch between weapon set 1 and the swap set (the weapon swap buttons).
+
+- Name: `items.weapon_set` (MCP `pob_items` action `weapon_set`)
+- Read-only: no; worker: `items.weapon_set`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"set":{"type":"integer","minimum":1,"maximum":2},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["set","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/set-new`
+
+Add an item set (an empty set of slots).
+
+- Name: `items.set_new` (MCP `pob_items` action `set_new`)
+- Read-only: no; worker: `items.set_new`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/set-copy`
+
+Copy an item set.
+
+- Name: `items.set_copy` (MCP `pob_items` action `set_copy`)
+- Read-only: no; worker: `items.set_copy`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Item set number in the set list, from 1"},"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/set-rename`
+
+Rename an item set.
+
+- Name: `items.set_rename` (MCP `pob_items` action `set_rename`)
+- Read-only: no; worker: `items.set_rename`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Item set number in the set list, from 1"},"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","title","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/set-delete`
+
+Delete an item set (not the last one); its items stay in the list.
+
+- Name: `items.set_delete` (MCP `pob_items` action `set_delete`)
+- Read-only: no; worker: `items.set_delete`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Item set number in the set list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/set-activate`
+
+Make an item set the active one.
+
+- Name: `items.set_activate` (MCP `pob_items` action `set_activate`)
+- Read-only: no; worker: `items.set_activate`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Item set number in the set list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
 
 ### `GET /v1/config/:id/get`

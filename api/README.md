@@ -169,6 +169,26 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/skills/:id/set-rename` | `pob_skills` `set_rename` | Rename a skill set. |
 | `POST /v1/skills/:id/set-delete` | `pob_skills` `set_delete` | Delete a skill set (not the last one). |
 | `POST /v1/skills/:id/set-activate` | `pob_skills` `set_activate` | Make a skill set the active one. |
+| `GET /v1/items/:id/list` | `pob_items` `list` | The Items tab: every item in the list, every slot with the item in it (and flask active state), item sets, the active weapon set. |
+| `GET /v1/items/:id/get` | `pob_items` `get` | One item: its text, mods in force for its selected variant, roll ranges, anoints, variants and the slots it fits. |
+| `POST /v1/items/:id/add` | `pob_items` `add` | Add an item from its text (copied in game or from Path of Building), as Ctrl+V on the item list does. Text Path of Building cannot read fails. |
+| `POST /v1/items/:id/add-unique` | `pob_items` `add_unique` | Add a unique from the unique database by name (a `lookup uniques` name or title), optionally with a variant. |
+| `POST /v1/items/:id/add-rare` | `pob_items` `add_rare` | Add a rare from the rare template database by name (e.g. `Armour Helmet`). |
+| `POST /v1/items/:id/modify` | `pob_items` `modify` | Change an item as its editor does: variant, quality, sockets and links, mod roll ranges, catalyst. Saved over the item. |
+| `POST /v1/items/:id/edit` | `pob_items` `edit` | Replace an item's text (the Edit... button); the item keeps its id and slot. Text Path of Building cannot read fails. |
+| `POST /v1/items/:id/anoint` | `pob_items` `anoint` | Anoint an amulet (or another anointable item) with notables, one per anoint slot, in order; an empty list removes the anoints. |
+| `POST /v1/items/:id/enchant` | `pob_items` `enchant` | Enchant an item from the Enchant popup (helmet, gloves, boots, weapon and similar). The enchantment is matched by its text, exactly or by one unique part of it. |
+| `POST /v1/items/:id/craft` | `pob_items` `craft` | Craft a new item from a base (the Craft item... popup), pick crafting bench mods in its affix boxes, and add it. A mod is matched by the text of its affix box entry, e.g. `+# to maximum Life`. |
+| `POST /v1/items/:id/equip` | `pob_items` `equip` | Put an item in a slot, as the slot's dropdown does. An item the slot does not take fails. |
+| `POST /v1/items/:id/unequip` | `pob_items` `unequip` | Empty a slot (the item stays in the list). |
+| `POST /v1/items/:id/set-active` | `pob_items` `set_active` | Switch a flask's or tincture's Active box on or off. |
+| `POST /v1/items/:id/delete` | `pob_items` `delete` | Delete an item from the list (it leaves every slot that held it). |
+| `POST /v1/items/:id/weapon-set` | `pob_items` `weapon_set` | Switch between weapon set 1 and the swap set (the weapon swap buttons). |
+| `POST /v1/items/:id/set-new` | `pob_items` `set_new` | Add an item set (an empty set of slots). |
+| `POST /v1/items/:id/set-copy` | `pob_items` `set_copy` | Copy an item set. |
+| `POST /v1/items/:id/set-rename` | `pob_items` `set_rename` | Rename an item set. |
+| `POST /v1/items/:id/set-delete` | `pob_items` `set_delete` | Delete an item set (not the last one); its items stay in the list. |
+| `POST /v1/items/:id/set-activate` | `pob_items` `set_activate` | Make an item set the active one. |
 | `GET /v1/config/:id/get` | `pob_config` `get` | Configuration values that differ from default on the active config set, the config set list, level settings. |
 | `POST /v1/config/:id/set` | `pob_config` `set` | Set configuration options (see lookup `config` for names and allowed values); `reset` puts options back to their default. |
 | `POST /v1/config/:id/set-new` | `pob_config` `set_new` | Add a config set. |
