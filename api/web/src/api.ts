@@ -47,10 +47,21 @@ export const api = {
   builds: () => call<{ builds: BuildMeta[] }>("GET", "/v1/builds").then((r) => r.builds),
   build: (id: string) => call<{ build: BuildMeta }>("GET", `/v1/builds/${id}`).then((r) => r.build),
   code: (id: string) => call<{ code: string; revision: number }>("GET", `/v1/builds/${id}/code`),
-  saveCode: async (id: string, code: string, baseRevision: number): Promise<{ revision: number } | "stale"> => {
+  /** Path of Building's downloads, through the server's allow-listed fetch route (upstream status passed back). */
+  fetch: (url: string, headers: Record<string, string>, body: string | undefined) =>
+    call<{ status: number; headers: Record<string, string>; body: string }>("POST", "/v1/fetch", {
+      url,
+      headers,
+      ...(body === undefined ? {} : { body }),
+    }),
+  saveCode: async (
+    id: string,
+    code: string,
+    baseRevision: number,
+  ): Promise<{ revision: number; name: string } | "stale"> => {
     try {
       const r = await call<{ build: BuildMeta }>("PUT", `/v1/builds/${id}/code`, { code, baseRevision });
-      return { revision: r.build.revision };
+      return { revision: r.build.revision, name: r.build.name };
     } catch (error) {
       if (error instanceof ApiError && error.code === "stale_revision") return "stale";
       throw error;

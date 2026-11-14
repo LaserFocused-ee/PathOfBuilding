@@ -39,6 +39,10 @@ The pack step:
 4. packs with pob-web's packer and writes the manifest;
 5. builds the page (`src/`) inside pob-web's workspace with Vite, after a type check against the driver.
 
+Before the driver build, `patches/*.patch` are applied to pob-web (each change is explained in its patch);
+`pob-web-build-name.patch` lets the page pass the server's build name with a build code, so Path of Building's "Current
+build" field shows it instead of "Imported build". The driver is rebuilt when the patches change.
+
 Checks for this directory: `cd api/web && deno task check` (format, lint, type check, unit tests).
 
 ## Serve contract

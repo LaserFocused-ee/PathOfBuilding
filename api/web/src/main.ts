@@ -122,22 +122,47 @@ async function viewPage(id: string) {
     return;
   }
   show("view");
-  text($("#build-name"), meta.name);
-  document.title = `${meta.name} · Path of Building`;
+  // The server's name for the build, shown in the bar and in Path of Building's "Current build".
+  let name = "";
+  const showName = (value: string) => {
+    name = value.replace(/[\r\n]+/g, " ");
+    text($("#build-name"), name);
+    document.title = `${name} · Path of Building`;
+  };
+  showName(meta.name);
+
+  // Frames the driver has drawn; a loaded build counts as shown once frames after the load were drawn.
+  let frames = 0;
+  const frameWaiters: Array<{ at: number; done: () => void }> = [];
+  const drawn = (count: number) =>
+    new Promise<void>((done) => {
+      frameWaiters.push({ at: frames + count, done });
+      setTimeout(done, 15_000); // ponytail: a hidden tab draws no frames; never wait on it forever
+    });
 
   const driver = new Driver("release", __POB_ASSETS__, {
     onError: (error) => console.error(error),
-    onFrame: () => {},
-    // ponytail: Path of Building's own network features (link and character import) are off in the
-    // browser; imports go through the server's API. A same-origin proxy route would turn them on.
-    onFetch: () =>
-      Promise.resolve({
-        body: "",
-        status: undefined,
-        headers: {},
-        error: "Network access is not available in the browser view; import through the API.",
-      }),
-    onOAuthAuthorize: () => Promise.reject(new Error("Account sign-in is not available in the browser view.")),
+    onFrame: () => {
+      frames++;
+      for (let i = frameWaiters.length - 1; i >= 0; i--) {
+        if (frames >= frameWaiters[i].at) frameWaiters.splice(i, 1)[0].done();
+      }
+    },
+    // Path of Building's own downloads (public-profile character import, build links) go through the
+    // server's allow-listed fetch route; the browser never calls those sites itself.
+    onFetch: async (url, headers, body) => {
+      try {
+        return { ...await api.fetch(url, headers, body), error: undefined };
+      } catch (e) {
+        return { body: "", status: undefined, headers: {}, error: e instanceof Error ? e.message : String(e) };
+      }
+    },
+    onOAuthAuthorize: () =>
+      Promise.reject(
+        new Error(
+          "Signing in with a Path of Exile account is not available here: import from a public profile with the account name instead.",
+        ),
+      ),
     onOAuthLogout: () => {},
     onTitleChange: () => {},
   });
@@ -165,11 +190,27 @@ async function viewPage(id: string) {
 
   const sync = new BuildSync(
     {
-      load: () => api.code(id),
-      save: (code, base) => api.saveCode(id, code, base),
+      load: async () => {
+        const [code, latest] = await Promise.all([api.code(id), api.build(id)]);
+        showName(latest.name);
+        return code;
+      },
+      save: async (code, base) => {
+        const saved = await api.saveCode(id, code, base);
+        // ponytail: the bar follows a rename that an overwrite kept; Path of Building's own name field updates on the next load
+        if (saved !== "stale") showName(saved.name);
+        return saved;
+      },
       revision: () => api.build(id).then((b) => b.revision),
     },
-    { load: (code) => driver.loadBuildFromCode(code).then(() => {}), read: () => driver.getBuildCode() },
+    {
+      // Shown, not just parsed: Path of Building applies the build at once but draws it over the next frames.
+      load: async (code) => {
+        await driver.loadBuildFromCode(`${name}\n${code.trim()}`); // named load: patches/pob-web-build-name.patch
+        await drawn(2);
+      },
+      read: () => driver.getBuildCode(),
+    },
     (s) => {
       text(state, describe(s));
       conflict.hidden = s.kind !== "conflict";
