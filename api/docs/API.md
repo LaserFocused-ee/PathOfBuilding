@@ -236,7 +236,7 @@ Per-skill outputs for every socket group and the Full DPS total.
 - Name: `stats.skills` (MCP `pob_stats` action `skills`)
 - Read-only: yes; worker: `stats.skills`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"mainSocketGroup":{"type":"number"},"groups":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"label":{"type":"string"},"slot":{"type":"string"},"enabled":{"type":"boolean"},"includeInFullDPS":{"type":"boolean"},"mainActiveSkill":{"type":"number"},"activeSkills":{"type":"array","items":{"type":"string"}},"gems":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"level":{"type":"number"},"quality":{"type":"number"},"enabled":{"type":"boolean"},"count":{"type":"number"}},"required":["enabled"],"additionalProperties":{}}},"mainSkill":{"type":"string"},"output":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"number"}}},"required":["index","enabled","includeInFullDPS","activeSkills","gems"],"additionalProperties":{}}},"fullDPS":{"type":"object","properties":{"FullDPS":{"type":"number"},"FullDotDPS":{"type":"number"},"skills":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"dps":{"type":"number"},"count":{"type":"number"}},"additionalProperties":{}}}},"required":["skills"],"additionalProperties":{}}},"required":["groups","fullDPS"],"additionalProperties":{}}`
 
 ### `GET /v1/stats/:id/breakdown`
 
@@ -245,7 +245,7 @@ How one output value is built (the Calcs tab breakdown).
 - Name: `stats.breakdown` (MCP `pob_stats` action `breakdown`)
 - Read-only: yes; worker: `stats.breakdown`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"key":{"type":"string","minLength":1,"maxLength":100,"description":"Output key, e.g. Life"},"actor":{"type":"string","enum":["player","minion"]},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["key","id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"key":{"type":"string"},"value":{},"breakdown":{}},"required":["key","breakdown"],"additionalProperties":{}}`
 
 ### `GET /v1/stats/:id/warnings`
 
@@ -263,7 +263,7 @@ Attribute totals and requirements; resistances with total, overcap and maximum.
 - Name: `stats.defences` (MCP `pob_stats` action `defences`)
 - Read-only: yes; worker: `stats.defences`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"attributes":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"number"}},"resistances":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"number"}}}},"required":["attributes","resistances"],"additionalProperties":{}}`
 
 ### `GET /v1/stats/:id/points`
 
@@ -272,7 +272,7 @@ Passive and ascendancy points used and available, required level.
 - Name: `stats.points` (MCP `pob_stats` action `points`)
 - Read-only: yes; worker: `stats.points`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"used":{"type":"number"},"max":{"type":"number"},"ascendancyUsed":{"type":"number"},"ascendancyMax":{"type":"number"},"secondaryAscendancyUsed":{"type":"number"},"jewelSockets":{"type":"number"},"requiredLevel":{"type":"number"},"act":{"type":"string"}},"additionalProperties":{}}`
 
 ### `GET /v1/stats/:id/versions`
 
@@ -281,7 +281,7 @@ Path of Building version, the build's tree version and the latest tree version.
 - Name: `stats.versions` (MCP `pob_stats` action `versions`)
 - Read-only: yes; worker: `stats.versions`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"pobVersion":{"type":"string"},"latestTreeVersion":{"type":"string"},"treeVersion":{"type":"string"},"treeVersionDisplay":{"type":"string"},"targetVersion":{"type":"string"}},"required":["treeVersion"],"additionalProperties":{}}`
 
 ### `GET /v1/tree/:id/get`
 
@@ -290,7 +290,7 @@ The allocated tree: class, ascendancy, bloodline, nodes, masteries, tattoos, jew
 - Name: `tree.get` (MCP `pob_tree` action `get`)
 - Read-only: yes; worker: `tree.get`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"treeVersion":{"type":"string"},"className":{"type":"string"},"ascendancy":{"type":"string"},"bloodline":{"type":"string"},"points":{"type":"number"},"ascendancyPoints":{"type":"number"},"bloodlinePoints":{"type":"number"},"nodes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"number"},"name":{"type":"string"},"type":{"type":"string"},"ascendancy":{"type":"string"},"allocated":{"type":"boolean"}},"required":["id","name","type","allocated"],"additionalProperties":{}}},"masteries":{"type":"array","items":{"type":"object","properties":{"nodeId":{"type":"number"},"effectId":{"type":"number"},"stats":{"type":"array","items":{"type":"string"}}},"required":["nodeId","effectId","stats"],"additionalProperties":{}}},"tattoos":{"type":"array","items":{"type":"object","properties":{"nodeId":{"type":"number"},"name":{"type":"string"},"stats":{"type":"array","items":{"type":"string"}}},"required":["nodeId","name","stats"],"additionalProperties":{}}},"jewelSockets":{"type":"array","items":{"type":"object","properties":{"nodeId":{"type":"number"},"itemId":{"type":"number"}},"required":["nodeId","itemId"],"additionalProperties":{}}},"specs":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"title":{"type":"string"},"treeVersion":{"type":"string"},"className":{"type":"string"},"ascendancy":{"type":"string"},"points":{"type":"number"},"ascendancyPoints":{"type":"number"},"active":{"type":"boolean"}},"required":["index","title","treeVersion","className","points","ascendancyPoints","active"],"additionalProperties":{}}}},"required":["treeVersion","className","points","ascendancyPoints","nodes","masteries","tattoos","jewelSockets","specs"],"additionalProperties":{}}`
 
 ### `POST /v1/tree/:id/set-class`
 
@@ -353,7 +353,7 @@ The effects a mastery node offers and which is selected.
 - Name: `tree.mastery_options` (MCP `pob_tree` action `mastery_options`)
 - Read-only: yes; worker: `tree.mastery_options`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"nodeId":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["nodeId","id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"nodeId":{"type":"number"},"name":{"type":"string"},"allocated":{"type":"boolean"},"effects":{"type":"array","items":{"type":"object","properties":{"effectId":{"type":"number"},"stats":{"type":"array","items":{"type":"string"}},"selected":{"type":"boolean"}},"required":["effectId","stats","selected"],"additionalProperties":{}}}},"required":["nodeId","name","allocated","effects"],"additionalProperties":{}}`
 
 ### `POST /v1/tree/:id/set-mastery`
 
@@ -380,7 +380,7 @@ The tree as a passive tree link (pathofexile.com).
 - Name: `tree.export_url` (MCP `pob_tree` action `export_url`)
 - Read-only: yes; worker: `tree.export_url`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"url":{"type":"string"}},"required":["url"],"additionalProperties":{}}`
 
 ### `POST /v1/tree/:id/import-url`
 
@@ -398,7 +398,7 @@ Shortest path: without `from`, the nodes allocating `to` would add; with it, the
 - Name: `tree.path` (MCP `pob_tree` action `path`)
 - Read-only: yes; worker: `tree.path`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"to":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"},"from":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["to","id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"length":{"type":"number"},"nodes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"number"},"name":{"type":"string"},"type":{"type":"string"},"ascendancy":{"type":"string"},"allocated":{"type":"boolean"}},"required":["id","name","type","allocated"],"additionalProperties":{}}}},"required":["length","nodes"],"additionalProperties":{}}`
 
 ### `POST /v1/tree/:id/spec-new`
 
@@ -461,7 +461,7 @@ Configuration values that differ from default on the active config set, the conf
 - Name: `config.get` (MCP `pob_config` action `get`)
 - Read-only: yes; worker: `config.get`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"values":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{}},"sets":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"title":{"type":"string"},"active":{"type":"boolean"}},"required":["index","title","active"],"additionalProperties":{}}},"level":{"type":"number"},"autoLevel":{"type":"boolean"}},"required":["values","sets","autoLevel"],"additionalProperties":{}}`
 
 ### `POST /v1/config/:id/set`
 
@@ -524,7 +524,7 @@ The build notes (Notes tab), with colour codes.
 - Name: `config.notes` (MCP `pob_config` action `notes`)
 - Read-only: yes; worker: `config.notes`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":{}}`
 
 ### `POST /v1/config/:id/set-notes`
 
@@ -542,7 +542,7 @@ Search gems by name and tag, with requirements at a level.
 - Name: `lookup.gems` (MCP `pob_lookup` action `gems`)
 - Read-only: yes; worker: `lookup.gems`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","maxLength":100},"tag":{"type":"string","maxLength":50},"support":{"type":"boolean"},"level":{"type":"integer","minimum":1,"maximum":40},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"total":{"type":"number"},"offset":{"type":"number"},"gems":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"support":{"type":"boolean"},"tags":{"type":"array","items":{"type":"string"}},"tagString":{"type":"string"},"naturalMaxLevel":{"type":"number"},"description":{"type":"string"},"requirements":{"type":"object","properties":{"gemLevel":{"type":"number"},"level":{"type":"number"},"str":{"type":"number"},"dex":{"type":"number"},"int":{"type":"number"}},"required":["gemLevel","level","str","dex","int"],"additionalProperties":{}}},"required":["id","name","support","tags"],"additionalProperties":{}}}},"required":["total","offset","gems"],"additionalProperties":{}}`
 
 ### `GET /v1/lookup/uniques`
 
@@ -551,7 +551,7 @@ Search uniques by name or by a line of their text.
 - Name: `lookup.uniques` (MCP `pob_lookup` action `uniques`)
 - Read-only: yes; worker: `lookup.uniques`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","maxLength":100},"text":{"type":"string","maxLength":200},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"total":{"type":"number"},"offset":{"type":"number"},"uniques":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"title":{"type":"string"},"base":{"type":"string"},"type":{"type":"string"},"variants":{"type":"number"},"text":{"type":"string"}},"required":["name","text"],"additionalProperties":{}}}},"required":["total","offset","uniques"],"additionalProperties":{}}`
 
 ### `GET /v1/lookup/bases`
 
@@ -560,7 +560,7 @@ Search item bases by name and type.
 - Name: `lookup.bases` (MCP `pob_lookup` action `bases`)
 - Read-only: yes; worker: `lookup.bases`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","maxLength":100},"type":{"type":"string","maxLength":50},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"total":{"type":"number"},"offset":{"type":"number"},"bases":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":{}}}},"required":["total","offset","bases"],"additionalProperties":{}}`
 
 ### `GET /v1/lookup/nodes`
 
@@ -569,7 +569,7 @@ Search passive tree nodes by name or stat text (the tree search box).
 - Name: `lookup.nodes` (MCP `pob_lookup` action `nodes`)
 - Read-only: yes; worker: `lookup.nodes`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","minLength":1,"maxLength":200},"type":{"description":"Normal, Notable, Keystone, Mastery, Socket, ...","type":"string","maxLength":30},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}},"required":["query"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"total":{"type":"number"},"offset":{"type":"number"},"treeVersion":{"type":"string"},"nodes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"number"},"name":{"type":"string"},"type":{"type":"string"},"ascendancy":{"type":"string"},"allocated":{"type":"boolean"},"stats":{"type":"array","items":{"type":"string"}}},"required":["id","name","type","allocated","stats"],"additionalProperties":{}}}},"required":["total","offset","treeVersion","nodes"],"additionalProperties":{}}`
 
 ### `GET /v1/lookup/nodes/:nodeId`
 
@@ -578,7 +578,7 @@ One passive node: stats, links, path length from the current tree, mastery effec
 - Name: `lookup.node` (MCP `pob_lookup` action `node`)
 - Read-only: yes; worker: `lookup.node`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"nodeId":{"type":"integer","minimum":0,"maximum":9007199254740991},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}},"required":["nodeId"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"number"},"name":{"type":"string"},"type":{"type":"string"},"ascendancy":{"type":"string"},"allocated":{"type":"boolean"},"stats":{"type":"array","items":{"type":"string"}},"linked":{"type":"array","items":{"type":"number"}},"pathLength":{"type":"number"},"reminderText":{},"flavourText":{},"masteryEffects":{"type":"array","items":{"type":"object","properties":{"effect":{"type":"number"},"stats":{"type":"array","items":{"type":"string"}}},"required":["effect","stats"],"additionalProperties":{}}},"selectedMasteryEffect":{"type":"number"}},"required":["id","name","type","allocated","stats","linked"],"additionalProperties":{}}`
 
 ### `GET /v1/lookup/config`
 
@@ -587,4 +587,4 @@ The configuration option catalogue: type, section, allowed values, current value
 - Name: `lookup.config` (MCP `pob_lookup` action `config`)
 - Read-only: yes; worker: `lookup.config`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"section":{"type":"string","maxLength":100},"query":{"type":"string","maxLength":100},"var":{"type":"string","maxLength":100},"relevantOnly":{"description":"Only options that apply to this build","type":"boolean"},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"total":{"type":"number"},"offset":{"type":"number"},"options":{"type":"array","items":{"type":"object","properties":{"var":{"type":"string"},"type":{"type":"string"},"label":{"type":"string"},"section":{"type":"string"},"current":{},"placeholder":{},"relevant":{"type":"boolean"},"allowed":{"type":"array","items":{"type":"object","properties":{"value":{},"label":{"type":"string"}},"required":["value","label"],"additionalProperties":{}}},"default":{},"tooltip":{"type":"string"}},"required":["var","label"],"additionalProperties":{}}}},"required":["total","offset","options"],"additionalProperties":{}}`

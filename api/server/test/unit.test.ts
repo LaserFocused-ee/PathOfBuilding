@@ -22,12 +22,12 @@ const rejects = (code: string) => (e: unknown) => e instanceof ApiError && e.cod
 void test("config: requires a 32+ character token, treats empty strings as unset, applies defaults", () => {
   assert.throws(() => loadConfig({}), /POB_API_TOKEN/);
   assert.throws(() => loadConfig({ POB_API_TOKEN: "short" }), /at least 32/);
-  const cfg = loadConfig({ POB_API_TOKEN: TOKEN, SENTRY_DSN: "", HOME: "/home/x" });
+  const cfg = loadConfig({ POB_API_TOKEN: TOKEN, SENTRY_DSN: "", HOME: "/srv/user" });
   assert.equal(cfg.host, "127.0.0.1");
   assert.equal(cfg.port, 8730);
   assert.equal(cfg.sentryDsn, undefined);
   assert.equal(cfg.historyKeep, 50);
-  assert.equal(cfg.dataDir, "/home/x/.local/share/pob-api");
+  assert.equal(cfg.dataDir, "/srv/user/.local/share/pob-api");
   assert.equal(cfg.runtimeDir, join(ROOT, "api/runtime/rt"));
   assert.throws(() => loadConfig({ POB_API_TOKEN: TOKEN, PORT: "abc" }), /PORT/);
 });
