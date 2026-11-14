@@ -136,8 +136,18 @@ const nodeBrief = z.looseObject({ id: z.number(), name: z.string(), type: z.stri
 const nodeDetail = nodeBrief.extend({ stats: strings });
 const pageOf = <K extends string, T extends z.ZodType>(key: K, item: T) => z.looseObject({ total: z.number(), offset: z.number(), [key]: z.array(item) });
 const specSummary = z.looseObject({ index: z.number(), title: z.string(), treeVersion: z.string(), className: z.string(), ascendancy: z.string().optional(), points: z.number(), ascendancyPoints: z.number(), active: z.boolean() });
-const configSets = z.array(z.looseObject({ index: z.number(), title: z.string(), active: z.boolean() }));
+const setList = z.array(z.looseObject({ index: z.number(), title: z.string(), active: z.boolean() }));
 const skillOutput = z.record(z.string(), z.number());
+
+const groupRef = z.number().int().min(1).max(500).describe("Socket group number in the group list, from 1");
+const gemRef = z.number().int().min(1).max(100).describe("Gem position in the group, from 1");
+const gemLevel = z.number().int().min(1).max(40).describe("Gem level (1-40)");
+const gemQuality = z.number().int().min(0).max(23).describe("Gem quality (0-23)");
+const gemCount = z.number().int().min(1).max(99).describe("Gem count");
+const groupLabel = z.string().trim().max(50).describe("Group label (up to 50 characters)");
+const groupSlot = z.string().min(1).max(50).describe("Item slot name such as Body Armour or Weapon 1, or None");
+const skillGem = z.object({ name: z.string().trim().min(1).max(100), level: gemLevel.optional(), quality: gemQuality.optional(), enabled: z.boolean().optional(), count: gemCount.optional() });
+const gemOptions = z.object({ defaultGemLevel: z.string(), defaultGemQuality: z.number().optional(), showSupportGemTypes: z.string(), showLegacyGems: z.boolean() });
 
 const nodeRef = z.union([z.number().int().min(0), z.string().trim().min(1).max(200)]).describe("Node id, or its exact name");
 const nodeList = z.array(nodeRef).min(1).max(200);
@@ -229,8 +239,27 @@ export const routes: Route[] = [
   mutateRoute("tree", "tree", "spec_activate", "Make a tree in the tree list the active one.", z.object({ index: specIndex }), ["index"]),
   mutateRoute("tree", "tree", "convert", "Convert the active tree to another tree version (default the latest); `keepOld` converts a copy.", z.object({ version: treeVersion.optional(), keepOld: z.boolean().optional() }), ["version", "keepOld"]),
 
+  // skills
+  readRoute("skills", "skills", "get", "The Skills tab: socket groups with their gems and active skills, the main socket group, skill sets and gem options.", z.object({}), z.looseObject({ mainSocketGroup: z.number(), groups: z.array(z.looseObject({ index: z.number(), label: z.string(), slot: z.string().optional(), enabled: z.boolean(), includeInFullDPS: z.boolean(), gems: z.array(z.looseObject({ index: z.number(), name: z.string(), level: z.number(), quality: z.number(), enabled: z.boolean(), count: z.number(), support: z.boolean(), error: z.string().optional() })), activeSkills: strings, mainActiveSkill: z.number().optional(), main: z.boolean() })), sets: setList, options: gemOptions })),
+  readRoute("skills", "skills", "group_text", "A socket group as Path of Building copies it (paste it back with `add_group`).", z.object({ group: groupRef }), z.looseObject({ text: z.string() }), ["group"]),
+  mutateRoute("skills", "skills", "add_group", "Add a socket group from gems or from copy text (the Paste button). Gem names resolve as the gem box does; unknown names fail.", z.object({ text: z.string().min(1).max(20000).optional().describe("Copy format: optional `Label:` and `Slot:` lines, then `<gem> <level>/<quality> [DISABLED] <count>` per line"), gems: z.array(skillGem).min(1).max(12).optional().describe("Gems of the group, in order; level defaults to 20"), label: groupLabel.optional(), slot: groupSlot.optional() }), ["text", "gems", "label", "slot"]),
+  mutateRoute("skills", "skills", "update_group", "Change a socket group's label, item slot, enabled and Full DPS flags (and the count of an item-granted group).", z.object({ group: groupRef, label: groupLabel.optional(), slot: groupSlot.optional(), enabled: z.boolean().optional(), includeInFullDPS: z.boolean().optional(), count: gemCount.optional() }), ["group", "label", "slot", "enabled", "includeInFullDPS", "count"]),
+  mutateRoute("skills", "skills", "delete_group", "Delete a socket group.", z.object({ group: groupRef }), ["group"]),
+  mutateRoute("skills", "skills", "move_group", "Move a socket group to another position in the list; the main skill stays the same group.", z.object({ group: groupRef, to: groupRef.describe("New position, from 1") }), ["group", "to"]),
+  mutateRoute("skills", "skills", "set_main", "Make a socket group the main one, and optionally pick which of its active skills is the main skill.", z.object({ group: groupRef, skill: z.number().int().min(1).max(50).optional().describe("Active skill number in the group's `activeSkills`, from 1") }), ["group", "skill"]),
+  mutateRoute("skills", "skills", "set_gem", "Change a gem of a group (name, level, quality, enabled, count); a position one past the last gem adds one (name required).", z.object({ group: groupRef, gem: gemRef, name: z.string().trim().min(1).max(100).optional().describe("Gem name; the ` Support` suffix is optional"), level: gemLevel.optional(), quality: gemQuality.optional(), enabled: z.boolean().optional(), count: gemCount.optional() }), ["group", "gem", "name", "level", "quality", "enabled", "count"]),
+  mutateRoute("skills", "skills", "delete_gem", "Remove a gem from a group.", z.object({ group: groupRef, gem: gemRef }), ["group", "gem"]),
+  mutateRoute("skills", "skills", "set_imbued", "Set a group's Imbued Support (needs the group socketed in an item slot), or None to clear it.", z.object({ group: groupRef, name: z.string().trim().min(1).max(100).describe("A support gem name, or None") }), ["group", "name"]),
+  mutateRoute("skills", "skills", "optimise_sockets", "Reorder a socketed group's gems to match the item's socket colours (the Optimise Sockets button).", z.object({ group: groupRef }), ["group"]),
+  mutateRoute("skills", "skills", "set_options", "Skills tab gem options: default gem level and quality, which support gems the gem box shows, legacy gems.", z.object({ defaultGemLevel: z.enum(["normalMaximum", "corruptedMaximum", "awakenedMaximum", "characterLevel", "levelOne"]).optional(), defaultGemQuality: gemQuality.optional(), showSupportGemTypes: z.enum(["ALL", "NORMAL", "EXCEPTIONAL"]).optional().describe("NORMAL = non-exceptional"), showLegacyGems: z.boolean().optional() }), ["defaultGemLevel", "defaultGemQuality", "showSupportGemTypes", "showLegacyGems"]),
+  mutateRoute("skills", "skills", "set_new", "Add a skill set.", z.object({ title: title.optional() }), ["title"]),
+  mutateRoute("skills", "skills", "set_copy", "Copy a skill set.", z.object({ index: setIndex.describe("Skill set number in the set list, from 1"), title: title.optional() }), ["index", "title"]),
+  mutateRoute("skills", "skills", "set_rename", "Rename a skill set.", z.object({ index: setIndex.describe("Skill set number in the set list, from 1"), title }), ["index", "title"]),
+  mutateRoute("skills", "skills", "set_delete", "Delete a skill set (not the last one).", z.object({ index: setIndex.describe("Skill set number in the set list, from 1") }), ["index"]),
+  mutateRoute("skills", "skills", "set_activate", "Make a skill set the active one.", z.object({ index: setIndex.describe("Skill set number in the set list, from 1") }), ["index"]),
+
   // config
-  readRoute("config", "config", "get", "Configuration values that differ from default on the active config set, the config set list, level settings.", z.object({}), z.looseObject({ values: z.record(z.string(), z.unknown()), sets: configSets, level: z.number().optional(), autoLevel: z.boolean() })),
+  readRoute("config", "config", "get", "Configuration values that differ from default on the active config set, the config set list, level settings.", z.object({}), z.looseObject({ values: z.record(z.string(), z.unknown()), sets: setList, level: z.number().optional(), autoLevel: z.boolean() })),
   mutateRoute("config", "config", "set", "Set configuration options (see lookup `config` for names and allowed values); `reset` puts options back to their default.", z.object({ values: z.record(z.string().min(1).max(100), configValue).optional(), reset: z.array(z.string().min(1).max(100)).max(500).optional() }), ["values", "reset"]),
   mutateRoute("config", "config", "set_new", "Add a config set.", z.object({ title: title.optional() }), ["title"]),
   mutateRoute("config", "config", "set_copy", "Copy a config set.", z.object({ index: setIndex, title: title.optional() }), ["index", "title"]),

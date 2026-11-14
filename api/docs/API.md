@@ -15,10 +15,11 @@ GET inputs go in the query string (lists comma-separated); POST inputs are a JSO
 | `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `export_xml`, `replace_code`, `export_code`, `save_point`, `history` |
 | `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `versions` |
 | `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `export_url`, `import_url`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `convert` |
+| `pob_skills` | no | `get`, `group_text`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `notes`, `set_notes` |
 | `pob_lookup` | yes | `gems`, `uniques`, `bases`, `nodes`, `node`, `config` |
 
-Not yet routed (no actions, so not listed by the server): `pob_skills`, `pob_items`, `pob_evaluate`, `pob_trade`.
+Not yet routed (no actions, so not listed by the server): `pob_items`, `pob_evaluate`, `pob_trade`.
 
 ## Routes
 
@@ -452,6 +453,159 @@ Convert the active tree to another tree version (default the latest); `keepOld` 
 - Name: `tree.convert` (MCP `pob_tree` action `convert`)
 - Read-only: no; worker: `tree.convert`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"version":{"type":"string","pattern":"^\\d+_\\d+(_[a-z]+)?$","description":"e.g. 3_30"},"keepOld":{"type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/skills/:id/get`
+
+The Skills tab: socket groups with their gems and active skills, the main socket group, skill sets and gem options.
+
+- Name: `skills.get` (MCP `pob_skills` action `get`)
+- Read-only: yes; worker: `skills.get`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"mainSocketGroup":{"type":"number"},"groups":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"label":{"type":"string"},"slot":{"type":"string"},"enabled":{"type":"boolean"},"includeInFullDPS":{"type":"boolean"},"gems":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"name":{"type":"string"},"level":{"type":"number"},"quality":{"type":"number"},"enabled":{"type":"boolean"},"count":{"type":"number"},"support":{"type":"boolean"},"error":{"type":"string"}},"required":["index","name","level","quality","enabled","count","support"],"additionalProperties":{}}},"activeSkills":{"type":"array","items":{"type":"string"}},"mainActiveSkill":{"type":"number"},"main":{"type":"boolean"}},"required":["index","label","enabled","includeInFullDPS","gems","activeSkills","main"],"additionalProperties":{}}},"sets":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"title":{"type":"string"},"active":{"type":"boolean"}},"required":["index","title","active"],"additionalProperties":{}}},"options":{"type":"object","properties":{"defaultGemLevel":{"type":"string"},"defaultGemQuality":{"type":"number"},"showSupportGemTypes":{"type":"string"},"showLegacyGems":{"type":"boolean"}},"required":["defaultGemLevel","showSupportGemTypes","showLegacyGems"]}},"required":["mainSocketGroup","groups","sets","options"],"additionalProperties":{}}`
+
+### `GET /v1/skills/:id/group-text`
+
+A socket group as Path of Building copies it (paste it back with `add_group`).
+
+- Name: `skills.group_text` (MCP `pob_skills` action `group_text`)
+- Read-only: yes; worker: `skills.group_text`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["group","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":{}}`
+
+### `POST /v1/skills/:id/add-group`
+
+Add a socket group from gems or from copy text (the Paste button). Gem names resolve as the gem box does; unknown names fail.
+
+- Name: `skills.add_group` (MCP `pob_skills` action `add_group`)
+- Read-only: no; worker: `skills.add_group`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"description":"Copy format: optional `Label:` and `Slot:` lines, then `<gem> <level>/<quality> [DISABLED] <count>` per line","type":"string","minLength":1,"maxLength":20000},"gems":{"description":"Gems of the group, in order; level defaults to 20","minItems":1,"maxItems":12,"type":"array","items":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":100},"level":{"type":"integer","minimum":1,"maximum":40,"description":"Gem level (1-40)"},"quality":{"type":"integer","minimum":0,"maximum":23,"description":"Gem quality (0-23)"},"enabled":{"type":"boolean"},"count":{"type":"integer","minimum":1,"maximum":99,"description":"Gem count"}},"required":["name"]}},"label":{"type":"string","maxLength":50,"description":"Group label (up to 50 characters)"},"slot":{"type":"string","minLength":1,"maxLength":50,"description":"Item slot name such as Body Armour or Weapon 1, or None"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/update-group`
+
+Change a socket group's label, item slot, enabled and Full DPS flags (and the count of an item-granted group).
+
+- Name: `skills.update_group` (MCP `pob_skills` action `update_group`)
+- Read-only: no; worker: `skills.update_group`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"label":{"type":"string","maxLength":50,"description":"Group label (up to 50 characters)"},"slot":{"type":"string","minLength":1,"maxLength":50,"description":"Item slot name such as Body Armour or Weapon 1, or None"},"enabled":{"type":"boolean"},"includeInFullDPS":{"type":"boolean"},"count":{"type":"integer","minimum":1,"maximum":99,"description":"Gem count"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["group","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/delete-group`
+
+Delete a socket group.
+
+- Name: `skills.delete_group` (MCP `pob_skills` action `delete_group`)
+- Read-only: no; worker: `skills.delete_group`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["group","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/move-group`
+
+Move a socket group to another position in the list; the main skill stays the same group.
+
+- Name: `skills.move_group` (MCP `pob_skills` action `move_group`)
+- Read-only: no; worker: `skills.move_group`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"to":{"type":"integer","minimum":1,"maximum":500,"description":"New position, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["group","to","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/set-main`
+
+Make a socket group the main one, and optionally pick which of its active skills is the main skill.
+
+- Name: `skills.set_main` (MCP `pob_skills` action `set_main`)
+- Read-only: no; worker: `skills.set_main`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"skill":{"description":"Active skill number in the group's `activeSkills`, from 1","type":"integer","minimum":1,"maximum":50},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["group","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/set-gem`
+
+Change a gem of a group (name, level, quality, enabled, count); a position one past the last gem adds one (name required).
+
+- Name: `skills.set_gem` (MCP `pob_skills` action `set_gem`)
+- Read-only: no; worker: `skills.set_gem`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"gem":{"type":"integer","minimum":1,"maximum":100,"description":"Gem position in the group, from 1"},"name":{"description":"Gem name; the ` Support` suffix is optional","type":"string","minLength":1,"maxLength":100},"level":{"type":"integer","minimum":1,"maximum":40,"description":"Gem level (1-40)"},"quality":{"type":"integer","minimum":0,"maximum":23,"description":"Gem quality (0-23)"},"enabled":{"type":"boolean"},"count":{"type":"integer","minimum":1,"maximum":99,"description":"Gem count"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["group","gem","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/delete-gem`
+
+Remove a gem from a group.
+
+- Name: `skills.delete_gem` (MCP `pob_skills` action `delete_gem`)
+- Read-only: no; worker: `skills.delete_gem`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"gem":{"type":"integer","minimum":1,"maximum":100,"description":"Gem position in the group, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["group","gem","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/set-imbued`
+
+Set a group's Imbued Support (needs the group socketed in an item slot), or None to clear it.
+
+- Name: `skills.set_imbued` (MCP `pob_skills` action `set_imbued`)
+- Read-only: no; worker: `skills.set_imbued`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"name":{"type":"string","minLength":1,"maxLength":100,"description":"A support gem name, or None"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["group","name","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/optimise-sockets`
+
+Reorder a socketed group's gems to match the item's socket colours (the Optimise Sockets button).
+
+- Name: `skills.optimise_sockets` (MCP `pob_skills` action `optimise_sockets`)
+- Read-only: no; worker: `skills.optimise_sockets`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["group","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/set-options`
+
+Skills tab gem options: default gem level and quality, which support gems the gem box shows, legacy gems.
+
+- Name: `skills.set_options` (MCP `pob_skills` action `set_options`)
+- Read-only: no; worker: `skills.set_options`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"defaultGemLevel":{"type":"string","enum":["normalMaximum","corruptedMaximum","awakenedMaximum","characterLevel","levelOne"]},"defaultGemQuality":{"type":"integer","minimum":0,"maximum":23,"description":"Gem quality (0-23)"},"showSupportGemTypes":{"description":"NORMAL = non-exceptional","type":"string","enum":["ALL","NORMAL","EXCEPTIONAL"]},"showLegacyGems":{"type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/set-new`
+
+Add a skill set.
+
+- Name: `skills.set_new` (MCP `pob_skills` action `set_new`)
+- Read-only: no; worker: `skills.set_new`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/set-copy`
+
+Copy a skill set.
+
+- Name: `skills.set_copy` (MCP `pob_skills` action `set_copy`)
+- Read-only: no; worker: `skills.set_copy`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Skill set number in the set list, from 1"},"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/set-rename`
+
+Rename a skill set.
+
+- Name: `skills.set_rename` (MCP `pob_skills` action `set_rename`)
+- Read-only: no; worker: `skills.set_rename`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Skill set number in the set list, from 1"},"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","title","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/set-delete`
+
+Delete a skill set (not the last one).
+
+- Name: `skills.set_delete` (MCP `pob_skills` action `set_delete`)
+- Read-only: no; worker: `skills.set_delete`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Skill set number in the set list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/set-activate`
+
+Make a skill set the active one.
+
+- Name: `skills.set_activate` (MCP `pob_skills` action `set_activate`)
+- Read-only: no; worker: `skills.set_activate`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Skill set number in the set list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
 
 ### `GET /v1/config/:id/get`

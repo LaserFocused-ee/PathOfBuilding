@@ -152,6 +152,23 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/tree/:id/spec-delete` | `pob_tree` `spec_delete` | Delete a tree from the tree list (not the last one). |
 | `POST /v1/tree/:id/spec-activate` | `pob_tree` `spec_activate` | Make a tree in the tree list the active one. |
 | `POST /v1/tree/:id/convert` | `pob_tree` `convert` | Convert the active tree to another tree version (default the latest); `keepOld` converts a copy. |
+| `GET /v1/skills/:id/get` | `pob_skills` `get` | The Skills tab: socket groups with their gems and active skills, the main socket group, skill sets and gem options. |
+| `GET /v1/skills/:id/group-text` | `pob_skills` `group_text` | A socket group as Path of Building copies it (paste it back with `add_group`). |
+| `POST /v1/skills/:id/add-group` | `pob_skills` `add_group` | Add a socket group from gems or from copy text (the Paste button). Gem names resolve as the gem box does; unknown names fail. |
+| `POST /v1/skills/:id/update-group` | `pob_skills` `update_group` | Change a socket group's label, item slot, enabled and Full DPS flags (and the count of an item-granted group). |
+| `POST /v1/skills/:id/delete-group` | `pob_skills` `delete_group` | Delete a socket group. |
+| `POST /v1/skills/:id/move-group` | `pob_skills` `move_group` | Move a socket group to another position in the list; the main skill stays the same group. |
+| `POST /v1/skills/:id/set-main` | `pob_skills` `set_main` | Make a socket group the main one, and optionally pick which of its active skills is the main skill. |
+| `POST /v1/skills/:id/set-gem` | `pob_skills` `set_gem` | Change a gem of a group (name, level, quality, enabled, count); a position one past the last gem adds one (name required). |
+| `POST /v1/skills/:id/delete-gem` | `pob_skills` `delete_gem` | Remove a gem from a group. |
+| `POST /v1/skills/:id/set-imbued` | `pob_skills` `set_imbued` | Set a group's Imbued Support (needs the group socketed in an item slot), or None to clear it. |
+| `POST /v1/skills/:id/optimise-sockets` | `pob_skills` `optimise_sockets` | Reorder a socketed group's gems to match the item's socket colours (the Optimise Sockets button). |
+| `POST /v1/skills/:id/set-options` | `pob_skills` `set_options` | Skills tab gem options: default gem level and quality, which support gems the gem box shows, legacy gems. |
+| `POST /v1/skills/:id/set-new` | `pob_skills` `set_new` | Add a skill set. |
+| `POST /v1/skills/:id/set-copy` | `pob_skills` `set_copy` | Copy a skill set. |
+| `POST /v1/skills/:id/set-rename` | `pob_skills` `set_rename` | Rename a skill set. |
+| `POST /v1/skills/:id/set-delete` | `pob_skills` `set_delete` | Delete a skill set (not the last one). |
+| `POST /v1/skills/:id/set-activate` | `pob_skills` `set_activate` | Make a skill set the active one. |
 | `GET /v1/config/:id/get` | `pob_config` `get` | Configuration values that differ from default on the active config set, the config set list, level settings. |
 | `POST /v1/config/:id/set` | `pob_config` `set` | Set configuration options (see lookup `config` for names and allowed values); `reset` puts options back to their default. |
 | `POST /v1/config/:id/set-new` | `pob_config` `set_new` | Add a config set. |

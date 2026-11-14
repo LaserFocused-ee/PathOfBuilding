@@ -243,7 +243,7 @@ void test("every route refuses an unknown parameter, naming the ones it takes", 
 });
 
 // Query values for routes that need them, per build (OccVortex is on tree 3_13, before masteries).
-const readParams = (id: string): Record<string, string> => ({ key: "Life", query: "Life", nodeId: id === fresh ? "16123" : "46842", to: "Arcane Potency" });
+const readParams = (id: string): Record<string, string> => ({ key: "Life", query: "Life", nodeId: id === fresh ? "16123" : "46842", to: "Arcane Potency", group: "1" });
 
 /** Path and query for one read-only GET route on a build. */
 const readUrl = (r: (typeof routes)[number], id: string): string => {
@@ -309,7 +309,7 @@ void test("MCP over HTTP: list tools, read a loaded build's stats, failures are 
   await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${srv.port}/mcp`), { requestInit: { headers: { authorization: `Bearer ${TOKEN}` } } }));
   try {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_lookup", "pob_stats", "pob_tree"]);
+    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_lookup", "pob_skills", "pob_stats", "pob_tree"]);
     assert.equal(tools.find((t) => t.name === "pob_stats")?.annotations?.readOnlyHint, true);
     const res = await client.callTool({ name: "pob_stats", arguments: { action: "sidebar", id: fresh } });
     assert.ok(!res.isError);
@@ -330,7 +330,7 @@ void test("MCP over stdio lists the same tools", async (t) => {
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(ROOT, "api/server/dist/src/stdio.js")], env: { POB_DATA_DIR: dir.path, HOME: dir.path, LOG_LEVEL: "warn" }, stderr: "ignore" }));
   try {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_lookup", "pob_stats", "pob_tree"]);
+    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_lookup", "pob_skills", "pob_stats", "pob_tree"]);
   } finally {
     await client.close();
   }
