@@ -70,7 +70,7 @@ void test("fetch: only https on allowlisted hosts, redirects re-checked, size ca
     return Promise.resolve(next());
   };
   next = () => new Response(null, { status: 302, headers: { location: "https://169.254.169.254/latest" } });
-  await assert.rejects(f.text("https://pobb.in/abc/raw", "t"), rejects("invalid_input"));
+  await assert.rejects(f.text("https://pobb.in/abc/raw", "t"), rejects("upstream_fetch_failed"));
   assert.deepEqual(seen, ["https://pobb.in/abc/raw"]);
   next = () => new Response("0123456789abcdef");
   await assert.rejects(f.text("https://pobb.in/abc/raw", "t"), rejects("upstream_fetch_failed"));

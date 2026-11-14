@@ -28,6 +28,7 @@ after(async () => {
 
 void test("the built page is served at / with isolation headers, exact types and cache rules; nothing else falls back to it", async () => {
   const isolated = (r: Response) => [r.headers.get("cross-origin-opener-policy"), r.headers.get("cross-origin-embedder-policy"), r.headers.get("cross-origin-resource-policy"), r.headers.get("x-content-type-options")];
+  assert.equal((await fetch(`${base}/`)).headers.get("content-security-policy"), "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
   const index = await fetch(`${base}/`);
   assert.equal(index.status, 200);
   assert.equal(await index.text(), "<!doctype html><title>pob</title>");
@@ -89,6 +90,22 @@ void test("a session cookie from POST /v1/session authenticates /v1 (events too)
   assert.match(out.headers.get("set-cookie") ?? "", /^pob_session=; Path=\/; HttpOnly; SameSite=Strict; Max-Age=0$/);
   assert.equal((await fetch(`${base}/v1/builds`, { headers: { cookie: jar } })).status, 401, "the session is gone");
   assert.equal((await fetch(`${base}/v1/builds`, { headers: { cookie: "pob_session=forged" } })).status, 401);
+
+  // Behind a TLS proxy with POB_PUBLIC_ORIGIN set: a __Host- cookie, always Secure, and only that origin may change things.
+  const pub = await startServer({ publicOrigin: "https://pob.example" });
+  try {
+    const at = `http://127.0.0.1:${pub.port}`;
+    const signed = await fetch(`${at}/v1/session`, { method: "POST", headers: { authorization: `Bearer ${TOKEN}` } });
+    const hostCookie = signed.headers.get("set-cookie") ?? "";
+    assert.match(hostCookie, /^__Host-pob_session=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; SameSite=Strict; Max-Age=2592000; Secure$/);
+    const jar2 = hostCookie.split(";")[0] ?? "";
+    assert.equal((await fetch(`${at}/v1/builds`, { headers: { cookie: jar2.replace("__Host-", "") } })).status, 401, "the plain name is not read");
+    const change = (origin: string) => fetch(`${at}/v1/builds`, { method: "POST", headers: { cookie: jar2, origin, "content-type": "application/json" }, body: "{}" });
+    assert.equal((await change(at)).status, 403, "the address it was reached at is not the public origin");
+    assert.equal((await change("https://pob.example")).status, 200);
+  } finally {
+    await pub.close();
+  }
 });
 
 void test("PUT /v1/builds/:id/code replaces the content, keeps id and name, moves the revision, emits replace", async () => {

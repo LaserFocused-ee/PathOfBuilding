@@ -45,7 +45,9 @@ Container: `docker build -f api/deploy/Dockerfile -t pob-api .` from the reposit
 
 Build it with `api/web/build-web.sh <commit>` (needs Deno 2.9+, gcc, cmake, ninja, python3; no root); the server serves `api/web/dist` at `/`; open `/` and sign in with the API token. Details: `api/web/README.md`.
 
-Signing in is `POST /v1/session` with the bearer token: the answer sets an `HttpOnly`, `SameSite=Strict` session cookie (30 days, kept in memory, so a restart signs the page out) that authenticates every `/v1` route, the event stream included, but not `/mcp`. A cookie-authenticated request that changes something must carry an `Origin` equal to the server's own origin. `DELETE /v1/session` signs out.
+Signing in is `POST /v1/session` with the bearer token: the answer sets an `HttpOnly`, `SameSite=Strict` session cookie (30 days, kept in memory, so a restart signs the page out) that authenticates every `/v1` route, the event stream included, but not `/mcp`. A cookie-authenticated request that changes something must carry an `Origin` equal to the server's own origin: `POB_PUBLIC_ORIGIN` when set, else the address the request was sent to. Behind a TLS proxy, set `POB_PUBLIC_ORIGIN` to the https origin: the cookie is then `__Host-pob_session` and always `Secure`. `DELETE /v1/session` signs out.
+
+Path of Building's own import code (character import, build links) runs in the page and fetches through `POST /v1/fetch` with `{ url, headers?, body? }` (GET, or POST when `body` is given). Only the character-window and profile pages of www.pathofexile.com and the build-link sites are allowed; only `accept` and `content-type` are forwarded, and the site's status and `content-type`, `retry-after` and `x-rate-limit-*` headers come back as they are. While a site signals a pause (`Retry-After`, or an `X-Rate-Limit-*` rule at its limit) every request to it, from the page or the import routes, is answered `rate_limited` without contacting it. This route is not an MCP action.
 
 ## Connect an MCP client
 
@@ -75,7 +77,7 @@ All settings are environment variables, read and checked once at start (an inval
 | `POB_ROOT` | the checkout | Path of Building checkout the worker runs from |
 | `POB_RUNTIME_DIR` | `api/runtime/rt` | Output of `build-runtime.sh` |
 | `POB_WEB_DIR` | `api/web/dist` | The built browser view, served at `/`; not served when the directory is missing |
-| `POB_PUBLIC_ORIGIN` | unset | The origin the browser view is opened at behind a proxy (e.g. `https://pob.example.org`), when the proxy's `Host` and `X-Forwarded-Proto` do not give it; cookie-authenticated changes must come from this origin |
+| `POB_PUBLIC_ORIGIN` | unset | The origin the browser view is opened at (e.g. `https://pob.example.org` behind a TLS proxy); when set, cookie-authenticated changes must come from exactly this origin, and an https origin gives the `__Host-` cookie |
 | `POB_POOL_SIZE` | `4` | Worker processes (open builds kept warm; the least recently used is recycled) |
 | `POB_WORKER_TIMEOUT_MS`, `POB_WORKER_BOOT_TIMEOUT_MS` | `30000`, `60000` | A command or boot past this is killed; the build reloads from the store |
 | `POB_WORKER_RSS_MB` | `900` | A worker above this memory is replaced after its command |

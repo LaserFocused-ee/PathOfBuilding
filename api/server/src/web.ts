@@ -6,7 +6,8 @@ import { extname, relative, resolve, sep } from "node:path";
 import express, { type Request } from "express";
 import type { Logger } from "./log.js";
 
-export const SESSION_COOKIE = "pob_session";
+/** On an https public origin the cookie takes the __Host- prefix (Secure, host-only, Path=/). */
+export const sessionCookieName = (publicOrigin: string | undefined) => (publicOrigin?.startsWith("https:") ? "__Host-pob_session" : "pob_session");
 export const SESSION_SECONDS = 30 * 24 * 3600;
 const MAX_SESSIONS = 1000; // ponytail: in-memory sessions for one user; a restart signs the page out
 
@@ -48,8 +49,11 @@ export function cookie(req: Request, name: string): string | undefined {
   return undefined;
 }
 
-export const sessionCookie = (value: string, maxAge: number, secure: boolean) =>
-  `${SESSION_COOKIE}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
+export const sessionCookie = (name: string, value: string, maxAge: number, secure: boolean) =>
+  `${name}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
+
+/** The page's policy (the browser view's serve contract, api/web/README.md). */
+const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -82,6 +86,7 @@ export function mountWeb(app: express.Express, dir: string, log: Logger): void {
         res.setHeader("cross-origin-embedder-policy", "require-corp");
         res.setHeader("cross-origin-resource-policy", "same-origin");
         res.setHeader("x-content-type-options", "nosniff");
+        res.setHeader("content-security-policy", CSP);
         res.setHeader("content-type", TYPES[extname(path).toLowerCase()] ?? "application/octet-stream");
         const rel = `/${relative(root, path).split(sep).join("/")}`;
         res.setHeader("cache-control", rel.startsWith("/assets/") || rel.startsWith("/pob/") ? "public, max-age=31536000, immutable" : "no-cache");

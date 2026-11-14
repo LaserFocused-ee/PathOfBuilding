@@ -11,7 +11,7 @@ import { mcpServer } from "./mcp.js";
 import { LOOKUP_SESSION } from "./pool.js";
 import { parseInput, routes, type Route } from "./routes.js";
 import type { Service } from "./service.js";
-import { cookie, mountWeb, SESSION_COOKIE, SESSION_SECONDS, sessionCookie, Sessions } from "./web.js";
+import { cookie, mountWeb, SESSION_SECONDS, sessionCookie, sessionCookieName, Sessions } from "./web.js";
 
 const digest = (s: string) => createHash("sha256").update(s).digest();
 
@@ -47,7 +47,7 @@ export class FailureWindow {
 const bearer = (req: Request) => /^Bearer (.+)$/i.exec(req.headers.authorization ?? "")?.[1]; // the scheme is case-insensitive (RFC 9110)
 
 /** The route pattern for logs: never a raw path, which can carry build ids. */
-const FIXED_PATHS = ["/health", "/health/deep", "/mcp"];
+const FIXED_PATHS = ["/health", "/health/deep", "/mcp", "/v1/fetch", "/v1/session"];
 const routeLabel = (req: Request): string => {
   const pattern = (req.route as { path?: string } | undefined)?.path;
   if (pattern) return pattern;
@@ -129,23 +129,26 @@ export function createApp(svc: Service, log: Logger): express.Express {
 
   // The browser view signs in once with the token and then holds a session cookie (POST needs the token itself).
   const sessions = new Sessions();
+  const cookieName = sessionCookieName(cfg.publicOrigin);
+  const secureCookie = (req: Request) => cookieName.startsWith("__Host-") || req.secure;
   app.post("/v1/session", (req, res) => {
     if (!secretMatches(bearer(req), cfg.token)) {
       refuse(res, "bearer");
       return;
     }
-    res.setHeader("set-cookie", sessionCookie(sessions.create(), SESSION_SECONDS, req.secure));
+    res.setHeader("set-cookie", sessionCookie(cookieName, sessions.create(), SESSION_SECONDS, secureCookie(req)));
     log.info({ event: "http.session_created" }, "browser session created");
     res.status(204).end();
   });
 
   // Everything below needs the bearer token; /v1 also takes a session cookie. A cookie-authenticated
-  // request that can change something must come from this server's own origin (on top of SameSite=Strict).
+  // request that can change something must come from this server's own origin (on top of SameSite=Strict):
+  // POB_PUBLIC_ORIGIN when set, else the origin the request was addressed to.
   const auth = (allowCookie: boolean) => (req: Request, res: Response, next: NextFunction) => {
     if (secretMatches(bearer(req), cfg.token)) return next();
-    if (allowCookie && sessions.valid(cookie(req, SESSION_COOKIE))) {
+    if (allowCookie && sessions.valid(cookie(req, cookieName))) {
       const origin = req.headers.origin;
-      const own = origin !== undefined && (origin === `${req.protocol}://${req.get("host") ?? ""}` || origin === cfg.publicOrigin);
+      const own = origin !== undefined && origin === (cfg.publicOrigin ?? `${req.protocol}://${req.get("host") ?? ""}`);
       if (req.method === "GET" || req.method === "HEAD" || own) return next();
       log.warn({ event: "http.cross_origin_refused", method: req.method, route: routeLabel(req) }, "cookie request from another origin");
       res.status(403).json({ ok: false, error: { code: "forbidden", message: "a cookie-authenticated change must come from this server's own page" } });
@@ -156,14 +159,31 @@ export function createApp(svc: Service, log: Logger): express.Express {
   app.use("/v1", auth(true));
   app.use("/mcp", auth(false));
   app.delete("/v1/session", (req, res) => {
-    sessions.delete(cookie(req, SESSION_COOKIE));
-    res.setHeader("set-cookie", sessionCookie("", 0, req.secure));
+    sessions.delete(cookie(req, cookieName));
+    res.setHeader("set-cookie", sessionCookie(cookieName, "", 0, secureCookie(req)));
     res.status(204).end();
   });
 
   // JSON bodies: room for the largest accepted build XML plus JSON escaping.
   const bodyLimit = cfg.maxXmlBytes * 2;
   app.use("/v1", express.json({ limit: bodyLimit }));
+
+  // The browser view's own imports (Path of Building's import code), fetched here because the page cannot
+  // reach other origins. Not an MCP action: agents import through the build routes.
+  const relayInput = z.strictObject({
+    url: z.string().max(4000),
+    headers: z.record(z.string().max(100), z.string().max(1000)).optional(),
+    body: z.string().max(100_000).optional(),
+  });
+  app.post("/v1/fetch", async (req, res, next) => {
+    try {
+      const parsed = relayInput.safeParse(req.body ?? {});
+      if (!parsed.success) throw new ApiError("invalid_input", parsed.error.issues.map((i) => (i.code === "unrecognized_keys" ? `unknown parameter(s) ${i.keys.join(", ")}; fetch takes url, headers, body` : `${i.path.join(".")}: ${i.message}`)).join("; "));
+      res.json({ ok: true, result: await svc.relay(parsed.data), warnings: [] });
+    } catch (e) {
+      next(e);
+    }
+  });
 
   for (const route of routes) {
     const method = route.method.toLowerCase() as "get" | "post" | "put" | "delete";

@@ -2,7 +2,7 @@
 import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
 import type { Events } from "./events.js";
-import { decodeBuildCode, GAME_HOST, type Fetcher } from "./fetch.js";
+import { decodeBuildCode, GAME_HOST, type Fetcher, type Relayed } from "./fetch.js";
 import type { Logger } from "./log.js";
 import { LOOKUP_SESSION, type Pool } from "./pool.js";
 import { type BuildMeta, type BuildSource, type BuildStore, TRASH_DAYS } from "./store.js";
@@ -67,6 +67,17 @@ export class Service {
 
   private checkXml(xml: string): void {
     if (Buffer.byteLength(xml, "utf8") > this.cfg.maxXmlBytes) throw new ApiError("payload_too_large", `build XML is larger than ${this.cfg.maxXmlBytes} bytes`);
+  }
+
+  /** A fetch for the browser view's own imports, through the fetcher that owns the host (and its pause). */
+  relay(input: { url: string; headers?: Record<string, string>; body?: string }): Promise<Relayed> {
+    let host: string;
+    try {
+      host = new URL(input.url).hostname;
+    } catch {
+      throw new ApiError("invalid_input", "not a valid URL");
+    }
+    return (host === GAME_HOST ? this.game : this.fetcher).relay(input.url, input.headers ?? {}, input.body);
   }
 
   /** GETs one character-window endpoint for a public profile; maps the site's refusals to clear errors. */
