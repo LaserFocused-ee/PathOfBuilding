@@ -12,11 +12,18 @@ export const SHARE_HOSTS = ["maxroll.gg", "api.pob.codes", "pobb.in", "poe.ninja
 /** The game site: character import (character-window endpoints, as src/Classes/ImportTab.lua uses). */
 export const GAME_HOST = "www.pathofexile.com";
 
-/** What the browser view may fetch through the server (POST /v1/fetch): host -> allowed path prefixes. */
-export const RELAY_PATHS: Readonly<Record<string, readonly string[]>> = {
-  [GAME_HOST]: ["/character-window/get-characters", "/character-window/get-passive-skills", "/character-window/get-items", "/account/view-profile/"],
-  ...Object.fromEntries(SHARE_HOSTS.map((h) => [h, ["/"]])),
+/**
+ * What the browser view may fetch through the server (POST /v1/fetch): host -> allowed path prefixes
+ * (a prefix not ending in "/" is a whole segment) and whether POST is allowed (build sites take shared
+ * builds; the game site is read only).
+ */
+export const RELAY_PATHS: Readonly<Record<string, { paths: readonly string[]; post: boolean }>> = {
+  [GAME_HOST]: { paths: ["/character-window/get-characters", "/character-window/get-passive-skills", "/character-window/get-items", "/account/view-profile/"], post: false },
+  ...Object.fromEntries(SHARE_HOSTS.map((h) => [h, { paths: ["/"], post: true }])),
 };
+
+const relayEntry = (url: URL): string | undefined =>
+  RELAY_PATHS[url.hostname]?.paths.find((p) => (p.endsWith("/") ? url.pathname.startsWith(p) : url.pathname === p || url.pathname.startsWith(`${p}/`)));
 
 /** Response headers handed back to the page from a relayed request. */
 const RELAY_HEADERS = /^(content-type|retry-after|x-rate-limit-[a-z0-9-]+)$/;
@@ -59,7 +66,7 @@ export class Fetcher {
 
   private relayCheck(raw: string): URL {
     const url = this.check(raw);
-    if (!(RELAY_PATHS[url.hostname] ?? []).some((p) => url.pathname.startsWith(p))) throw new ApiError("invalid_input", `path ${url.pathname} on ${url.hostname} is not on the allowlist`);
+    if (relayEntry(url) === undefined) throw new ApiError("invalid_input", `that path on ${url.hostname} is not on the allowlist`);
     return url;
   }
 
@@ -156,7 +163,8 @@ export class Fetcher {
    */
   async relay(raw: string, headers: Record<string, string>, body: string | undefined): Promise<Relayed> {
     const first = this.relayCheck(raw);
-    const purpose = `relay:${RELAY_PATHS[first.hostname]?.find((p) => first.pathname.startsWith(p)) ?? "/"}`; // never the full path: it can carry an account name
+    if (body !== undefined && !RELAY_PATHS[first.hostname]?.post) throw new ApiError("invalid_input", `${first.hostname} is fetched with GET only (no body)`);
+    const purpose = `relay:${relayEntry(first) ?? "/"}`; // the allowlist entry, never the path: it can carry an account name
     const sent: Record<string, string> = {};
     for (const [k, v] of Object.entries(headers)) if (k.toLowerCase() === "accept" || k.toLowerCase() === "content-type") sent[k.toLowerCase()] = v;
     const { res, url } = await this.send(first, { method: body === undefined ? "GET" : "POST", headers: sent, ...(body === undefined ? {} : { body }) }, purpose, (r) => this.relayCheck(r));

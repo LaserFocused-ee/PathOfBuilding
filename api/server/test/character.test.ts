@@ -118,10 +118,12 @@ void test("POST /v1/fetch relays the page's imports: allowlisted paths only, its
     assert.deepEqual([priv.status, priv.body.result.status], [200, 403], "the site's own status, for Path of Building to read");
 
     const before = seen.length;
-    for (const url of ["https://api.pathofexile.com/profile", "https://www.pathofexile.com/oauth/authorize", "https://www.pathofexile.com/character-window/get-stash-items", "http://pobb.in/abc", "https://example.com/", "not a url"]) {
+    for (const url of ["https://api.pathofexile.com/profile", "https://www.pathofexile.com/oauth/authorize", "https://www.pathofexile.com/character-window/get-stash-items", "https://www.pathofexile.com/character-window/get-itemsX", "https://www.pathofexile.com/character-window/get-items/../get-stash-items", "https://www.pathofexile.com/account/view-profile", "http://pobb.in/abc", "https://example.com/", "not a url"]) {
       const r = await call({ url });
       assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], url);
     }
+    const post = await call({ url: "https://www.pathofexile.com/character-window/get-items", body: "character=a" });
+    assert.deepEqual([post.status, post.body.error?.code], [400, "invalid_input"], "the game site is GET only");
     const extra = await call({ url: "https://pobb.in/abc", method: "DELETE" });
     assert.match(extra.body.error?.message ?? "", /unknown parameter\(s\) method; fetch takes url, headers, body/);
     assert.equal(seen.length, before, "nothing off the allowlist is requested");
