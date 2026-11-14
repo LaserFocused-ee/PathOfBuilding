@@ -1,5 +1,285 @@
 # Progress
 
+## Coverage of the Path of Building operations
+
+This file lists every one of the 187 operations of the Path of Building feature inventory and says what this API does with it. The states are kept current with the route table (`server/src/routes.ts`, listed in `API.md`). A few rows name several operations that share one state; they count as one row. Tests are in `server/test/`.
+
+| State | Meaning |
+| --- | --- |
+| `done` | A named route and MCP action exist, and a worker test calls the route. |
+| `ui` | Reachable only through the generic control driver `build.ui_invoke` for now (the tab and control are named); to be replaced by a named route. |
+| `store` | Covered by the server's own build store instead of Path of Building's file handling (open, save, folders, undo map to the store, revisions, history, revert). |
+| `not needed` | Has no meaning for a server. The reason is given. |
+| `F3` | Planned for the trade and data stage: `trade.*` operations and data lookups not yet routed. |
+| `open` | Not covered yet. The reason is given. |
+
+Tier is the inventory's tier: H (a direct call of Path of Building's own code), S (small glue on top of it), X (new code).
+
+### builds
+
+| Operation | Tier | State | Route / note |
+| --- | --- | --- | --- |
+| `builds.new` | H | done | `build.new`; engine.test.ts |
+| `builds.load_xml` | H | done | `build.import_xml`; engine.test.ts |
+| `builds.open_file` | H | store | Builds are opened by id from the store: `build.get`, `build.list` |
+| `builds.save` | H | store | Every change is stored as a revision; `build.save_point` keeps one past pruning |
+| `builds.save_as` | S | store | `build.duplicate` |
+| `builds.export_xml` | H | done | `build.export_xml`; edit.test.ts |
+| `builds.close` | H | not needed | The server opens and recycles build sessions itself; `build.delete` removes a build |
+| `builds.status` | S | store | `build.get` (revision, summary), `stats.versions`; there is no unsaved state |
+| `builds.convert_version` | S | done | `tree.convert`; edit.test.ts |
+| `builds.list` | S | store | `build.list`, `build.trash` |
+| `builds.search` / `sort` | S | open | `build.list` has no filter or sort options (newest change first) |
+| `builds.rename` | S | store | `build.rename` |
+| `builds.copy` | S | store | `build.duplicate` |
+| `builds.delete` | S | store | `build.delete`, `build.restore` (kept 7 days) |
+| `builds.move` / `new_folder` | S | not needed | The store is flat; there are no folders |
+| `builds.set_level` | S | done | `build.settings`; edit.test.ts |
+| `builds.set_level_auto` | S | done | `build.settings` (`autoLevel`); edit.test.ts |
+| `builds.set_class` | S | done | `tree.set_class`; edit.test.ts |
+| `builds.set_ascendancy` | H | done | `tree.set_ascendancy`; edit.test.ts |
+| `builds.set_bloodline` | H | done | `tree.set_bloodline`; edit.test.ts |
+| `builds.loadouts.list` | S | open | No combined loadout route; trees, skill sets, item sets and config sets are each listed by their own route |
+| `builds.loadouts.switch` | X | open | Same: switch each set with `tree.spec_activate`, `skills.set_activate`, `items.set_activate`, `config.set_activate` |
+| `builds.loadouts.new` | X | open | Same: add each set with its own `set_new` route |
+| `builds.set_main_skill` | S | done | `skills.set_main`, `skills.set_skill_options`; skills.test.ts, skills2.test.ts |
+| `builds.spectre_library` | S | done | `skills.set_spectres`; skills2.test.ts |
+| `builds.progress_estimate` | X | done | `stats.points` (points, ascendancy, required level, act); engine.test.ts |
+| `builds.xp_multiplier` | X | open | No route yet |
+| `builds.similar` | S | open | Calls a third-party recommendation service; not routed |
+| `builds.public_latest_trending` | S | open | Calls a third-party build archive; not routed |
+| `builds.undo` / `redo` | H | store | `build.history`, `build.revert`; edit.test.ts |
+
+### import / export
+
+| Operation | Tier | State | Route / note |
+| --- | --- | --- | --- |
+| `import.decode_code` | X | done | `build.import_code` (decoded on the server); engine.test.ts |
+| `import.from_url` | S | done | `build.import_link`; engine.test.ts tests link resolution and refusal of an unsupported site, not the download |
+| `import.apply` (current, new, comparison) | X | done | New: `build.import_code`, `build.import_xml`. Current: `build.replace_code` (web.test.ts). Comparison: `evaluate.compare_builds` |
+| `import.character_json` | H | done | `build.import_character`; character.test.ts |
+| `import.characters.list_oauth` | S | open | Needs a game-site login the server does not have |
+| `import.characters.get_oauth` | S | open | Same |
+| `import.characters.list_by_account` | S | done | `build.characters`; character.test.ts |
+| `import.characters.tree_by_account` | S | done | Part of `build.import_character`; character.test.ts |
+| `import.characters.items_by_account` | S | done | Part of `build.import_character`; character.test.ts |
+| `import.oauth.login` | X | open | Needs the server to hold its own login client |
+| `export.code` | S | done | `build.export_code`; engine.test.ts |
+| `export.share_link` | S | open | Uploads to a third-party site; not routed |
+| `export.support_buffs_toggle` | H | ui | Import tab, control `enablePartyExportBuffs` (`set_state`); settings.test.ts |
+| `export.reimport_primary` | S | open | Compare tab re-import; no route |
+
+### tree
+
+| Operation | Tier | State | Route / note |
+| --- | --- | --- | --- |
+| `tree.get` | H | done | `tree.get`; edit.test.ts |
+| `tree.allocate` | H | done | `tree.allocate`; edit.test.ts |
+| `tree.allocate_any` | X | open | Cross-ascendancy and bloodline allocation has no route |
+| `tree.deallocate` | H | done | `tree.deallocate`; edit.test.ts |
+| `tree.reset` | H | done | `tree.reset`; edit.test.ts |
+| `tree.connect_to_class` | H | done | `tree.set_class` with `onDisconnected: connect`; edit.test.ts |
+| `tree.path_to` / `path_between` | H, X | done | `tree.path` (with `from` for a route between two nodes); edit.test.ts |
+| `tree.mastery.options` | H | done | `tree.mastery_options`; edit.test.ts |
+| `tree.mastery.set` | X | done | `tree.set_mastery`; edit.test.ts |
+| `tree.tattoo.options` / `apply` / `remove` | X | open | No route for single tattoos |
+| `tree.tattoo.remove_all` | S | open | Route without a test (`tree.remove_tattoos`) |
+| `tree.specs.list` / `new` / `copy` / `rename` / `delete` | S | done | `tree.get` (list), `tree.spec_new`, `tree.spec_copy`, `tree.spec_rename`, `tree.spec_delete`; edit.test.ts |
+| `tree.specs.reorder` | S | open | No route |
+| `tree.specs.switch` | H | done | `tree.spec_activate`; edit.test.ts |
+| `tree.specs.compare_preview` / `compare_spec` | X, H | done | `evaluate.compare_specs` (stat differences; no refunds or gold); evaluate.test.ts |
+| `tree.version.list` / `convert` | H | done | `stats.versions` (list), `tree.convert`; edit.test.ts, engine.test.ts |
+| `tree.version.convert_all` | H | open | `tree.convert` converts the active tree only |
+| `tree.import_url` | S | done | `tree.import_url`; edit.test.ts |
+| `tree.export_url` | H | done | `tree.export_url`; edit.test.ts |
+| `tree.search` | S | done | `lookup.nodes`; engine.test.ts |
+| `tree.node_info` / `node_text` | S, H | done | `lookup.node` (stats, links, path length, mastery effects); engine.test.ts. Differences: `evaluate.what_if` |
+| `tree.node_power` | S | done | `evaluate.node_power`; evaluate.test.ts |
+| `tree.power_report` | H | done | `evaluate.node_power` (ranked, paged list); evaluate.test.ts |
+| `tree.timeless.search` | S | open | No route |
+| `tree.timeless.read_seed` | H | F3 | Data lookup, not yet routed |
+| `tree.timeless.trade_url` | S | F3 | Trade stage |
+| `tree.radius_nodes` | H | open | No route |
+
+### skills
+
+| Operation | Tier | State | Route / note |
+| --- | --- | --- | --- |
+| `skills.groups.list` | H | done | `skills.get`; skills.test.ts |
+| `skills.groups.add_text` | H | done | `skills.add_group` (copy text); skills.test.ts |
+| `skills.groups.to_text` | S | done | `skills.group_text`; skills.test.ts |
+| `skills.groups.update` | S | done | `skills.update_group`; skills.test.ts |
+| `skills.groups.delete` / `copy` / `reorder` | S | done | `skills.delete_group`, `skills.move_group`; copy is `skills.group_text` then `skills.add_group`; skills.test.ts |
+| `skills.gems.set` | S | done | `skills.set_gem`; skills.test.ts |
+| `skills.gems.delete` | S | done | `skills.delete_gem`; skills.test.ts |
+| `skills.imbued_support` | S | done | `skills.set_imbued`; skills.test.ts |
+| `skills.optimise_sockets` | X | done | `skills.optimise_sockets`; skills.test.ts |
+| `skills.sets.*` | S | done | `skills.set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` (list in `skills.get`); skills.test.ts |
+| `skills.options` | H | done | `skills.set_options`; skills.test.ts |
+| `skills.group_tooltip` | S | open | Tooltip text is not routed |
+| `skills.gem_tooltip` | S | open | Tooltip text is not routed |
+| `skills.gems.find` | H | done | `lookup.gems`; engine.test.ts |
+| `skills.gems.search` | S | done | `lookup.gems`; engine.test.ts |
+| `skills.support_compatible` | H | F3 | Data lookup, not yet routed (`lookup.gems` only filters support gems) |
+| `skills.gems.rank` | X | done | `evaluate.gem_rank`; evaluate.test.ts |
+
+### items and crafting
+
+| Operation | Tier | State | Route / note |
+| --- | --- | --- | --- |
+| `items.list` / `equipped` | H | done | `items.list`; items.test.ts |
+| `items.add_text` | H | done | `items.add`; items.test.ts |
+| `items.add` | H | done | `items.add_unique`, `items.add_rare`; items.test.ts |
+| `items.delete` | H | done | `items.delete`; items.test.ts |
+| `items.equip` | H | done | `items.equip`, `items.unequip`; items.test.ts |
+| `items.valid_slots` | H | done | `items.get` (`validSlots`); items.test.ts |
+| `items.edit_text` | S | done | `items.edit`; items.test.ts |
+| `items.variant` | H | done | `items.modify`; items.test.ts |
+| `items.sockets` | S | done | `items.modify` (only adds sockets); items.test.ts |
+| `items.quality` | S | done | `items.modify`; items.test.ts |
+| `items.catalyst` | S | done | `items.modify`; items.test.ts |
+| `items.influence` | S | open | No route |
+| `items.craft_new` | S | done | `items.craft`; items.test.ts |
+| `items.affixes.options` | S | open | No listing of affix choices; `items.craft` matches a mod by its text |
+| `items.affixes.set` | S | done | `items.craft` (new items); an existing item changes through `items.edit`; items.test.ts |
+| `items.custom_mod` | S | open | No route |
+| `items.crucible_mod` | S | open | No route |
+| `items.enchant` | S | done | `items.enchant`; items.test.ts |
+| `items.anoint` | H | done | `items.anoint`; items.test.ts |
+| `items.corrupt` | S | open | No route |
+| `items.add_implicit` | S | open | No route |
+| `items.cluster_jewel` | S | open | No route |
+| `items.range_lines` | S | done | `items.modify` (`ranges`), `items.get`; items.test.ts |
+| `items.tooltip` (+ diff) | S | done | `items.get` (text, mods); differences: `evaluate.compare_item`; evaluate.test.ts |
+| `items.mod_diff_tooltip` | S | open | No route |
+| `items.sets.*` | S | done | `items.set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` (list in `items.list`); items.test.ts |
+| `items.weapon_swap` / `set_tree_link` | S | done | `items.weapon_set`; the Items tab's tree box activates a tree as `tree.spec_activate` does; items.test.ts |
+| `items.shared.*` | S | open | Shared item lists are not routed |
+| `items.flask_toggle` / `tincture_toggle` | H | done | `items.set_active`; items.test.ts |
+| `items.socket_line` | H | open | No route |
+
+### config
+
+| Operation | Tier | State | Route / note |
+| --- | --- | --- | --- |
+| `config.options.list` | H | done | `lookup.config`; engine.test.ts |
+| `config.options.relevant` | H | open | `lookup.config` has a `relevantOnly` option, but no test uses it |
+| `config.get` | H | done | `config.get`; edit.test.ts |
+| `config.set` | S | done | `config.set`; edit.test.ts |
+| `config.sets.*` | S | done | `config.set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`; edit.test.ts |
+| `config.custom_mods` | S | open | No route |
+
+### calcs
+
+| Operation | Tier | State | Route / note |
+| --- | --- | --- | --- |
+| `calcs.sidebar` | S | done | `stats.sidebar`; engine.test.ts |
+| `calcs.output` | H | done | `stats.output`; engine.test.ts |
+| `calcs.full_dps` | H | done | `stats.skills`; engine.test.ts |
+| `calcs.output_for_skill` | S | done | `stats.skills`; engine.test.ts |
+| `calcs.sections` | S | open | No route; `stats.output` returns the raw table |
+| `calcs.breakdown` | S | done | `stats.breakdown`; engine.test.ts |
+| `calcs.warnings` | S | open | Route without a test (`stats.warnings`) |
+| `calcs.requirements` | H | done | `stats.defences`; engine.test.ts |
+| `calcs.resists` | H | done | `stats.defences`; engine.test.ts |
+| `calcs.reservation` | H | done | `stats.output` (`fields`, for example `ManaUnreserved`); skills2.test.ts |
+| `calcs.point_budget` | H | done | `stats.points`; engine.test.ts |
+| `calcs.what_if` | H | done | `evaluate.what_if`; evaluate.test.ts |
+| `calcs.diff` | S | done | `evaluate.what_if` (only the stats that differ), `evaluate.compare_item`; evaluate.test.ts |
+
+### compare and power
+
+| Operation | Tier | State | Route / note |
+| --- | --- | --- | --- |
+| `compare.add` | H | done | `evaluate.compare_builds` (the other build is named by id; import it first); evaluate.test.ts |
+| `compare.list` | H | not needed | No stored compare list; each call names the build to compare |
+| `compare.remove` | H | not needed | Same |
+| `compare.select` | H | not needed | Same |
+| `compare.set_loadout` | H | open | No route; the other build is compared as stored |
+| `compare.diff.*` | X | done | Output differences: `evaluate.compare_builds`, `evaluate.compare_specs`, `evaluate.compare_item_sets`; evaluate.test.ts. The drawn side-by-side screens are not needed |
+| `compare.copy_tree` / `copy_item` / `copy_config` | H | open | No route |
+| `compare.power_report` | S | open | No route |
+| `compare.import_folder` | S | not needed | The store is flat; there are no folders |
+| `compare.buy_similar_url` | S | F3 | Trade stage |
+| `power.uniques` | S | done | `evaluate.unique_rank`; evaluate.test.ts |
+| `power.anoints` | S | done | `evaluate.anoint_rank`; evaluate.test.ts |
+
+### trade
+
+| Operation | Tier | State | Route / note |
+| --- | --- | --- | --- |
+| `trade.leagues` | S | F3 | `pob_trade` |
+| `trade.currency_rates` | S | F3 | `pob_trade` |
+| `trade.stat_weights` | S | F3 | `pob_trade` |
+| `trade.query.generate` | S | F3 | `pob_trade` |
+| `trade.search` | S | F3 | `pob_trade` |
+| `trade.search_url` | S | F3 | `pob_trade` |
+| `trade.evaluate` | S | F3 | `pob_trade` |
+| `trade.sort` / `total_price` | S | F3 | `pob_trade` |
+| `trade.price_all_slots` | X | F3 | `pob_trade` |
+| `trade.mod_to_trade_id` | H | F3 | `pob_trade` |
+| `trade.rate_limits` | H | F3 | `pob_trade` |
+
+### notes, party, settings
+
+| Operation | Tier | State | Route / note |
+| --- | --- | --- | --- |
+| `notes.get` | S | done | `config.notes`; edit.test.ts |
+| `notes.set` | S | done | `config.set_notes`; edit.test.ts |
+| `party.import` | X | done | `config.party_import`; settings.test.ts |
+| `party.get` | S | done | `config.party_get`; settings.test.ts |
+| `party.set` | S | done | `config.party_set`; settings.test.ts |
+| `party.clear` / `rebuild` / `remove_effects` | S | done | `config.party_clear`, `config.party_effects`; settings.test.ts |
+| `party.export` | S | open | No route of its own |
+| `settings.get` / `set` | S | not needed | Application options (display, folders, updates) have no meaning for a server; build settings are `build.settings` and `config.set` |
+| `settings.user_path` | H | not needed | The server owns its data directory |
+| `app.version` / `help` | H | done | `stats.versions` (version); help text is not routed; engine.test.ts |
+
+### data
+
+| Operation | Tier | State | Route / note |
+| --- | --- | --- | --- |
+| `data.uniques.search` | S | done | `lookup.uniques`; engine.test.ts |
+| `data.rare_templates` | H | F3 | Data lookup, not yet routed (`items.add_rare` takes a template name) |
+| `data.bases` | H | done | `lookup.bases`; engine.test.ts |
+| `data.mods_for_base` | S | F3 | Data lookup, not yet routed |
+| `data.bench_crafts` | H | F3 | Data lookup, not yet routed |
+| `data.essences` / `veiled` / `necropolis` / `beastcraft` / `delve` / `incursion` / `fossil` | H | F3 | Data lookup, not yet routed |
+| `data.enchantments` | H | F3 | Data lookup, not yet routed |
+| `data.gems` | H | done | `lookup.gems`; engine.test.ts |
+| `data.support_compatible` | H | F3 | Data lookup, not yet routed |
+| `data.tree.search` | S | done | `lookup.nodes`; engine.test.ts |
+| `data.cluster_notables` | H | F3 | Data lookup, not yet routed |
+| `data.timeless` | H | F3 | Data lookup, not yet routed |
+| `data.anoint_recipes` | S | F3 | Data lookup, not yet routed |
+| `data.keystones` / `pantheons` / `map_mods` / `minions` / `bosses` | H | F3 | Data lookup, not yet routed |
+| `data.spectres` | H | F3 | Data lookup, not yet routed (`skills.set_spectres` takes a name) |
+| `data.parse_mod` | H | F3 | Data lookup, not yet routed |
+| `data.describe_stats` | H | F3 | Data lookup, not yet routed |
+
+### Counts
+
+| Domain | Total | done | ui | store | not needed | F3 | open |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| builds | 30 | 12 | 0 | 9 | 2 | 0 | 7 |
+| import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
+| tree | 27 | 18 | 0 | 0 | 0 | 2 | 7 |
+| skills | 17 | 14 | 0 | 0 | 0 | 1 | 2 |
+| items and crafting | 30 | 20 | 0 | 0 | 0 | 0 | 10 |
+| config | 6 | 4 | 0 | 0 | 0 | 0 | 2 |
+| calcs | 13 | 11 | 0 | 0 | 0 | 0 | 2 |
+| compare and power | 12 | 4 | 0 | 0 | 4 | 1 | 3 |
+| trade | 11 | 0 | 0 | 0 | 0 | 11 | 0 |
+| notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
+| data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
+| **Total** | 187 | 102 | 1 | 9 | 8 | 28 | 39 |
+
+## MCP tools
+
+MCP tools with at least one route today: `pob_build`, `pob_stats`, `pob_tree`, `pob_skills`, `pob_items`, `pob_config`, `pob_evaluate`, `pob_lookup` (8 of 9). `pob_trade` comes in F3, so all 9 tools exist at the end of F3.
+
+## Build stages
+
 Features are numbered as in `SPEC.md`. Checks for every entry: `npm run build`, `npm run lint`, `npm run typecheck`, `npm test` in `api/server`.
 
 ## F1. Engine, API skeleton, MCP, builds, stats, lookup: built
@@ -8,7 +288,7 @@ Features are numbered as in `SPEC.md`. Checks for every entry: `npm run build`, 
 - Worker: `lua/worker.lua` plus `lua/ops/{builds,stats,lookup}.lua`; JSON lines; boots in about 1.8 s.
 - Server: config, logger, `/health`, `/health/deep`, bearer auth, worker pool (one process per open build, LRU recycling, kill on timeout or memory ceiling, reload from the store), file build store with revisions, stale-write refusal, history of the last 50 plus save points, server-sent events, share-link fetch module.
 - Route table (`server/src/routes.ts`) generates the HTTP routes, the MCP tools and `docs/API.md`.
-- MCP: Streamable HTTP at `POST /mcp` (stateless) and stdio (`server/dist/src/stdio.js`). Tools with routes today: `pob_build`, `pob_stats`, `pob_lookup`. The other six (`pob_tree`, `pob_skills`, `pob_items`, `pob_config`, `pob_evaluate`, `pob_trade`) appear once F2 and F3 give them actions.
+- MCP: Streamable HTTP at `POST /mcp` (stateless) and stdio (`server/dist/src/stdio.js`). F1 shipped `pob_build`, `pob_stats` and `pob_lookup`; F2 added `pob_tree`, `pob_skills`, `pob_items`, `pob_config` and `pob_evaluate`; `pob_trade` comes with F3.
 - Operations: builds (new, import XML, code, share link, list, get, rename, duplicate, delete, export XML, export code, save point, history), stats (sidebar, output with `fields`, per-skill and Full DPS, breakdown, warnings, defences, points, versions), lookup (gems, uniques, bases, node search, node detail, config catalogue).
 - Tests: OccVortex (tree 3_13) and a Witch/Elementalist fixture made on tree 3_30 with concrete stat values; build-code round trip; two sessions open at once; worker kill recovered from the store; MCP over HTTP and stdio; auth, health, log lines.
 
@@ -18,7 +298,9 @@ Deviations from the spec text, with reasons:
 - Build codes are decoded on the server (Node zlib with an output cap) rather than in the worker, so an oversized code is refused before it reaches the Lua state. Encoding stays in the worker, using the same expression as `ImportTab.lua`.
 - The MCP SDK is the v2 split package (`@modelcontextprotocol/server` 2.4.0, `@modelcontextprotocol/node` 2.1.2); `createMcpHandler` serves the stateless legacy protocol and the current one from one factory.
 
-## F2. Tree, skills, items, config, notes, evaluate: not started
+## F2. Tree, skills, items, config, notes, evaluate: in progress
+
+Routes for the tree, skills, items, config, party, evaluate domains, character import from a public profile, the browser view's server side, and the generic control driver are in; the operations still `open` in the tables above remain.
 
 ## F3. Import and trade query: not started
 
