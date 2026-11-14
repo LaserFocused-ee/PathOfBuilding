@@ -3,6 +3,8 @@
 // server reports a newer revision it did not cause, and writes its own edits back with the revision
 // they were based on. A refused write (stale revision) becomes a conflict the user resolves.
 // Every operation runs on one queue, so a write and an incoming event never interleave.
+// Two rules: never load over a view that differs from the baseline without the user's choice, and never
+// write a view that does not hold the build the page loaded (`read()` gives null then).
 
 export interface SyncApi {
   load(): Promise<{ code: string; revision: number }>;
@@ -15,8 +17,8 @@ export interface SyncApi {
 export interface SyncView {
   /** Shows a build code; throws when the view did not take it. */
   load(code: string): Promise<void>;
-  /** The view's current build code. */
-  read(): Promise<string>;
+  /** The view's current build code; null when the view no longer holds the build the page loaded. */
+  read(): Promise<string | null>;
   /** What counts as an edit: the code without view state (open tab, tree zoom, search text). */
   content(code: string): Promise<string>;
   /** Resolves once a loaded build is on screen (the baseline is read before, so input meanwhile is an edit). */
@@ -30,6 +32,7 @@ export type SyncState =
   | { kind: "saving"; revision: number }
   | { kind: "save_failed"; revision: number; reason: string; retrying: boolean }
   | { kind: "conflict"; revision: number; serverRevision: number }
+  | { kind: "released" } // another build is open in the view; nothing is written until this one is loaded again
   | { kind: "deleted" };
 
 /** An error whose `permanent` is true is a refusal that the same request would get again. */
@@ -48,6 +51,7 @@ export class BuildSync {
   private refused: string | undefined; // content a permanent refusal was given for
   private backoff = 0;
   private skipTicks = 0;
+  private overwriteBase: number | undefined; // "Keep mine" chosen over this server revision, not yet written
   state: SyncState = { kind: "loading" };
 
   constructor(
@@ -68,13 +72,13 @@ export class BuildSync {
   /** Loads the server's build into the view; also the retry after a stop, which never loads over an edit. */
   start(): Promise<void> {
     return this.run(async () => {
-      if (this.baseline !== "") {
-        const code = await this.view.read();
+      const code = this.baseline !== "" ? await this.view.read() : null;
+      if (code !== null) {
         const content = await this.view.content(code);
         if (content !== this.baseline) {
           const server = await this.api.revision();
-          if (server === this.revision) return await this.save(code, content, server);
-          return this.set({ kind: "conflict", revision: this.revision, serverRevision: server });
+          if (server === (this.overwriteBase ?? this.revision)) return await this.save(code, content, server);
+          return this.conflict(server);
         }
       }
       await this.reload();
@@ -91,8 +95,10 @@ export class BuildSync {
         this.set({ ...this.state, serverRevision: Math.max(revision, this.state.serverRevision) });
         return;
       }
-      if (await this.view.content(await this.view.read()) !== this.baseline) {
-        this.set({ kind: "conflict", revision: this.revision, serverRevision: revision });
+      const code = await this.view.read();
+      if (code === null) return this.release();
+      if (await this.view.content(code) !== this.baseline) {
+        this.conflict(revision);
         return;
       }
       await this.reload();
@@ -113,6 +119,7 @@ export class BuildSync {
         return;
       }
       const code = await this.view.read();
+      if (code === null) return this.release();
       const content = await this.view.content(code);
       if (content === this.baseline) {
         this.candidate = undefined;
@@ -123,7 +130,7 @@ export class BuildSync {
         return;
       }
       if (content === this.refused) return; // refused for good; a further edit may change that
-      await this.save(code, content, this.revision);
+      await this.save(code, content, this.overwriteBase ?? this.revision);
     });
   }
 
@@ -133,7 +140,10 @@ export class BuildSync {
       if (this.state.kind !== "conflict") return;
       if (choice === "reload") return await this.reload();
       const code = await this.view.read();
-      await this.save(code, await this.view.content(code), "server");
+      if (code === null) return this.release();
+      // Overwrite the revision the user saw; a retry after a failed write keeps that base.
+      this.overwriteBase = this.state.serverRevision;
+      await this.save(code, await this.view.content(code), this.overwriteBase);
     });
   }
 
@@ -142,8 +152,11 @@ export class BuildSync {
     const { code, revision } = await this.api.load();
     await this.view.load(code);
     // Read before the build is drawn: input from here on differs from the baseline, so it is an edit.
-    this.baseline = await this.view.content(await this.view.read());
+    const loaded = await this.view.read();
+    if (loaded === null) throw new Error("the build did not open in Path of Building");
+    this.baseline = await this.view.content(loaded);
     this.revision = revision;
+    this.overwriteBase = undefined;
     this.candidate = undefined;
     this.refused = undefined;
     this.backoff = this.skipTicks = 0;
@@ -151,14 +164,13 @@ export class BuildSync {
     this.set({ kind: "synced", revision });
   }
 
-  /** `base` "server": overwrite whatever revision the server holds now. */
-  private async save(code: string, content: string, base: number | "server"): Promise<void> {
+  private async save(code: string, content: string, base: number): Promise<void> {
     this.set({ kind: "saving", revision: this.revision });
     let result: { revision: number } | "stale";
     let serverRevision = 0;
     try {
-      // The revision lookups sit inside the try: a failed one is a failed write (kept, retried), never a stop.
-      result = await this.api.save(code, base === "server" ? await this.api.revision() : base);
+      // The revision lookup sits inside the try: a failed one is a failed write (kept, retried), never a stop.
+      result = await this.api.save(code, base);
       if (result === "stale") serverRevision = await this.api.revision();
     } catch (error) {
       const permanent = isPermanent(error);
@@ -170,16 +182,24 @@ export class BuildSync {
       this.set({ kind: "save_failed", revision: this.revision, reason: message(error), retrying: !permanent });
       return;
     }
-    if (result === "stale") {
-      this.set({ kind: "conflict", revision: this.revision, serverRevision });
-      return;
-    }
+    if (result === "stale") return this.conflict(serverRevision);
     this.revision = result.revision;
+    this.overwriteBase = undefined;
     this.baseline = content;
     this.candidate = undefined;
     this.refused = undefined;
     this.backoff = this.skipTicks = 0;
     this.set({ kind: "synced", revision: result.revision });
+  }
+
+  private conflict(serverRevision: number): void {
+    this.set({ kind: "conflict", revision: this.revision, serverRevision });
+  }
+
+  /** The view holds another build: drop the claim on it; "Try again" loads this build again. */
+  private release(): void {
+    this.candidate = undefined;
+    this.set({ kind: "released" });
   }
 
   private set(state: SyncState): void {

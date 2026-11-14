@@ -18,7 +18,8 @@ API instead. Builds saved with Path of Building's own Save button stay in the br
 
 Requirements: git, gcc, cmake, ninja, python3 (for emsdk) and [Deno](https://deno.com) 2.9 or later. No root access: the
 toolchain (Emscripten through emsdk) and pob-web's dependencies are installed into `api/web/.build` (about 5 GB plus
-about 1 GB per packed commit, gitignored).
+about 1 GB per packed commit, gitignored). Superseded staged trees move to `.build/stale-old/`; delete them by hand when
+you need the space.
 
 ```sh
 api/web/build-web.sh            # packs the sources at HEAD
@@ -64,6 +65,7 @@ on a cross-origin isolated page:
 | `Cross-Origin-Opener-Policy`   | `same-origin`                                                                                                                                                                                                                                                          |
 | `Cross-Origin-Embedder-Policy` | `require-corp`                                                                                                                                                                                                                                                         |
 | `Cross-Origin-Resource-Policy` | `same-origin`                                                                                                                                                                                                                                                          |
+| `Referrer-Policy`              | `no-referrer` (the page links out to third-party sites and must not send its URL, which names build ids; it also sets `<meta name="referrer" content="no-referrer">`)                                                                                                  |
 | `X-Content-Type-Options`       | `nosniff`                                                                                                                                                                                                                                                              |
 | `Content-Security-Policy`      | `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'` |
 | `Cache-Control`                | `public, max-age=31536000, immutable` under `/assets/` and `/pob/`; `no-cache` elsewhere                                                                                                                                                                               |

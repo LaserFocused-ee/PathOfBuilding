@@ -108,6 +108,8 @@ function describe(state: SyncState): string {
         : `Not saved: the server refused this version (${state.reason}). Change the build or reload the page.`;
     case "conflict":
       return `The build changed on the server (revision ${state.serverRevision}) while you were editing.`;
+    case "released":
+      return "Path of Building has another build open; nothing there is saved to this build. Try again reopens it.";
     case "deleted":
       return "This build was deleted on the server.";
   }
@@ -220,14 +222,18 @@ async function viewPage(id: string) {
     {
       // Path of Building applies a build at once and draws it over the next frames; `shown` waits for them.
       load: (code) => driver.loadBuildFromCode(`${name}\n${code.trim()}`), // named: patches/pob-web-load-build.patch
-      read: () => driver.getBuildCode(),
+      // "!not-loaded": Path of Building has another build open (patches/pob-web-load-build.patch).
+      read: async () => {
+        const code = await driver.getBuildCode();
+        return code === "!not-loaded" ? null : code;
+      },
       content: buildContent,
       shown: () => drawn(2),
     },
     (s) => {
       text(state, describe(s));
       conflict.hidden = s.kind !== "conflict";
-      $("#retry").hidden = s.kind !== "failed";
+      $("#retry").hidden = s.kind !== "failed" && s.kind !== "released";
       state.dataset.kind = s.kind;
     },
   );
