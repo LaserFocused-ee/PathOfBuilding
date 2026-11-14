@@ -79,7 +79,8 @@ export class Service {
   async get(id: string): Promise<Output> {
     const summary = await this.pool.run<Summary>(id, "builds.summary");
     const meta = await this.store.get(id);
-    return { result: { build: publicMeta(meta), summary: summary.result }, warnings: summary.warnings };
+    // The stored name wins: a rename changes the store, not the open session.
+    return { result: { build: publicMeta(meta), summary: { ...summary.result, name: meta.name } }, warnings: summary.warnings };
   }
 
   rename(id: string, input: { name: string; baseRevision?: number }): Promise<Output> {

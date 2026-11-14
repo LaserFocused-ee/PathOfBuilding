@@ -137,6 +137,7 @@ void test("metadata ops: list, rename with stale check, save point, history, dup
   const id = dup.build.id;
   const renamed = ok(await srv.call<{ build: { name: string; revision: number } }>("POST", `/v1/builds/${id}/rename`, { name: "Occ two", baseRevision: 1 }));
   assert.deepEqual([renamed.build.name, renamed.build.revision], ["Occ two", 2]);
+  assert.equal(ok(await srv.call<Created & { summary: { name: string } }>("GET", `/v1/builds/${id}`)).summary.name, "Occ two");
   const stale = await srv.call("POST", `/v1/builds/${id}/rename`, { name: "late", baseRevision: 1 });
   assert.deepEqual([stale.status, stale.body.error?.code], [409, "stale_revision"]);
   ok(await srv.call("POST", `/v1/builds/${id}/save-points`, { label: "before tree" }));
