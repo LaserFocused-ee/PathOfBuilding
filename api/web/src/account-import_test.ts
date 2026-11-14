@@ -1,5 +1,5 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { accountNote, EXACT_NAME, profileStandIn } from "./account-import.ts";
+import { accountNote, EXACT_NAME, profileStandIn, viaRelay } from "./account-import.ts";
 
 const site = "https://www.pathofexile.com/";
 
@@ -53,4 +53,27 @@ Deno.test("an empty character list says the name must match exactly; a good one 
   assertStringIncludes(accountNote(url, { status: 200, headers: {}, body: "[]" })!, EXACT_NAME);
   assertEquals(accountNote(url, { status: 200, headers: {}, body: '[{"name":"x"}]' }), null);
   assertEquals(accountNote(`${site}account/view-profile/a`, { status: 403, headers: {}, body: "" }), null);
+});
+
+Deno.test("no profile-page URL reaches the relay; character requests set or clear the note", async () => {
+  const relayCalls: string[] = [];
+  const notes: (string | null)[] = [];
+  const relay = (url: string, status = 200, body = "[]") => () => {
+    relayCalls.push(url);
+    return Promise.resolve({ status, headers: {}, body });
+  };
+  for (const odd of ["a%231", "a%231/characters", "a&b/c%231", "a&b?c%231", "a%231#x", ""]) {
+    const url = `${site}account/view-profile/${odd}`;
+    await viaRelay(url, relay(url), (n) => notes.push(n));
+  }
+  assertEquals(relayCalls, []);
+  assertEquals(notes, []);
+  const chars = `${site}character-window/get-characters?accountName=a%231&realm=pc`;
+  await viaRelay(chars, relay(chars, 403, ""), (n) => notes.push(n));
+  await viaRelay(chars, relay(chars, 200, '[{"name":"x"}]'), (n) => notes.push(n));
+  const link = "https://pobb.in/abc";
+  await viaRelay(link, relay(link, 404, ""), (n) => notes.push(n));
+  assertEquals(relayCalls, [chars, chars, link]);
+  assertStringIncludes(notes[0]!, "(403)");
+  assertEquals(notes.slice(1), [null]);
 });

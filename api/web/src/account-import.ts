@@ -54,3 +54,19 @@ export function accountNote(url: string, result: FetchResult): string | null {
   }
   return null;
 }
+
+/**
+ * Path of Building's download through the page: the profile page answered here, everything else by `relay`
+ * (POST /v1/fetch). A character request's answer sets the note above the view (null clears it).
+ */
+export async function viaRelay(
+  url: string,
+  relay: () => Promise<FetchResult>,
+  note: (text: string | null) => void,
+): Promise<FetchResult> {
+  const local = profileStandIn(url);
+  if (local) return local;
+  const result = await relay();
+  if (url.startsWith("https://www.pathofexile.com/character-window/")) note(accountNote(url, result));
+  return result;
+}
