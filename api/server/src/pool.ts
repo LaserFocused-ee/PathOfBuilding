@@ -86,14 +86,14 @@ export class Pool {
     this.invalidate(key);
   }
 
-  stats(): { max: number; sessions: number; free: number; starting: number; workers: Array<{ pid: number | undefined; session: string | undefined; busy: boolean }> } {
+  stats(): { max: number; sessions: number; free: number; starting: number; workers: Array<{ session: string | undefined; busy: boolean }> } {
     const all = [...this.sessions.values(), ...this.free];
     return {
       max: this.cfg.poolSize,
       sessions: this.sessions.size,
       free: this.free.length,
       starting: this.starting,
-      workers: all.map((w) => ({ pid: w.proc.pid, session: w.buildId ? (w.buildId === LOOKUP_SESSION ? "lookup" : "build") : undefined, busy: w.busy })),
+      workers: all.map((w) => ({ session: w.buildId ? (w.buildId === LOOKUP_SESSION ? "lookup" : "build") : undefined, busy: w.busy })),
     };
   }
 

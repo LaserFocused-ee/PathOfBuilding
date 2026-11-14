@@ -8,6 +8,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { decodeBuildCode } from "../src/fetch.js";
 import { LOOKUP_SESSION } from "../src/pool.js";
+import { routes } from "../src/routes.js";
 import { FIXTURES, ROOT, startServer, tempDir, TOKEN, type TestServer } from "./helpers.js";
 
 type Stat = { stat: string; value: number; text: string };
@@ -189,6 +190,30 @@ void test("auth, health, errors and boundary log lines", async () => {
   assert.ok(srv.lines.some((l) => l.event === "http.request" && l.route === "/v1/stats/:id/sidebar" && l.status === 200));
   assert.ok(srv.lines.some((l) => l.event === "worker.command" && l.op === "stats.sidebar" && l.ok === true));
   assert.ok(!JSON.stringify(srv.lines).includes(TOKEN), "the token never reaches the log");
+});
+
+void test("every route in the table refuses a request without the bearer token", async () => {
+  const base = `http://127.0.0.1:${srv.port}`;
+  for (const r of routes) {
+    const path = r.path.replace(":id", fresh).replace(":nodeId", "1");
+    for (const auth of [undefined, `Bearer ${TOKEN}x`, TOKEN]) {
+      const res = await fetch(base + path, { method: r.method, headers: auth ? { authorization: auth } : {} });
+      assert.equal(res.status, 401, `${r.method} ${r.path} with ${auth ? "a wrong" : "no"} token`);
+      await res.body?.cancel();
+    }
+  }
+});
+
+void test("health/deep needs POB_HEALTH_TOKEN when one is configured", async (t) => {
+  const s = await startServer({ healthToken: "health-token-for-tests", poolSize: 1 });
+  t.after(s.close);
+  const url = `http://127.0.0.1:${s.port}/health/deep`;
+  assert.equal((await fetch(url)).status, 401);
+  assert.equal((await fetch(url, { headers: { "x-health-token": "wrong" } })).status, 401);
+  const good = await fetch(url, { headers: { "x-health-token": "health-token-for-tests" } });
+  assert.equal(good.status, 200);
+  assert.ok(!JSON.stringify(await good.json()).includes("pid"), "health output names no process ids");
+  assert.equal((await fetch(`http://127.0.0.1:${s.port}/health`)).status, 200);
 });
 
 void test("MCP over HTTP: list tools, read a loaded build's stats, failures are isError", async () => {

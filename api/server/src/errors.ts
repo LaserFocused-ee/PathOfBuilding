@@ -28,5 +28,5 @@ export class ApiError extends Error {
 }
 
 export function isErrorCode(code: unknown): code is ErrorCode {
-  return typeof code === "string" && code in errorStatus;
+  return typeof code === "string" && Object.hasOwn(errorStatus, code);
 }
