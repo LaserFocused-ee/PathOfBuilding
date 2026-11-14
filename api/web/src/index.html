@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="referrer" content="no-referrer" />
     <link rel="icon" href="data:," />
     <title>Path of Building</title>
     <style>
@@ -110,6 +111,7 @@
     #sync-state[data-kind="failed"],
     #sync-state[data-kind="save_failed"],
     #sync-state[data-kind="conflict"],
+    #sync-state[data-kind="released"],
     #sync-state[data-kind="deleted"] {
       color: #fb6;
     }
@@ -130,7 +132,8 @@
       min-height: 0;
       overflow: hidden;
     }
-    #driver-error {
+    #driver-error,
+    #import-note {
       margin: 0;
       padding: 0.3rem 0.6rem;
       background: #1b1b1b;
@@ -167,9 +170,9 @@
       <p id="list-status" role="status"></p>
       <ul id="build-list"></ul>
       <p class="notice">
-        Path of Building Community running in the browser through <a href="https://github.com/atty303/pob-web">pob-web</a>.
+        Path of Building Community running in the browser through <a href="https://github.com/atty303/pob-web" target="_blank" rel="noopener noreferrer">pob-web</a>.
         Not affiliated with or endorsed by Grinding Gear Games. Path of Exile game data and art belong to Grinding Gear
-        Games. Fontin font by Jos Buivenga (<a href="https://www.exljbris.nl">exljbris</a>).
+        Games. Fontin font by Jos Buivenga (<a href="https://www.exljbris.nl" target="_blank" rel="noopener noreferrer">exljbris</a>).
       </p>
     </main>
 
@@ -198,9 +201,10 @@
         </span>
         <button id="signout-view" type="button">Sign out</button>
         <span class="notice">Not affiliated with or endorsed by Grinding Gear Games. Fontin font by
-          <a href="https://www.exljbris.nl">exljbris</a>.</span>
+          <a href="https://www.exljbris.nl" target="_blank" rel="noopener noreferrer">exljbris</a>.</span>
       </div>
       <p id="driver-error" class="error" role="alert" hidden></p>
+      <p id="import-note" class="error" role="status" hidden></p>
       <div id="window"></div>
     </div>
     <script type="module" src="./main.ts"></script>

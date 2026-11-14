@@ -52,8 +52,12 @@ git -C "$P" submodule update -q --init --recursive
 # patches/: small changes to pob-web's boot script (compiled into the driver), each explained in its file.
 # The driver is rebuilt when a patch or a pin changes. Patched files go back to the pin first, so an
 # edited patch applies cleanly over the old one.
+# A path the patch adds is untracked at the pin: move it to $B/stale-old instead of checking it out.
 for patch in "$HERE"/patches/*.patch; do
-  git -C "$P" apply --numstat "$patch" | cut -f3 | xargs -r git -C "$P" checkout -q --
+  git -C "$P" apply --numstat "$patch" | cut -f3 | while IFS= read -r path; do
+    if git -C "$P" ls-files --error-unmatch -- "$path" >/dev/null 2>&1; then git -C "$P" checkout -q -- "$path"
+    elif [ -e "$P/$path" ]; then mkdir -p "$B/stale-old"; mv "$P/$path" "$B/stale-old/$(date +%s)-$(basename "$path")"; fi
+  done
 done
 for patch in "$HERE"/patches/*.patch; do git -C "$P" apply "$patch"; done
 STAMP="$P/packages/driver/dist/release/.view-patches"
@@ -151,7 +155,7 @@ cp "$T2D/bindings/LICENSE" "$DIST/licenses/texture2ddecoder-wasm-LICENSE"
 if [ -n "$(grep -rlF jsxDEV "$DIST/assets" || true)" ]; then echo "output contains React's development build (jsxDEV)" >&2; exit 1; fi
 # Lowered optional calls (`x?.(a)` built as `x.call(this, a)`) post the worker object through Comlink
 # proxies: a DataCloneError on every diagnostic. vite.config.ts build.target keeps them native.
-if [ -n "$(grep -rlE '==null\|\|[A-Za-z_$][A-Za-z0-9_$]*\.call\(this' "$DIST/assets" || true)" ]; then echo "output contains lowered optional calls (check build.target)" >&2; exit 1; fi
+deno run --quiet --allow-read "$HERE/tools/lowered-calls.ts" "$DIST/assets"
 LEAK="$(grep -rlF -e "$REPO" -e "$HERE" -e "$B" -e "$HOME/" "$DIST" --exclude-dir=pob --exclude-dir=licenses || true)"
 if [ -n "$LEAK" ]; then echo "builder path leaked into output:" >&2; echo "$LEAK" | head -n 20 >&2; exit 1; fi
 mkdir -p "$DIST/pob"

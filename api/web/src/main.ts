@@ -1,6 +1,7 @@
 // Browser view: `/` lists the server's builds, `/?build=<id>` opens one in the real Path of Building UI
 // (pob-web's driver) and keeps it in step with the server (sync.ts).
 import { Driver } from "pob-driver/driver";
+import { viaRelay } from "./account-import.ts";
 import { api, ApiError, type BuildMeta, isBuildId } from "./api.ts";
 import { buildContent } from "./content.ts";
 import { safeExternalUrl } from "./links.ts";
@@ -108,6 +109,8 @@ function describe(state: SyncState): string {
         : `Not saved: the server refused this version (${state.reason}). Change the build or reload the page.`;
     case "conflict":
       return `The build changed on the server (revision ${state.serverRevision}) while you were editing.`;
+    case "released":
+      return "Path of Building has another build open; nothing there is saved to this build. Try again reopens it.";
     case "deleted":
       return "This build was deleted on the server.";
   }
@@ -162,10 +165,14 @@ async function viewPage(id: string) {
       }
     },
     // Path of Building's own downloads (public-profile character import, build links) go through the
-    // server's allow-listed fetch route; the browser never calls those sites itself.
+    // server's allow-listed fetch route; the browser never calls those sites itself (account-import.ts).
     onFetch: async (url, headers, body) => {
       try {
-        return { ...await withSession(() => api.fetch(url, headers, body)), error: undefined };
+        const result = await viaRelay(url, () => withSession(() => api.fetch(url, headers, body)), (note) => {
+          text($("#import-note"), note ?? "");
+          $("#import-note").hidden = note === null;
+        });
+        return { ...result, error: undefined };
       } catch (e) {
         return { body: "", status: undefined, headers: {}, error: e instanceof Error ? e.message : String(e) };
       }
@@ -220,14 +227,18 @@ async function viewPage(id: string) {
     {
       // Path of Building applies a build at once and draws it over the next frames; `shown` waits for them.
       load: (code) => driver.loadBuildFromCode(`${name}\n${code.trim()}`), // named: patches/pob-web-load-build.patch
-      read: () => driver.getBuildCode(),
+      // "!not-loaded": Path of Building has another build open (patches/pob-web-load-build.patch).
+      read: async () => {
+        const code = await driver.getBuildCode();
+        return code === "!not-loaded" ? null : code;
+      },
       content: buildContent,
       shown: () => drawn(2),
     },
     (s) => {
       text(state, describe(s));
       conflict.hidden = s.kind !== "conflict";
-      $("#retry").hidden = s.kind !== "failed";
+      $("#retry").hidden = s.kind !== "failed" && s.kind !== "released";
       state.dataset.kind = s.kind;
     },
   );
