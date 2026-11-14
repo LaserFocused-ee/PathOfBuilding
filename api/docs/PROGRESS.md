@@ -210,10 +210,10 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | --- | --- | --- | --- |
 | `trade.leagues` | S | F3 | `pob_trade` |
 | `trade.currency_rates` | S | F3 | `pob_trade` |
-| `trade.stat_weights` | S | F3 | `pob_trade` |
-| `trade.query.generate` | S | F3 | `pob_trade` |
+| `trade.stat_weights` | S | F3 | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Other slots: `pob_trade` |
+| `trade.query.generate` | S | F3 | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Other slots: `pob_trade` |
 | `trade.search` | S | F3 | `pob_trade` |
-| `trade.search_url` | S | F3 | `pob_trade` |
+| `trade.search_url` | S | F3 | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Other slots: `pob_trade` |
 | `trade.evaluate` | S | F3 | `pob_trade` |
 | `trade.sort` / `total_price` | S | F3 | `pob_trade` |
 | `trade.price_all_slots` | X | F3 | `pob_trade` |

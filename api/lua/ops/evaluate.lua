@@ -100,10 +100,11 @@ return function(W)
 		return set
 	end
 
-	local function slotOf(tab, name)
+	local function slotOf(tab, name, sockets)
 		local slot = tab.slots[name]
 		if not slot then bad("no item slot " .. tostring(name)) end
-		if slot.nodeId then bad("jewel sockets are not evaluated (a jewel can change the tree)") end
+		if slot.nodeId and not sockets then bad("jewel sockets are not evaluated here (compare_item takes a jewel socket)") end
+		if slot.nodeId then tab:UpdateSockets() end
 		return slot
 	end
 
@@ -264,6 +265,47 @@ return function(W)
 	end
 
 	-- args: item (id) or text, slot? (default every slot it fits), fields?. The item in each slot in place of what it holds.
+	-- ItemsTab.lua itemChangesPassiveTree (the tooltip then rebuilds the tree to compare), and cluster jewels, whose passives are
+	-- a part of the tree the calculator's override does not build.
+	local function changesTree(item)
+		return item and item.type == "Jewel" and (item.clusterJewel or (item.jewelData and (item.jewelData.conqueredBy
+			or item.jewelRadiusIndex and (item.jewelData.intuitiveLeapLike or item.jewelData.impossibleEscapeKeystone)))) and true or false
+	end
+
+	-- Equips a copy of `item` in the socket for real (a cluster jewel's passives built and all allocated, the path to them too),
+	-- recalculates, and loads the build back from its own XML so it is left as it was.
+	local function inSocket(b, slot, item, fields)
+		local xml, name = b:SaveDB("code"), b.buildName
+		local before = values(b, b.calcsTab.mainOutput, fields)
+		local used = b.spec:CountAllocNodes()
+		local ok, res = pcall(function()
+			local tab = b.itemsTab
+			local copy = new("Item"):Item(item:BuildRaw())
+			tab:AddItem(copy, true)
+			tab.slots[slot.slotName]:SetSelItemId(copy.id)
+			tab:PopulateSlots()
+			local spec = b.spec
+			if copy.clusterJewel then
+				for _, sub in pairs(spec.subGraphs) do
+					if sub.parentSocket.id == slot.nodeId then
+						for _, node in ipairs(sub.nodes) do
+							local live = node.id and spec.nodes[node.id]
+							if live and live.type ~= "Socket" and not live.alloc then spec:AllocNode(live) end
+						end
+					end
+				end
+			end
+			b.buildFlag = true
+			W.pump()
+			b = W.build()
+			return { changed = diff(before, values(b, b.calcsTab.mainOutput, fields)), points = b.spec:CountAllocNodes() - used }
+		end)
+		main:SetMode("BUILD", false, name, xml, true)
+		W.pump()
+		if not ok then error(res, 0) end
+		return res
+	end
+
 	function ops.compare_item(args)
 		local b = W.build()
 		local tab = b.itemsTab
@@ -271,7 +313,7 @@ return function(W)
 		if item.base.flask or item.base.tincture then bad("flasks and tinctures are compared with what_if (toggleFlask / toggleTincture)") end
 		local slots = {}
 		if args.slot ~= nil then
-			local slot = slotOf(tab, args.slot)
+			local slot = slotOf(tab, args.slot, true)
 			if not tab:IsItemValidForSlot(item, args.slot) then bad("this item does not fit " .. args.slot) end
 			if not slotInUse(tab, slot) then bad(args.slot .. " is not in use (weapon set or socket not active)") end
 			slots[1] = slot
@@ -279,15 +321,23 @@ return function(W)
 			for _, slot in ipairs(tab.orderedSlots) do
 				if not slot.nodeId and tab:IsItemValidForSlot(item, slot.slotName) and slotInUse(tab, slot) then slots[#slots + 1] = slot end
 			end
-			if #slots == 0 then bad("this item fits no equipment slot in use (jewel sockets are not compared)") end
+			if #slots == 0 then bad("this item fits no equipment slot in use (a jewel is compared in the tree socket named by slot, e.g. Jewel 26725)") end
 		end
 		local fields = fieldsOf(args)
 		local calcFunc, calcBase = calculator(b)
 		local before = values(b, calcBase, fields)
 		local out = {}
 		for _, slot in ipairs(slots) do
-			out[#out + 1] = { slot = slot.slotName, equipped = equippedIn(tab, slot),
-				changed = diff(before, values(b, calcFunc({ repSlotName = slot.slotName, repItem = item }), fields)) }
+			if slot.nodeId and (changesTree(item) or changesTree(slot.selItemId and tab.items[slot.selItemId])) then
+				local equipped = equippedIn(tab, slot)
+				local r = inSocket(b, slot, item, fields)
+				out[#out + 1] = { slot = slot.slotName, equipped = equipped, changed = r.changed, points = r.points }
+				b = W.build()
+				tab = b.itemsTab
+			else
+				out[#out + 1] = { slot = slot.slotName, equipped = equippedIn(tab, slot),
+					changed = diff(before, values(b, calcFunc({ repSlotName = slot.slotName, repItem = item }), fields)) }
+			end
 		end
 		return { slots = out }
 	end
@@ -463,6 +513,442 @@ return function(W)
 		b.buildFlag = prevFlag
 		if not ok then error(a, 0) end
 		return { changed = diff(a, c) }
+	end
+
+	-- Jewels for this build through Path of Building's trade weighting (TradeQueryGenerator.lua). The generator is driven as its
+	-- Execute button drives it, minus the popup: StartQuery sets up the calculation against the socket with a blank test item,
+	-- ExecuteQuery weighs every mod the jewel can have (run to the end here), FinishQuery builds the trade search. Defaults are the
+	-- popup's: weights Full DPS 1 and Effective Hit Pool 0.5 (TradeQuery.lua), corrupted and mirrored included, each mod tested at
+	-- the Item Affix Quality (min + (max - min) * quality over the mod's range across tiers; the setting defaults to 0.5).
+	local tradeTypeList = { "securable", "available", "onlineleague", "online", "any" } -- FinishQuery's self.tradeTypes, in order
+	local currencyIds = { chaos = true, divine = true, alch = true, alt = true, chrome = true, exalted = true, blessed = true, chisel = true,
+		gcp = true, jewellers = true, scour = true, regret = true, fusing = true, chance = true, regal = true, vaal = true } -- its currencyTable
+	local realms = { pc = true, xbox = true, sony = true }
+	local function indexOf(list, v) for i, x in ipairs(list) do if x == v then return i end end end
+	local tradeHost = "https://www.pathofexile.com/"
+
+	local function statWeightsOf(args)
+		if args.weights == nil then return { { stat = "FullDPS", weightMult = 1.0 }, { stat = "TotalEHP", weightMult = 0.5 } } end
+		if type(args.weights) ~= "table" or #args.weights == 0 then bad("weights is a list of { stat, weight }") end
+		local out = {}
+		for _, w in ipairs(args.weights) do
+			local entry = powerStat(type(w) == "table" and w.stat or nil)
+			if not entry.stat or entry.ignoreForItems then bad("stat " .. tostring(w.stat) .. " cannot weigh items") end
+			local mult = tonumber(w.weight)
+			if not mult or mult < 0.01 or mult > 1 then bad("a weight is from 0.01 to 1 (the popup's slider)") end
+			out[#out + 1] = { stat = entry.stat, label = entry.label, transform = entry.transform, weightMult = mult }
+		end
+		return out
+	end
+
+	-- A jewel socket: a tree socket (node id or "Jewel <id>") or an item's abyssal socket slot; by default the first allocated tree
+	-- socket that holds no jewel and takes `probe`.
+	local function socketOf(tab, ref, probe)
+		tab:UpdateSockets()
+		local slot
+		if ref ~= nil then
+			slot = tab.slots[tostring(ref)] or tab.slots["Jewel " .. tostring(ref)]
+			if not slot or not (slot.nodeId or slot.slotName:find("Abyssal")) then bad("no jewel socket " .. tostring(ref)) end
+		else
+			for pass = 1, 2 do -- regular sockets before cluster sockets
+				for _, s in ipairs(tab.orderedSlots) do
+					if not slot and s.nodeId and s.selItemId == 0 and slotInUse(tab, s) and tab:IsItemValidForSlot(probe, s.slotName)
+						and (pass == 2 or not tab.build.spec.nodes[s.nodeId].expansionJewel) then slot = s end
+				end
+			end
+			if not slot then bad("the tree has no allocated empty socket this jewel fits; allocate one or name a socket") end
+		end
+		if not slotInUse(tab, slot) then bad(slot.slotName .. " is not in use (socket not allocated or its item has no such socket)") end
+		if not tab:IsItemValidForSlot(probe, slot.slotName) then bad("this jewel does not fit " .. slot.slotName) end
+		return slot
+	end
+
+	-- Trade search link in Path of Building's own form (TradeQuery.lua "Find best" without a session; buildUrl + B64GzipEncode).
+	local function tradeLink(realm, league, query)
+		if league == nil then return json.null end
+		local requests = new("TradeQueryRequests"):TradeQueryRequests({})
+		local helpers = require("Classes.TradeHelpers")
+		return requests:buildUrl(tradeHost .. "trade/search", realm, league) .. "/" .. helpers.B64GzipEncode(json.encode(query))
+	end
+
+	-- The mods of an item mod list that carry `group` and the stat order `order` (a QueryMods key is "<statOrder>_<group>").
+	local function sourceMods(list, key)
+		local order, group = key:match("^(%-?%d+)_(.+)$")
+		local out = {}
+		for _, mod in pairs(list or {}) do
+			if mod.group == group then
+				for _, so in ipairs(mod.statOrder or {}) do
+					if tostring(so) == order then out[#out + 1] = mod break end
+				end
+			end
+		end
+		return out, group
+	end
+
+	-- Every set of at most two prefixes and two suffixes (distinct mod groups) from the best `pool` of each, with a jewel base
+	-- that can roll them all; the sums of their gains, best first.
+	local function combinations(mods, bases, pool)
+		local pre, suf = {}, {}
+		for _, m in ipairs(mods) do
+			if m.affix == "Prefix" and #pre < pool then pre[#pre + 1] = m elseif m.affix == "Suffix" and #suf < pool then suf[#suf + 1] = m end
+		end
+		local function pairsOf(list)
+			local out = { {} }
+			for i = 1, #list do
+				out[#out + 1] = { list[i] }
+				for j = i + 1, #list do
+					if list[i].group ~= list[j].group then out[#out + 1] = { list[i], list[j] } end
+				end
+			end
+			return out
+		end
+		local out = {}
+		for _, p in ipairs(pairsOf(pre)) do
+			for _, s in ipairs(pairsOf(suf)) do
+				local set, groups, ok, sum = {}, {}, true, 0
+				for _, m in ipairs(p) do set[#set + 1] = m end
+				for _, m in ipairs(s) do set[#set + 1] = m end
+				for _, m in ipairs(set) do
+					if groups[m.group] then ok = false end
+					groups[m.group] = true
+					sum = sum + m.gain
+				end
+				if ok and #set > 0 then
+					local base
+					for _, name in ipairs(bases) do
+						local all = true
+						for _, m in ipairs(set) do if not m.bases[name] then all = false break end end
+						if all then base = name break end
+					end
+					if base then out[#out + 1] = { mods = set, base = base, estimate = sum } end
+				end
+			end
+		end
+		table.sort(out, function(x, y)
+			if x.estimate ~= y.estimate then return x.estimate > y.estimate end
+			local a, c = {}, {}
+			for i, m in ipairs(x.mods) do a[i] = m.id end
+			for i, m in ipairs(y.mods) do c[i] = m.id end
+			return table.concat(a, ",") < table.concat(c, ",")
+		end)
+		return out
+	end
+
+	local function rounded(v) return math.floor(v * 1000 + 0.5) / 1000 end
+	local function weightsOut(list)
+		local out = {}
+		for i, w in ipairs(list) do out[i] = { stat = w.stat, weight = w.weightMult } end
+		return out
+	end
+	-- ExecuteQuery's order: a trade id weighed under the first of these is the one it reports
+	local modTypeOrder = { "WatchersEye", "Explicit", "Implicit", "Corrupted", "Enchant", "Scourge", "Eater", "Exarch" }
+
+	-- Cluster jewels: the notables a cluster of this size and enchant can roll, weighted the way the generator weighs Megalomaniac's
+	-- notables (GeneratePassiveNodeWeights: each notable added to the tree on its own), and a weighted search for that base and
+	-- enchant (Path of Building has no cluster search; this one follows FinishQuery's shape and filters).
+	local function clusterNotables(args, b, gen, options, limit, wantCombos, realm)
+		local size = args.size
+		local jewel = type(size) == "string" and data.clusterJewels.jewels[size .. " Cluster Jewel"] or bad("size is Small, Medium or Large")
+		local skill, names = nil, {}
+		for id, s in pairs(jewel.skills) do
+			names[#names + 1] = s.name
+			if s.name == args.enchant or id == args.enchant then skill = s end
+		end
+		table.sort(names)
+		if not skill then bad("enchant is one of the " .. size .. " cluster's: " .. table.concat(names, ", ")) end
+		local sizeKey = "expansion_jewel_" .. size:lower()
+		local function weightOf(keys, vals, key)
+			for i, k in ipairs(keys or {}) do if k == key then return vals[i] end end
+			return 0
+		end
+		local byGroup = {}
+		for key, entry in pairs(gen.modData.PassiveNode) do
+			local group = key:match("^%-?%d+_(.+)$")
+			if group then byGroup[group] = entry end
+		end
+		local spec = b.spec
+		local candidates, info = {}, {}
+		for id, mod in pairs(data.itemMods.JewelCluster) do
+			if id:find("^AfflictionNotable") and weightOf(mod.weightKey, mod.weightVal, skill.tag) > 0
+				and weightOf(mod.weightMultiplierKey, mod.weightMultiplierVal, sizeKey) > 0 and byGroup[mod.group] then
+				local entry = byGroup[mod.group]
+				local name = mod[1]:match("1 Added Passive Skill is (.*)")
+				if name and spec.tree.clusterNodeMap[name] then
+					candidates[#candidates + 1] = entry
+					info[entry.tradeMod.id] = { name = name, affix = mod.type, level = mod.level }
+				end
+			end
+		end
+		local calcFunc, baseOutput = b.calcsTab:GetMiscCalculator()
+		gen.modWeights, gen.alreadyWeightedMods = {}, {}
+		gen.calcContext = { calcFunc = calcFunc, baseOutput = baseOutput, options = options,
+			baseStatValue = gen.WeightedRatioOutputs(baseOutput, baseOutput, options.statWeights) * 1000 }
+		drain(gen.GeneratePassiveNodeWeights, gen, candidates)
+		table.sort(gen.modWeights, function(x, y)
+			if x.meanStatDiff ~= y.meanStatDiff then return x.meanStatDiff > y.meanStatDiff end
+			return x.tradeModId < y.tradeModId
+		end)
+		local mods = {}
+		for _, w in ipairs(gen.modWeights) do
+			local i = info[w.tradeModId]
+			mods[#mods + 1] = { id = w.tradeModId, text = "1 Added Passive Skill is " .. i.name, notable = i.name, affix = i.affix, level = i.level,
+				weight = rounded(w.weight), gain = rounded(w.meanStatDiff) }
+		end
+		-- at most the notables a cluster of this size can hold (1 small, 2 medium, 3 large), two prefixes and two suffixes; measured together
+		local cap = ({ Small = 1, Medium = 2, Large = 3 })[size]
+		local before = values(b, baseOutput, nil)
+		local sets = {}
+		local top = {}
+		for i = 1, math.min(#mods, 8) do top[i] = mods[i] end
+		local function walk(start, set, pre, suf)
+			if #set > 0 then sets[#sets + 1] = { unpack(set) } end
+			if #set == cap then return end
+			for i = start, #top do
+				local m = top[i]
+				local p, s = pre + (m.affix == "Prefix" and 1 or 0), suf + (m.affix == "Suffix" and 1 or 0)
+				if p <= 2 and s <= 2 then
+					set[#set + 1] = m
+					walk(i + 1, set, p, s)
+					set[#set] = nil
+				end
+			end
+		end
+		walk(1, {}, 0, 0)
+		local combos, largest = {}, 0
+		for _, set in ipairs(sets) do largest = math.max(largest, #set) end
+		for _, set in ipairs(sets) do
+			if #set == largest then
+				local nodes, ids, sum = {}, {}, 0
+				for _, m in ipairs(set) do nodes[spec.tree.clusterNodeMap[m.notable]] = true; ids[#ids + 1] = m.id; sum = sum + m.gain end
+				local output = calcFunc({ addNodes = nodes })
+				combos[#combos + 1] = { mods = ids, estimate = rounded(sum),
+					gain = rounded(gen.WeightedRatioOutputs(baseOutput, output, options.statWeights) * 1000 - gen.calcContext.baseStatValue),
+					changed = diff(before, values(b, output, nil)) }
+			end
+		end
+		table.sort(combos, function(x, y)
+			if x.gain ~= y.gain then return x.gain > y.gain end
+			return table.concat(x.mods, ",") < table.concat(y.mods, ",")
+		end)
+		for i = #combos, wantCombos + 1, -1 do combos[i] = nil end
+
+		-- the search: this base, unique excluded, the enchant required, the notables as a weighted sum at least the best one's weight
+		local enchantId
+		local text = table.concat(skill.enchant, "\n")
+		for _, cat in ipairs(require("Classes.TradeHelpers").getTradeStats()) do
+			if cat.id == "enchant" then
+				for _, e in ipairs(cat.entries) do if e.text == text then enchantId = e.id break end end
+			end
+		end
+		local query = json.null
+		if #mods > 0 then
+			local filters = { type_filters = { filters = { rarity = { option = "nonunique" } } } }
+			if not options.includeMirrored then filters.misc_filters = { disabled = false, filters = { mirrored = false } } end
+			if args.minItemLevel ~= nil then
+				local ilvl = tonumber(args.minItemLevel) or bad("minItemLevel is a number")
+				filters.misc_filters = filters.misc_filters or { disabled = false, filters = {} }
+				filters.misc_filters.filters.ilvl = { min = ilvl }
+			end
+			if options.maxPrice and options.maxPrice > 0 then filters.trade_filters = { filters = { price = { option = options.maxPriceType, max = options.maxPrice } } } end
+			local weightGroup = { type = "weight", value = { min = mods[1].weight }, filters = {} }
+			for _, m in ipairs(mods) do weightGroup.filters[#weightGroup.filters + 1] = { id = m.id, value = { weight = m.weight } } end
+			local andGroup = { type = "and", filters = {} }
+			if enchantId then andGroup.filters[1] = { id = enchantId } end
+			query = { type = size .. " Cluster Jewel", filters = filters, status = { option = tradeTypeList[gen.tradeTypeIndex] },
+				stats = { weightGroup, andGroup, { type = "not", filters = {} } } }
+		end
+		local out = {}
+		for i = 1, math.min(limit, #mods) do out[i] = mods[i] end
+		return { family = "cluster", size = size, enchant = skill.name, enchantId = enchantId or json.null, notableSlots = cap,
+			category = "jewel.cluster", weights = weightsOut(options.statWeights), total = #mods, mods = out, combinations = combos, query = query,
+			search = query ~= json.null and { query = query, sort = { ["statgroup.0"] = "desc" }, engine = "new" } or json.null,
+			queryError = query == json.null and "no notable of this enchant gains anything for this build" or json.null,
+			link = query ~= json.null and tradeLink(realm, args.league, query) or json.null }
+	end
+
+	-- args: family ("base" | "abyss" | "watchers_eye" | "cluster"), socket?, size? and enchant? (cluster), weights?, quality?,
+	-- includeCorrupted?, includeMirrored?, limit?, combinations?, league?, realm?, tradeType?, maxPrice?, priceCurrency?, minItemLevel?.
+	function ops.jewel_mods(args)
+		local b = W.build()
+		local tab = b.itemsTab
+		local family = args.family
+		local statWeights = statWeightsOf(args)
+		local limit = math.min(tonumber(args.limit) or 30, 200)
+		local wantCombos = math.min(tonumber(args.combinations) or 5, 20)
+		local quality = args.quality == nil and (main.defaultItemAffixQuality or 0.5) or tonumber(args.quality)
+		if not quality or quality < 0 or quality > 1 then bad("quality is from 0 to 1") end
+		local realm = args.realm or "pc"
+		if not realms[realm] then bad("realm is pc, xbox or sony") end
+		if args.league ~= nil and (type(args.league) ~= "string" or not args.league:match("^[%w][%w '%-]*$") or #args.league > 64) then bad("league is a league name, e.g. Standard") end
+		local tradeType = args.tradeType or tradeTypeList[1]
+		local tradeIndex = indexOf(tradeTypeList, tradeType) or bad("tradeType is one of " .. table.concat(tradeTypeList, ", "))
+		if args.priceCurrency ~= nil and not currencyIds[args.priceCurrency] then bad("priceCurrency is a trade currency id, e.g. chaos or divine") end
+		local maxPrice = args.maxPrice ~= nil and (tonumber(args.maxPrice) or bad("maxPrice is a number")) or nil
+
+		local gen = new("TradeQueryGenerator"):TradeQueryGenerator({ itemsTab = tab })
+		gen.tradeTypeIndex = tradeIndex
+		local options = { statWeights = statWeights, includeCorrupted = args.includeCorrupted ~= false, includeMirrored = args.includeMirrored ~= false,
+			maxPrice = maxPrice, maxPriceType = args.priceCurrency }
+
+		if family == "cluster" then return clusterNotables(args, b, gen, options, limit, wantCombos, realm) end
+
+		local probeBase, listName, bases
+		if family == "base" then
+			options.jewelType, probeBase, listName = "Base", "Crimson Jewel", "Jewel"
+		elseif family == "abyss" then
+			options.jewelType, probeBase, listName = "Abyss", "Murderous Eye Jewel", "JewelAbyss"
+		elseif family == "watchers_eye" then
+			options.special, probeBase = { itemName = "Watcher's Eye" }, "Prismatic Jewel"
+		else
+			bad("family is base, abyss, watchers_eye or cluster (unique jewels: evaluate unique_rank with slot Jewel)")
+		end
+		local probe = new("Item"):Item("Rarity: RARE\nProbe\n" .. probeBase)
+		local slot = socketOf(tab, args.socket, probe)
+		if slot.slotName:find("Abyssal") and family ~= "abyss" then bad("an abyssal socket takes abyss jewels") end
+
+		bases = {}
+		if listName then
+			for name, base in pairs(data.itemBases) do
+				if base.type == "Jewel" and not base.hidden and ((listName == "Jewel" and base.subType == nil) or (listName == "JewelAbyss" and base.subType == "Abyss")) then bases[#bases + 1] = name end
+			end
+			table.sort(bases)
+		end
+		-- A QueryMods entry's mod group, affix and the bases that roll it (from the family's mod list).
+		local spawn = new("Item"):Item() -- canModSpawnForItemCategory's mock item
+		local affixCache = {}
+		local function affixOf(key)
+			if affixCache[key] then return affixCache[key] end
+			local src, group = sourceMods(data.itemMods[listName], key)
+			local rolled, any, on = {}, {}, {}
+			for _, mod in ipairs(src) do
+				if mod.type == "Prefix" or mod.type == "Suffix" then
+					any[mod.type] = true
+					for _, name in ipairs(bases) do
+						if spawn.GetModSpawnWeight({ base = data.itemBases[name] }, mod) > 0 then on[name] = true; rolled[mod.type] = true end
+					end
+				end
+			end
+			local types = next(rolled) and rolled or any -- the affix of the tiers a base rolls, else of any tier
+			affixCache[key] = { group = group, bases = on, rollable = next(on) ~= nil,
+				affix = (types.Prefix and types.Suffix) and "Either" or types.Prefix and "Prefix" or types.Suffix and "Suffix" or json.null }
+			return affixCache[key]
+		end
+		-- One entry per trade id and mod type for the category: the generator takes whichever its pairs() meets first, which
+		-- changes from process to process; here the one a base of the family rolls, then the widest range, then the key.
+		local function oneEach(modData, category)
+			local out = {}
+			for modType, entries in pairs(modData) do
+				local best = {}
+				for key, entry in pairs(entries) do
+					if entry.tradeMod and entry[category] then
+						local id, cur = entry.tradeMod.id, best[entry.tradeMod.id]
+						local function rank(k)
+							local e = entries[k]
+							return (listName and modType == "Explicit" and affixOf(k).rollable) and 1 or 0, e[category].max, k
+						end
+						if not cur then best[id] = key else
+							local r1, m1, k1 = rank(key)
+							local r2, m2, k2 = rank(cur)
+							if r1 > r2 or (r1 == r2 and (m1 > m2 or (m1 == m2 and k1 < k2))) then best[id] = key end
+						end
+					end
+				end
+				local kept = {}
+				for _, key in pairs(best) do kept[key] = entries[key] end
+				out[modType] = kept
+			end
+			return out
+		end
+
+		local prevQuality, popups = main.defaultItemAffixQuality, #main.popups
+		local query, queryErr
+		gen.requesterCallback = function(_, q, e) query, queryErr = q, e end
+		main.defaultItemAffixQuality = quality
+		local ok, err = pcall(function()
+			gen:StartQuery(slot, options)
+			if not gen.calcContext.co then bad("Path of Building does not generate a weighted search for " .. slot.slotName) end
+			gen.calcContext.co = nil
+			gen.modData = oneEach(gen.modData, gen.calcContext.itemCategory) -- a copy: the loaded QueryMods table is shared
+			drain(gen.ExecuteQuery, gen)
+			gen:FinishQuery()
+		end)
+		main.defaultItemAffixQuality = prevQuality
+		while #main.popups > popups do main:ClosePopup() end
+		if not ok then error(err, 0) end
+
+		-- trade id -> where the generator found it (QueryMods entry), for text, range, affix and group
+		local ctx = gen.calcContext
+		local found = {}
+		for _, modType in ipairs(modTypeOrder) do
+			for key, entry in pairs(gen.modData[modType] or {}) do
+				if entry.tradeMod and entry[ctx.itemCategory] and not found[entry.tradeMod.id] then found[entry.tradeMod.id] = { key = key, entry = entry, modType = modType } end
+			end
+		end
+		local weighed = {}
+		for i, w in ipairs(gen.modWeights) do weighed[i] = w end
+		table.sort(weighed, function(x, y) -- FinishQuery's order, ties by trade id (its sort leaves ties in any order)
+			if x.meanStatDiff ~= y.meanStatDiff then return x.meanStatDiff > y.meanStatDiff end
+			if math.abs(x.weight) ~= math.abs(y.weight) then return math.abs(x.weight) > math.abs(y.weight) end
+			return x.tradeModId < y.tradeModId
+		end)
+		local mods = {}
+		for _, w in ipairs(weighed) do
+			local f = found[w.tradeModId]
+			local m = { id = w.tradeModId, weight = rounded(w.weight), gain = rounded(w.meanStatDiff), invert = w.invert, kind = f and f.modType or json.null,
+				affix = json.null, group = json.null, text = json.null, bases = {} }
+			if f then
+				local range = f.entry[ctx.itemCategory]
+				local value = math.ceil((range.max - range.min) * quality + range.min)
+				local line = (value == 1 and f.entry.specialCaseData.overrideModLineSingular) or f.entry.specialCaseData.overrideModLine or f.entry.tradeMod.text
+				m.text = line:gsub("#", (f.entry.sign or "") .. tostring(value))
+				m.range = { min = range.min, max = range.max }
+				if listName and f.modType == "Explicit" then
+					local a = affixOf(f.key)
+					m.group, m.affix = a.group, a.affix
+					for name in pairs(a.bases) do m.bases[name] = true end
+				end
+			end
+			mods[#mods + 1] = m
+		end
+
+		-- the best legal sets, measured together on one test item (their sum is only an estimate: stats multiply)
+		local combos = {}
+		if listName then
+			local calcFunc = ctx.calcFunc
+			local before = values(b, ctx.baseOutput, nil)
+			for i, c in ipairs(combinations(mods, bases, 8)) do
+				if i > math.max(wantCombos * 3, 12) then break end
+				local lines = { "Rarity: RARE", "Stat Tester", c.base }
+				for _, m in ipairs(c.mods) do lines[#lines + 1] = m.text end
+				local item = new("Item"):Item(table.concat(lines, "\n"))
+				local output = calcFunc({ repSlotName = slot.slotName, repItem = item })
+				local gain = gen.WeightedRatioOutputs(ctx.baseOutput, output, statWeights) * 1000 - (ctx.baseStatValue or 0)
+				local ids = {}
+				for _, m in ipairs(c.mods) do ids[#ids + 1] = m.id end
+				combos[#combos + 1] = { mods = ids, text = table.concat(lines, "\n", 4), base = c.base, estimate = rounded(c.estimate), gain = rounded(gain),
+					changed = diff(before, values(b, output, nil)) }
+			end
+			table.sort(combos, function(x, y)
+			if x.gain ~= y.gain then return x.gain > y.gain end
+			return table.concat(x.mods, ",") < table.concat(y.mods, ",")
+		end)
+			for i = #combos, wantCombos + 1, -1 do combos[i] = nil end
+		end
+		local out = {}
+		for i = 1, math.min(limit, #mods) do
+			local m = mods[i]
+			local names = {}
+			for name in pairs(m.bases) do names[#names + 1] = name end
+			table.sort(names)
+			m.bases = names
+			if m.kind == "Explicit" and listName then m.rollable = #names > 0 end -- the generator also weighs mods no base of the family rolls
+			out[i] = m
+		end
+		if queryErr or query == nil then query = json.null end
+		local search = query ~= json.null and { query = query, sort = { ["statgroup.0"] = "desc" }, engine = "new" } or json.null
+		return { family = family, socket = slot.slotName, category = ctx.itemCategoryQueryStr, quality = quality, weights = weightsOut(statWeights),
+			total = #mods, mods = out, combinations = combos, query = query, search = search, queryError = queryErr or json.null,
+			link = query ~= json.null and tradeLink(realm, args.league, query) or json.null }
 	end
 
 	return ops
