@@ -27,7 +27,8 @@ export default defineConfig({
     },
   },
   define: {
-    __BPTC_SUPPORT_OVERRIDE__: "undefined",
+    // BPTC_SUPPORT_OVERRIDE=false forces the software texture decoder, as on GPUs without BPTC (pob-web's own knob).
+    __BPTC_SUPPORT_OVERRIDE__: Deno.env.get("BPTC_SUPPORT_OVERRIDE") === "false" ? "false" : "undefined",
     __MAX_RENDERING_DIMENSION_OVERRIDE__: "undefined",
     __POB_ASSETS__: JSON.stringify(`/pob/${env("POB_VERSION_ID")}`),
   },
@@ -43,7 +44,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
     viteStaticCopy({
-      targets: [{ src: join(rootDir, "node_modules/texture2ddecoder-wasm/wasm/*"), dest: "texture2ddecoder" }],
+      // build-web.sh step 2b: the decoder rebuilt without dynamic code (the published one needs 'unsafe-eval').
+      targets: [{ src: `${env("POB_WEB_DECODER_DIR")}/texture2ddecoder.*`, dest: "texture2ddecoder" }],
     }),
   ],
 });

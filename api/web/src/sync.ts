@@ -13,8 +13,12 @@ export interface SyncApi {
 }
 
 export interface SyncView {
+  /** Shows a build code; throws when the view did not take it. */
   load(code: string): Promise<void>;
+  /** The view's current build code. */
   read(): Promise<string>;
+  /** What counts as an edit: the code without view state (open tab, tree zoom, search text). */
+  content(code: string): Promise<string>;
 }
 
 export type SyncState =
@@ -22,15 +26,26 @@ export type SyncState =
   | { kind: "failed"; reason: string }
   | { kind: "synced"; revision: number }
   | { kind: "saving"; revision: number }
-  | { kind: "save_failed"; revision: number; reason: string }
+  | { kind: "save_failed"; revision: number; reason: string; retrying: boolean }
   | { kind: "conflict"; revision: number; serverRevision: number }
   | { kind: "deleted" };
 
+/** An error whose `permanent` is true is a refusal that the same request would get again. */
+function isPermanent(error: unknown): boolean {
+  return (error as { permanent?: unknown } | undefined)?.permanent === true;
+}
+
+const MAX_BACKOFF_TICKS = 15; // 30 s at the page's 2 s tick
+
 export class BuildSync {
   private queue: Promise<void> = Promise.resolve();
+  private pending = 0;
   private revision = 0;
   private baseline = "";
   private candidate: string | undefined;
+  private refused: string | undefined; // content a permanent refusal was given for
+  private backoff = 0;
+  private skipTicks = 0;
   state: SyncState = { kind: "loading" };
 
   constructor(
@@ -39,7 +54,13 @@ export class BuildSync {
     private readonly onState: (state: SyncState) => void,
   ) {}
 
-  /** Loads the server's build into the view. */
+  /** True while the page holds an edit the server does not have (leaving would lose it). */
+  get unsaved(): boolean {
+    const kind = this.state.kind;
+    return kind === "saving" || kind === "save_failed" || kind === "conflict" || this.candidate !== undefined;
+  }
+
+  /** Loads the server's build into the view (also the retry after a failure). */
   start(): Promise<void> {
     return this.run(() => this.reload());
   }
@@ -54,7 +75,7 @@ export class BuildSync {
         this.set({ ...this.state, serverRevision: Math.max(revision, this.state.serverRevision) });
         return;
       }
-      if (await this.view.read() !== this.baseline) {
+      if (await this.view.content(await this.view.read()) !== this.baseline) {
         this.set({ kind: "conflict", revision: this.revision, serverRevision: revision });
         return;
       }
@@ -68,18 +89,25 @@ export class BuildSync {
 
   /** Called on a timer: a change in the view that stayed the same for one tick is written back. */
   poll(): Promise<void> {
+    if (this.pending > 0) return this.queue; // a slow tick is still running: skip, never pile up
     return this.run(async () => {
       if (this.state.kind !== "synced" && this.state.kind !== "save_failed") return;
+      if (this.skipTicks > 0) {
+        this.skipTicks--;
+        return;
+      }
       const code = await this.view.read();
-      if (code === this.baseline) {
+      const content = await this.view.content(code);
+      if (content === this.baseline) {
         this.candidate = undefined;
         return;
       }
-      if (code !== this.candidate) {
-        this.candidate = code; // still changing: wait one more tick
+      if (content !== this.candidate) {
+        this.candidate = content; // still changing: wait one more tick
         return;
       }
-      await this.save(code, this.revision);
+      if (content === this.refused) return; // refused for good; a further edit may change that
+      await this.save(code, content, this.revision);
     });
   }
 
@@ -88,39 +116,48 @@ export class BuildSync {
     return this.run(async () => {
       if (this.state.kind !== "conflict") return;
       if (choice === "reload") return await this.reload();
-      await this.save(await this.view.read(), await this.api.revision());
+      const code = await this.view.read();
+      await this.save(code, await this.view.content(code), await this.api.revision());
     });
   }
 
   private async reload(): Promise<void> {
     this.set({ kind: "loading" });
-    try {
-      const { code, revision } = await this.api.load();
-      await this.view.load(code);
-      this.baseline = await this.view.read();
-      this.revision = revision;
-      this.candidate = undefined;
-      this.set({ kind: "synced", revision });
-    } catch (error) {
-      this.set({ kind: "failed", reason: message(error) });
-    }
+    const { code, revision } = await this.api.load();
+    await this.view.load(code);
+    this.baseline = await this.view.content(await this.view.read());
+    this.revision = revision;
+    this.candidate = undefined;
+    this.refused = undefined;
+    this.backoff = this.skipTicks = 0;
+    this.set({ kind: "synced", revision });
   }
 
-  private async save(code: string, baseRevision: number): Promise<void> {
+  private async save(code: string, content: string, baseRevision: number): Promise<void> {
     this.set({ kind: "saving", revision: this.revision });
+    let result: { revision: number } | "stale";
     try {
-      const result = await this.api.save(code, baseRevision);
-      if (result === "stale") {
-        this.set({ kind: "conflict", revision: this.revision, serverRevision: await this.api.revision() });
-        return;
-      }
-      this.revision = result.revision;
-      this.baseline = code;
-      this.candidate = undefined;
-      this.set({ kind: "synced", revision: result.revision });
+      result = await this.api.save(code, baseRevision);
     } catch (error) {
-      this.set({ kind: "save_failed", revision: this.revision, reason: message(error) });
+      const permanent = isPermanent(error);
+      if (permanent) this.refused = content;
+      else {
+        this.skipTicks = this.backoff;
+        this.backoff = Math.min(this.backoff * 2 + 1, MAX_BACKOFF_TICKS);
+      }
+      this.set({ kind: "save_failed", revision: this.revision, reason: message(error), retrying: !permanent });
+      return;
     }
+    if (result === "stale") {
+      this.set({ kind: "conflict", revision: this.revision, serverRevision: await this.api.revision() });
+      return;
+    }
+    this.revision = result.revision;
+    this.baseline = content;
+    this.candidate = undefined;
+    this.refused = undefined;
+    this.backoff = this.skipTicks = 0;
+    this.set({ kind: "synced", revision: result.revision });
   }
 
   private set(state: SyncState): void {
@@ -128,8 +165,20 @@ export class BuildSync {
     this.onState(state);
   }
 
+  // Runs one operation after the previous one. An operation that throws stops syncing with the
+  // reason on screen (state "failed", which never writes) instead of leaving a stale "Saved".
   private run(op: () => Promise<void>): Promise<void> {
-    this.queue = this.queue.then(op, op);
+    this.pending++;
+    const guarded = async () => {
+      try {
+        await op();
+      } catch (error) {
+        this.set({ kind: "failed", reason: message(error) });
+      } finally {
+        this.pending--;
+      }
+    };
+    this.queue = this.queue.then(guarded);
     return this.queue;
   }
 }

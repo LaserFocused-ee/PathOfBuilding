@@ -1,0 +1,33 @@
+diff --git a/packages/driver/boot.lua b/packages/driver/boot.lua
+index a921ed4..b5c494f 100644
+--- a/packages/driver/boot.lua
++++ b/packages/driver/boot.lua
+@@ -196,6 +196,12 @@ local function runCallback(name, ...)
+ end
+ 
+ function loadBuildFromCode(code)
++    -- "<name>\n<code>" names the loaded build (a build code never holds a newline); plain "<code>" keeps
++    -- Path of Building's own "Imported build".
++    local name, rest = code:match("^([^\n]*)\n(.+)$")
++    if name then
++        code = rest
++    end
+     if not mainObject.main then
+         error("loadBuildFromCode: mainObject.main is nil")
+     end
+@@ -215,8 +221,15 @@ function loadBuildFromCode(code)
+     end
+ 
+     importTab.controls.importCodeIn:SetText(code, true)
++    -- The import button returns quietly on a code it cannot read; the caller must not take the old build as loaded.
++    if not importTab.importCodeValid or importTab.importCodeFetching then
++        error("loadBuildFromCode: not a valid build code")
++    end
+     importTab.controls.importCodeMode.selIndex = 2
+     importTab.controls.importCodeGo.onClick()
++    if name and name ~= "" then
++        mainObject.main.modes["BUILD"].buildName = name
++    end
+ 
+     -- Flush to process the import
+     runCallback("OnFrame")
