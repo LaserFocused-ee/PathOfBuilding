@@ -845,7 +845,7 @@ function ImportTabClass:DownloadPassiveTree(realm)
 			charData.passives = responseLua
 			charData.jewels = responseLua.items
 			local deleteJewels = self.controls.siteCharImportTreeClearJewels.state
-			self:ImportPassiveTreeAndJewels(charData, deleteJewels)
+			self.charImportStatus = self:ImportPassiveTreeAndJewels(charData, deleteJewels)
 		end)
 end
 
@@ -881,7 +881,7 @@ function ImportTabClass:DownloadItems(realm)
 			local clearItems = self.controls.siteCharImportItemsClearItems.state
 			local clearSkills = self.controls.siteCharImportItemsClearSkills.state
 			local ignoreWeaponSwap = self.controls.siteCharImportItemsIgnoreWeaponSwap.state
-			self:ImportItemsAndSkills(charData, clearItems, clearSkills, ignoreWeaponSwap)
+			self.charImportStatus = select(2, self:ImportItemsAndSkills(charData, clearItems, clearSkills, ignoreWeaponSwap))
 		end)
 end
 function ImportTabClass:DownloadSiteCharacterList(realm)

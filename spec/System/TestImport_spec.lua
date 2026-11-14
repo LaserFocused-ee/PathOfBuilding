@@ -76,6 +76,28 @@ describe("TestImport", function()
 		assert.equals(build.configTab.input.pantheonMinorGod, "None")
 	end)
 
+	it("shows the import result after an account-name import", function()
+		local importData = copyTable(sampleData)
+		build.importTab.controls.siteAccountName.buf = "Test#0000"
+		build.importTab.controls.siteCharSelect.list = { { char = importData } }
+		build.importTab.controls.siteCharSelect.selIndex = 1
+		build.importTab.lastLeague = importData.league
+
+		local downloadPage = launch.DownloadPage
+		launch.DownloadPage = function(_, _, callback)
+			callback({ body = dkjson.encode(importData.passives) })
+		end
+		build.importTab:DownloadPassiveTree({ hostName = "", realmCode = "pc" })
+		assert.is_truthy(build.importTab.charImportStatus:find("Passive tree and jewels successfully imported.", 1, true))
+
+		launch.DownloadPage = function(_, _, callback)
+			callback({ body = dkjson.encode({ items = importData.equipment }) })
+		end
+		build.importTab:DownloadItems({ hostName = "", realmCode = "pc" })
+		launch.DownloadPage = downloadPage
+		assert.is_truthy(build.importTab.charImportStatus:find("Items and skills successfully imported.", 1, true))
+	end)
+
 	it("imports with correct jewels", function()
 		build.importTab:ImportPassiveTreeAndJewels(sampleData, true)
 		runCallback("OnFrame")
