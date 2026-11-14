@@ -2,7 +2,7 @@
 import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
 import type { Events } from "./events.js";
-import { decodeBuildCode, type Fetcher } from "./fetch.js";
+import { decodeBuildCode, GAME_HOST, type Fetcher } from "./fetch.js";
 import type { Logger } from "./log.js";
 import { LOOKUP_SESSION, type Pool } from "./pool.js";
 import { type BuildMeta, type BuildSource, type BuildStore, TRASH_DAYS } from "./store.js";
@@ -28,6 +28,30 @@ interface Mutation {
   xml: string;
 }
 
+export type Realm = "pc" | "xbox" | "sony";
+
+/** One entry of character-window/get-characters (the fields the Import tab reads). */
+interface SiteCharacter {
+  name: string;
+  realm?: string;
+  class: string;
+  league: string;
+  level?: number;
+}
+
+/**
+ * Account name as the Import tab sends it (ImportTab.lua:907-914): whitespace dropped on PC (trimmed on
+ * consoles), the last "-" or "#" taken as the discriminator separator. PC names need their discriminator.
+ */
+export function accountName(raw: string, realm: Realm): string {
+  let name = realm === "pc" ? raw.replace(/\s+/g, "") : raw.trim();
+  name = name.replace(/^(.*)[#-]/, "$1#");
+  if (realm === "pc" && !/^[^#]+#\d{4}$/.test(name)) {
+    throw new ApiError("invalid_input", "the account name needs its discriminator, e.g. Name#1234 (shown on the profile page)");
+  }
+  return name;
+}
+
 const publicMeta = (m: BuildMeta) => ({ id: m.id, name: m.name, revision: m.revision, createdAt: m.createdAt, updatedAt: m.updatedAt, source: m.source });
 
 export class Service {
@@ -37,6 +61,7 @@ export class Service {
     readonly pool: Pool,
     readonly events: Events,
     readonly fetcher: Fetcher,
+    readonly game: Fetcher,
     readonly log: Logger,
   ) {}
 
@@ -44,8 +69,66 @@ export class Service {
     if (Buffer.byteLength(xml, "utf8") > this.cfg.maxXmlBytes) throw new ApiError("payload_too_large", `build XML is larger than ${this.cfg.maxXmlBytes} bytes`);
   }
 
+  /** GETs one character-window endpoint for a public profile; maps the site's refusals to clear errors. */
+  private async characterWindow(endpoint: string, params: Record<string, string>): Promise<string> {
+    const q = new URLSearchParams(params).toString(); // "#" goes as %23, as ImportTab.lua sends it
+    try {
+      return await this.game.text(`https://${GAME_HOST}/character-window/${endpoint}?${q}`, `character:${endpoint}`, "application/json");
+    } catch (e) {
+      const status = e instanceof ApiError ? e.details?.status : undefined;
+      if (status === 401 || status === 403) throw new ApiError("profile_private", "the account's profile (or its Characters tab) is private, or the account does not exist");
+      if (status === 404) throw new ApiError("not_found", "no account with that name (check the discriminator)");
+      throw e;
+    }
+  }
+
+  private async siteCharacters(account: string, realm: Realm): Promise<SiteCharacter[]> {
+    const body = await this.characterWindow("get-characters", { accountName: account, realm });
+    let list: unknown;
+    try {
+      list = JSON.parse(body);
+    } catch {
+      throw new ApiError("upstream_fetch_failed", "the character list could not be read");
+    }
+    if (!Array.isArray(list)) throw new ApiError("upstream_fetch_failed", "the character list could not be read");
+    // BuildCharacterList (ImportTab.lua:1027) keeps the realm's characters.
+    return (list as SiteCharacter[]).filter((c) => c && typeof c.name === "string" && (c.realm ?? realm) === realm);
+  }
+
+  /** Characters on a public profile: name, league, class, level. */
+  async characters(input: { account: string; realm?: Realm }): Promise<Output> {
+    const realm = input.realm ?? "pc";
+    const list = await this.siteCharacters(accountName(input.account, realm), realm);
+    return { result: { characters: list.map((c) => ({ name: c.name, league: c.league, class: c.class, level: c.level })) }, warnings: [] };
+  }
+
+  /**
+   * A new build from a character on a public profile: the passive tree and jewels, then items and skills,
+   * through the Import tab's own import functions (ImportTab.lua:814-886).
+   */
+  async importCharacter(input: { account: string; realm?: Realm; character: string; name?: string }): Promise<Output> {
+    const realm = input.realm ?? "pc";
+    const account = accountName(input.account, realm);
+    const list = await this.siteCharacters(account, realm);
+    const char = list.find((c) => c.name === input.character) ?? list.find((c) => c.name.toLowerCase() === input.character.toLowerCase());
+    if (!char) {
+      const names = list.map((c) => c.name).slice(0, 50);
+      throw new ApiError("not_found", `no character named ${input.character} on this profile`, { characters: names });
+    }
+    const params = { accountName: account, character: char.name, realm };
+    const passives = await this.characterWindow("get-passive-skills", params);
+    const items = await this.characterWindow("get-items", params);
+    for (const body of [passives, items]) {
+      if (body.trim() === "false") throw new ApiError("not_found", "the site returned no data for this character; the account name is case-sensitive here (as on the profile page)");
+    }
+    return this.createFrom(input.name ?? char.name, { kind: "character", account, realm, character: char.name }, {
+      op: "builds.import_character",
+      args: { character: char, passives, items, name: input.name ?? char.name },
+    });
+  }
+
   /** Loads (or makes) a build in a fresh worker, stores the worker's own export as revision 1. */
-  private async createFrom(name: string | undefined, source: BuildSource, init: { op: "builds.new" | "builds.load"; args: Record<string, unknown> }): Promise<Output> {
+  private async createFrom(name: string | undefined, source: BuildSource, init: { op: "builds.new" | "builds.load" | "builds.import_character"; args: Record<string, unknown> }): Promise<Output> {
     return this.pool.create(async (call) => {
       const loaded = await call<Summary>(init.op, init.args);
       const exported = await call<{ xml: string }>("builds.export");

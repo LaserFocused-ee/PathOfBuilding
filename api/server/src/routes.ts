@@ -1,7 +1,7 @@
 // The single route table. HTTP routes, the MCP tools and docs/API.md are all generated from it.
 import { z } from "zod";
 import { ApiError } from "./errors.js";
-import type { Output, Service } from "./service.js";
+import type { Output, Realm, Service } from "./service.js";
 
 /** MCP tool names (fixed by the spec); a tool appears once it has routes. */
 export const TOOLS = {
@@ -44,6 +44,8 @@ const meta = z.looseObject({ id: z.string(), name: z.string(), revision: z.numbe
 const summary = z.looseObject({ name: z.string(), className: z.string(), ascendancy: z.string().optional(), level: z.number(), treeVersion: z.string(), mainSkill: z.string().optional() });
 const created = z.object({ build: meta, summary });
 
+const account = z.string().trim().min(3).max(100).describe("Account name with its discriminator, e.g. Name#1234");
+const realm = z.enum(["pc", "xbox", "sony"]).optional().describe("Default pc");
 const str = (v: unknown) => v as string;
 const pick = (input: Record<string, unknown>, ...keys: string[]) => Object.fromEntries(keys.filter((k) => input[k] !== undefined).map((k) => [k, input[k]]));
 
@@ -132,6 +134,17 @@ export const routes: Route[] = [
     name: "build.import_link", domain: "build", method: "POST", path: "/v1/builds/import/link", summary: "Load a build from a share link on a supported site (pobb.in, pastebin, Maxroll, poe.ninja, pob.codes, rentry, poedb).",
     input: z.object({ url: z.string().url().max(2000), name: name.optional() }), output: created, readOnly: false, workerOp: "builds.resolve_link, builds.load, builds.export",
     run: (s, i) => s.importLink({ url: str(i.url), name: i.name as string | undefined }),
+  },
+  {
+    name: "build.characters", domain: "build", method: "GET", path: "/v1/builds/import/characters", summary: "Characters on a public Path of Exile profile (name, league, class, level). The profile's Characters tab must be public.",
+    input: z.object({ account, realm }), output: z.object({ characters: z.array(z.object({ name: z.string(), league: z.string(), class: z.string(), level: z.number().optional() })) }),
+    readOnly: true, workerOp: "(game site)", run: (s, i) => s.characters({ account: str(i.account), realm: i.realm as Realm | undefined }),
+  },
+  {
+    name: "build.import_character", domain: "build", method: "POST", path: "/v1/builds/import/character", summary: "A new build from a character on a public profile: passive tree, jewels, items and skills, as the Import tab imports them.",
+    input: z.object({ account, realm, character: z.string().trim().min(1).max(100).describe("Character name"), name: name.optional() }), output: created, readOnly: false,
+    workerOp: "builds.import_character, builds.export",
+    run: (s, i) => s.importCharacter({ account: str(i.account), realm: i.realm as Realm | undefined, character: str(i.character), name: i.name as string | undefined }),
   },
   { name: "build.trash", domain: "build", method: "GET", path: "/v1/builds/trash", summary: "Deleted builds that can still be restored (kept 7 days after deletion).", input: z.object({}), output: z.object({ builds: z.array(meta.extend({ deletedAt: z.string(), purgeAfter: z.string() })) }), readOnly: true, workerOp: "(store)", run: (s) => s.trash() },
   { name: "build.get", domain: "build", method: "GET", path: "/v1/builds/:id", summary: "A build's metadata and summary (class, ascendancy, level, tree version, main skill).", input: z.object({ id: buildId }), output: created, readOnly: true, workerOp: "builds.summary", run: (s, i) => s.get(str(i.id)) },

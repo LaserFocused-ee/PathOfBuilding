@@ -4,7 +4,7 @@ import { readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Config } from "./config.js";
 import { Events } from "./events.js";
-import { Fetcher } from "./fetch.js";
+import { Fetcher, GAME_HOST, SHARE_HOSTS } from "./fetch.js";
 import type { Logger } from "./log.js";
 import { Pool } from "./pool.js";
 import { Service } from "./service.js";
@@ -40,14 +40,19 @@ async function lock(dir: string): Promise<string> {
   throw new Error(`could not lock data directory ${dir}`);
 }
 
-export async function openRuntime(cfg: Config, log: Logger): Promise<Runtime> {
+/** Outside services the runtime uses; tests pass a recorded fetch. */
+export interface RuntimeDeps {
+  fetch?: typeof fetch;
+}
+
+export async function openRuntime(cfg: Config, log: Logger, deps: RuntimeDeps = {}): Promise<Runtime> {
   await mkdir(cfg.dataDir, { recursive: true, mode: 0o700 });
   const lockPath = await lock(cfg.dataDir);
   const store = new BuildStore(cfg.dataDir, cfg.historyKeep);
   await store.init();
   const pool = new Pool(cfg, log, store);
   await pool.init();
-  const svc = new Service(cfg, store, pool, new Events(), new Fetcher(cfg, log), log);
+  const svc = new Service(cfg, store, pool, new Events(), new Fetcher(cfg, log, SHARE_HOSTS, deps.fetch), new Fetcher(cfg, log, [GAME_HOST], deps.fetch), log);
   await svc.purgeTrash();
   return {
     svc,

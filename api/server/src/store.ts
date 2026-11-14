@@ -6,9 +6,13 @@ import { join } from "node:path";
 import { ApiError } from "./errors.js";
 
 export interface BuildSource {
-  kind: "new" | "xml" | "code" | "link" | "duplicate";
+  kind: "new" | "xml" | "code" | "link" | "duplicate" | "character";
   url?: string;
   from?: string;
+  /** Character imports: the public profile the character came from. */
+  account?: string;
+  realm?: string;
+  character?: string;
 }
 
 export interface RevisionEntry {

@@ -8,6 +8,9 @@ import type { Logger } from "./log.js";
 /** Download hosts of the build sites in src/Modules/BuildSiteTools.lua. */
 export const SHARE_HOSTS = ["maxroll.gg", "api.pob.codes", "pobb.in", "poe.ninja", "pastebin.com", "pastebinp.com", "rentry.co", "poedb.tw"] as const;
 
+/** The game site: character import (character-window endpoints, as src/Classes/ImportTab.lua uses). */
+export const GAME_HOST = "www.pathofexile.com";
+
 const MAX_REDIRECTS = 3;
 
 export class Fetcher {
@@ -15,6 +18,7 @@ export class Fetcher {
     private readonly cfg: Pick<Config, "fetchUserAgent" | "fetchTimeoutMs" | "fetchMaxBytes">,
     private readonly log: Logger,
     private readonly allow: readonly string[] = SHARE_HOSTS,
+    private readonly fetchImpl?: typeof fetch, // default: the global fetch at call time
   ) {}
 
   private check(raw: string): URL {
@@ -31,16 +35,19 @@ export class Fetcher {
     return url;
   }
 
-  /** GETs text from an allowlisted host. Errors are upstream_fetch_failed with the status, never the body. */
-  async text(raw: string, purpose: string): Promise<string> {
+  /**
+   * GETs text from an allowlisted host. Errors are upstream_fetch_failed with the status, never the body;
+   * a 429 is rate_limited with the host's Retry-After.
+   */
+  async text(raw: string, purpose: string, accept = "text/plain, */*"): Promise<string> {
     let url = this.check(raw);
     const started = Date.now();
     for (let hop = 0; ; hop++) {
       let res: Response;
       try {
-        res = await fetch(url, {
+        res = await (this.fetchImpl ?? fetch)(url, {
           redirect: "manual",
-          headers: { "user-agent": this.cfg.fetchUserAgent, accept: "text/plain, */*" },
+          headers: { "user-agent": this.cfg.fetchUserAgent, accept },
           signal: AbortSignal.timeout(this.cfg.fetchTimeoutMs),
         });
       } catch (e) {
@@ -56,9 +63,19 @@ export class Fetcher {
       this.log.info({ event: "fetch.done", purpose, host: url.hostname, status: res.status, ok: res.ok, duration_ms: Date.now() - started });
       if (!res.ok) {
         await res.body?.cancel();
+        if (res.status === 429) {
+          const retry = Number(res.headers.get("retry-after"));
+          throw new ApiError("rate_limited", `${url.hostname} is limiting requests; try again later`, Number.isFinite(retry) && retry > 0 ? { retryAfterSeconds: retry } : undefined);
+        }
         throw new ApiError("upstream_fetch_failed", `${url.hostname} answered ${res.status}`, { status: res.status });
       }
-      return readCapped(res, this.cfg.fetchMaxBytes, url.hostname);
+      try {
+        return await readCapped(res, this.cfg.fetchMaxBytes, url.hostname);
+      } catch (e) {
+        if (e instanceof ApiError) throw e;
+        this.log.warn({ event: "fetch.body_failed", purpose, host: url.hostname, reason: (e as Error).name });
+        throw new ApiError("upstream_fetch_failed", `reading the response from ${url.hostname} failed: ${(e as Error).name}`);
+      }
     }
   }
 }

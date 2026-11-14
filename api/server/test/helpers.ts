@@ -6,6 +6,7 @@ import { Writable } from "node:stream";
 import { loadConfig, type Config } from "../src/config.js";
 import { start, type Started } from "../src/index.js";
 import { createLogger } from "../src/log.js";
+import type { RuntimeDeps } from "../src/runtime.js";
 
 export const TOKEN = "test-token-0123456789abcdef0123456789abcdef";
 /** Repository root (dist/test -> four levels up). */
@@ -39,10 +40,10 @@ export interface TestServer extends Started {
   close: () => Promise<void>;
 }
 
-export async function startServer(overrides: Partial<Config> = {}): Promise<TestServer> {
+export async function startServer(overrides: Partial<Config> = {}, deps: RuntimeDeps = {}): Promise<TestServer> {
   const dir = await tempDir("srv");
   const { log, lines } = memoryLogger();
-  const s = await start(testConfig(dir.path, overrides), log);
+  const s = await start(testConfig(dir.path, overrides), log, deps);
   const base = `http://127.0.0.1:${s.port}`;
   return {
     ...s,

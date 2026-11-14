@@ -173,6 +173,7 @@ export function createApp(svc: Service, log: Logger): express.Express {
     const e = toApiError(err);
     if (e.status >= 500) reportError(log, err, ["http", e.code], { route: String((req.route as { path?: string } | undefined)?.path ?? req.path) });
     if (res.headersSent) return;
+    if (typeof e.details?.retryAfterSeconds === "number") res.setHeader("retry-after", String(e.details.retryAfterSeconds));
     res.status(e.status).json({ ok: false, error: { code: e.code, message: e.message, ...(e.details ? { details: e.details } : {}) } });
   });
 

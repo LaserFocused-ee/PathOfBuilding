@@ -1,6 +1,7 @@
 -- builds.* ops: create, load, export and describe the one build this worker holds.
 return function(W)
 	local main = W.main
+	local dkjson = require("dkjson")
 	local ops = {}
 
 	local function summary(b)
@@ -65,6 +66,39 @@ return function(W)
 	end
 
 	-- args: xml, name?
+	-- args: character (its character-window/get-characters entry), passives and items (the get-passive-skills
+	-- and get-items response bodies), name?, clearJewels?, clearItems?, clearSkills?, ignoreWeaponSwap? (default:
+	-- the Import tab's boxes). A new build on the latest tree, then the Import tab's two account imports in the
+	-- order a user clicks them, with the charData their download callbacks build (ImportTab.lua:838-884).
+	function ops.import_character(args)
+		local char = args.character
+		if type(char) ~= "table" or type(char.name) ~= "string" or type(char.class) ~= "string" or type(char.league) ~= "string" then
+			W.fail("invalid_input", "character is a get-characters entry (name, class, league)")
+		end
+		local passives = type(args.passives) == "string" and dkjson.decode(args.passives)
+		local items = type(args.items) == "string" and dkjson.decode(args.items)
+		if type(passives) ~= "table" or type(items) ~= "table" then W.fail("upstream_fetch_failed", "the character data could not be read") end
+		main:SetMode("BUILD", false, args.name or char.name)
+		local b = settledOrFail("worker_error")
+		local tab = b.importTab
+		local function opt(v, box) if v == nil then return tab.controls[box].state end return v == true end
+		-- Account-name imports omit quest choices, so keep the build's current values.
+		passives.bandit_choice = passives.bandit_choice or b.configTab.input.bandit
+		passives.pantheon_major = passives.pantheon_major or b.configTab.input.pantheonMajorGod
+		passives.pantheon_minor = passives.pantheon_minor or b.configTab.input.pantheonMinorGod
+		local treeData = copyTable(char)
+		treeData.passives = passives
+		treeData.jewels = passives.items
+		tab:ImportPassiveTreeAndJewels(treeData, opt(args.clearJewels, "siteCharImportTreeClearJewels"))
+		local itemData = copyTable(char)
+		itemData.equipment = items.items or {}
+		itemData.guardian = items.guardian
+		tab:ImportItemsAndSkills(itemData, opt(args.clearItems, "siteCharImportItemsClearItems"), opt(args.clearSkills, "siteCharImportItemsClearSkills"),
+			opt(args.ignoreWeaponSwap, "siteCharImportItemsIgnoreWeaponSwap"))
+		b = settledOrFail("worker_error")
+		return summary(b)
+	end
+
 	function ops.load(args)
 		if type(args.xml) ~= "string" or args.xml == "" then W.fail("invalid_input", "xml is required") end
 		-- convertBuild=true: legacy builds convert instead of waiting on the conversion popup (Build.lua:103).

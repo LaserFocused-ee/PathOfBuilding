@@ -12,7 +12,7 @@ GET inputs go in the query string (lists comma-separated); POST inputs are a JSO
 
 | Tool | Read-only | Actions |
 | --- | --- | --- |
-| `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `export_xml`, `export_code`, `save_point`, `history` |
+| `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `export_xml`, `export_code`, `save_point`, `history` |
 | `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `versions` |
 | `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `export_url`, `import_url`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `convert` |
 | `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `notes`, `set_notes` |
@@ -65,6 +65,24 @@ Load a build from a share link on a supported site (pobb.in, pastebin, Maxroll, 
 - Name: `build.import_link` (MCP `pob_build` action `import_link`)
 - Read-only: no; worker: `builds.resolve_link, builds.load, builds.export`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"url":{"type":"string","maxLength":2000,"format":"uri"},"name":{"type":"string","minLength":1,"maxLength":200}},"required":["url"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"build":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"revision":{"type":"number"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"},"source":{"type":"object","properties":{"kind":{"type":"string"}},"required":["kind"],"additionalProperties":{}}},"required":["id","name","revision","createdAt","updatedAt","source"],"additionalProperties":{}},"summary":{"type":"object","properties":{"name":{"type":"string"},"className":{"type":"string"},"ascendancy":{"type":"string"},"level":{"type":"number"},"treeVersion":{"type":"string"},"mainSkill":{"type":"string"}},"required":["name","className","level","treeVersion"],"additionalProperties":{}}},"required":["build","summary"]}`
+
+### `GET /v1/builds/import/characters`
+
+Characters on a public Path of Exile profile (name, league, class, level). The profile's Characters tab must be public.
+
+- Name: `build.characters` (MCP `pob_build` action `characters`)
+- Read-only: yes; worker: `(game site)`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"account":{"type":"string","minLength":3,"maxLength":100,"description":"Account name with its discriminator, e.g. Name#1234"},"realm":{"description":"Default pc","type":"string","enum":["pc","xbox","sony"]}},"required":["account"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"characters":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"league":{"type":"string"},"class":{"type":"string"},"level":{"type":"number"}},"required":["name","league","class"]}}},"required":["characters"]}`
+
+### `POST /v1/builds/import/character`
+
+A new build from a character on a public profile: passive tree, jewels, items and skills, as the Import tab imports them.
+
+- Name: `build.import_character` (MCP `pob_build` action `import_character`)
+- Read-only: no; worker: `builds.import_character, builds.export`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"account":{"type":"string","minLength":3,"maxLength":100,"description":"Account name with its discriminator, e.g. Name#1234"},"realm":{"description":"Default pc","type":"string","enum":["pc","xbox","sony"]},"character":{"type":"string","minLength":1,"maxLength":100,"description":"Character name"},"name":{"type":"string","minLength":1,"maxLength":200}},"required":["account","character"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"build":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"revision":{"type":"number"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"},"source":{"type":"object","properties":{"kind":{"type":"string"}},"required":["kind"],"additionalProperties":{}}},"required":["id","name","revision","createdAt","updatedAt","source"],"additionalProperties":{}},"summary":{"type":"object","properties":{"name":{"type":"string"},"className":{"type":"string"},"ascendancy":{"type":"string"},"level":{"type":"number"},"treeVersion":{"type":"string"},"mainSkill":{"type":"string"}},"required":["name","className","level","treeVersion"],"additionalProperties":{}}},"required":["build","summary"]}`
 
 ### `GET /v1/builds/trash`
