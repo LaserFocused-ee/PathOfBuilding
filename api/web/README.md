@@ -25,7 +25,11 @@ api/web/build-web.sh            # packs the sources at HEAD
 api/web/build-web.sh <commit>   # or at another commit: use the commit the API server runs
 ```
 
-Output: `api/web/dist` (about 620 MB, mostly tree and item art), a static site. The packed sources live under
+Environment: `POB_WEB_BUILD` sets the cache directory (default `api/web/.build`) and `POB_WEB_DIST` the output directory
+(default `api/web/dist`; the build empties it, so point it at a directory used for nothing else).
+
+Output: `api/web/dist` (about 620 MB, mostly tree and item art), a static site. The licence texts of this project and
+its components are in `dist/licenses/` (serve them at `/licenses/`). The packed sources live under
 `dist/pob/<version>/`, where `<version>` is the first ten characters of the commit; `pack-manifest.json` there lists the
 source commit, the pob-web commit, every rewrite and every packed file with its SHA-256.
 
@@ -89,7 +93,9 @@ the page opens only `http` and `https` links, without an opener.
 ## Development
 
 `tools/dev-server.ts` (development only) serves `dist/` with the headers above on a loopback port and proxies `/v1` to a
-running API server, adding the API token, so no session is needed:
+running API server (default `POB_API_URL` is `http://127.0.0.1:8730`), adding the API token, so no session is needed. It
+answers 403 unless the `Host` header is `127.0.0.1:<port>` or `localhost:<port>` and, for anything but GET and HEAD, the
+`Origin` header is that same origin:
 
 ```sh
 POB_API_URL=http://127.0.0.1:8730 POB_API_TOKEN=<token> \
