@@ -14,6 +14,8 @@ entry here: which file, what and why, its upstream status and how to drop it.
   3.30 data already merged, so the uniques' own cache lines stand alone.
 - Why: no upstream branch or pull request carries these items yet, so they cannot be simulated.
 - Upstream status: not offered. Drop when upstream adds the 3.30 uniques (their lists then win).
+- Wording checked against the game files' unique text (15 Nov 2026); Bane of the Apostate's "+2 to maximum
+  Witchhunter's Pyres" was added from them.
 - Not added: Putrid Seed. Its base, Mycelium Core, is not in Path of Building's base data, and its effect (grows four
   random passives when anointed) is not something Path of Building can simulate.
 
@@ -28,8 +30,8 @@ nothing):
 | Mantle of Dreams (Twilight Regalia) | Energy Shield, level 30 Unleash support, 20% more damage per socketed skill gem (support gems not counted), socketed support gems have no effect | none |
 | Ordered Fate (Walnut Spirit Shield) | spell damage, cast speed, maximum ES | every 2nd / 4th / 6th cast lines and their exclusion line |
 | Corpse Rose (Imbued Wand) | spell damage, cast speed, skills cost Life instead of 50% of Mana | Goreblossom trigger and its Bloom count (no skill data for Goreblossom) |
-| Bane of the Apostate (Judgement Staff) | block, fire damage, area of effect, skill effect duration | Witchhunter's Pyre grant (no skill data for Witchhunter's Pyre) |
-| Hide of the Vendigo (Exquisite Leather) | spell suppression, Evasion, cold resistance, added cold damage with unarmed attacks, attack speed after a movement skill (the "used a Movement Skill recently" setting; Path of Building has no separate attack-movement setting), claw-only attack skills usable with an empty main hand | none; the attack stays unarmed, so claw modifiers do not apply to it |
+| Bane of the Apostate (Judgement Staff) | block, fire damage, area of effect, skill effect duration | Witchhunter's Pyre grant and +2 maximum Pyres (no skill data for Witchhunter's Pyre) |
+| Hide of the Vendigo (Exquisite Leather) | spell suppression, Evasion, cold resistance, added cold damage with unarmed attacks, attack speed after a movement skill (the "used a Movement Skill recently" setting; Path of Building has no separate attack-movement setting), claw-only attack skills usable with an empty main hand, "with Claws" modifiers on those attacks | none |
 | Unwilling Embrace (Bone Ring) | minion resistances, suppression, Dexterity, Evasion, minion damage | minions gain your suppression; minions have no Armour or ES |
 | Dreadmaidens' Sacrament (Basalt Flask) | (flask lines are not player stats) | taunt, charges when hit, Life removed on use, Retaliation chance |
 
@@ -43,7 +45,15 @@ nothing):
     apply.
   - "if you've used an Attack Movement Skill Recently": reads the existing movement-skill-recently setting.
   - "Can Attack as though using a Claw while main hand is empty": with no main-hand weapon, skills that allow claws
-    pass the weapon check; the hit keeps unarmed flags.
+    pass the weapon check, and the hit carries both the Claw and Unarmed flags.
+- Readings chosen where the wording is open (each can be tested the other way by changing one line):
+  - Mantle of Dreams counts each socketed gem without the support tag once, Vaal gems included, and only gems that fit
+    the item's sockets. Supports granted by the item (Unleash) do not count.
+  - The Mantle multiplier is a more-damage modifier on the socketed skills, so it applies to their hits and damage over
+    time. It does not reach minions summoned by a socketed minion gem (their damage is calculated on the minion).
+  - Hide of the Vendigo: "with Claws" modifiers (passives, gear) apply to these attacks, and "with Unarmed Attacks"
+    ones too. "While wielding a Claw" conditions do not, as the main hand is empty. Base damage, speed and critical
+    chance stay those of unarmed attacks.
 - Why: these change damage numbers for builds made around the items. Other unparsed lines in the table above either
   need skill data Path of Building does not have or change no damage or defence number.
 - Test: `spec/System/TestNewUniques_spec.lua` (fails without the change).
