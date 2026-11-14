@@ -42,11 +42,12 @@ grep -q '"packages/view"' "$P/deno.json" || sed -i 's#"packages/web"#"packages/w
 git -C "$P" submodule update -q --init --recursive
 (cd "$P" && deno ci >/dev/null 2>&1)
 # patches/: small changes to pob-web's boot script (compiled into the driver), each explained in its file.
+# The driver is rebuilt when a patch or a pin changes.
 for patch in "$HERE"/patches/*.patch; do
   git -C "$P" apply --reverse --check "$patch" 2>/dev/null || git -C "$P" apply "$patch"
 done
 STAMP="$P/packages/driver/dist/release/.view-patches"
-PATCHES_SUM="$(cat "$HERE"/patches/*.patch | sha256sum | cut -d' ' -f1)"
+PATCHES_SUM="$( (echo "$POBWEB_REV $EMSDK_VERSION"; cat "$HERE"/patches/*.patch) | sha256sum | cut -d' ' -f1)"
 if [ ! -f "$P/packages/driver/dist/release/driver.wasm" ] || [ "$(cat "$STAMP" 2>/dev/null)" != "$PATCHES_SUM" ]; then
   (cd "$P" && deno task repo driver-build >"$B/driver-build.log" 2>&1)
   echo "$PATCHES_SUM" >"$STAMP"
