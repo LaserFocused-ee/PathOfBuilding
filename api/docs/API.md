@@ -12,12 +12,12 @@ GET inputs go in the query string (lists comma-separated); POST inputs are a JSO
 
 | Tool | Read-only | Actions |
 | --- | --- | --- |
-| `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `export_xml`, `replace_code`, `export_code`, `save_point`, `history` |
+| `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `ui_controls`, `ui_invoke`, `export_xml`, `replace_code`, `export_code`, `save_point`, `history` |
 | `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `versions` |
 | `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `export_url`, `import_url`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `convert` |
-| `pob_skills` | no | `get`, `group_text`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
+| `pob_skills` | no | `get`, `group_text`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_skill_options`, `set_spectres`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_items` | no | `list`, `get`, `add`, `add_unique`, `add_rare`, `modify`, `edit`, `anoint`, `enchant`, `craft`, `equip`, `unequip`, `set_active`, `delete`, `weapon_set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
-| `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `notes`, `set_notes` |
+| `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `notes`, `set_notes`, `party_get`, `party_import`, `party_clear`, `party_set`, `party_effects` |
 | `pob_evaluate` | yes | `what_if`, `node_power`, `compare_item`, `gem_rank`, `anoint_rank`, `unique_rank`, `compare_specs`, `compare_item_sets`, `compare_builds` |
 | `pob_lookup` | yes | `gems`, `uniques`, `bases`, `nodes`, `node`, `config` |
 
@@ -158,6 +158,24 @@ Character level and the Auto/Manual level mode (auto follows points spent).
 - Name: `build.settings` (MCP `pob_build` action `settings`)
 - Read-only: no; worker: `config.set_level`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"level":{"type":"integer","minimum":1,"maximum":100},"autoLevel":{"type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/ui/:id/controls`
+
+The controls of a tab by name (name, type, label or text, state, shown, enabled, a dropdown's choices, and the `ui_invoke` actions each takes now).
+
+- Name: `build.ui_controls` (MCP `pob_build` action `ui_controls`)
+- Read-only: yes; worker: `ui.controls`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"tab":{"type":"string","enum":["build","tree","skills","items","calcs","config","notes","party","import"],"description":"build = the build's own top bar and sidebar controls"},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["tab","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"tab":{"type":"string"},"total":{"type":"number"},"offset":{"type":"number"},"controls":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"type":{"type":"string"},"shown":{"type":"boolean"},"enabled":{"type":"boolean"},"actions":{"type":"array","items":{"type":"string"}},"label":{"type":"string"},"text":{"type":"string"},"state":{"type":"boolean"},"selected":{"type":"number"},"choices":{"type":"array","items":{"type":"string"}},"choiceCount":{"type":"number"}},"required":["name","type","shown","enabled","actions"],"additionalProperties":{}}}},"required":["tab","total","offset","controls"],"additionalProperties":{}}`
+
+### `POST /v1/ui/:id/invoke`
+
+A stopgap for actions that have no named op: click a button, type in a box, tick a checkbox or pick a dropdown entry on a tab's control, as `ui_controls` lists them. Hidden or disabled controls, actions the control does not take, and controls that save to a file, reach the network or leave the build are refused.
+
+- Name: `build.ui_invoke` (MCP `pob_build` action `ui_invoke`)
+- Read-only: no; worker: `ui.invoke`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"tab":{"type":"string","enum":["build","tree","skills","items","calcs","config","notes","party","import"],"description":"build = the build's own top bar and sidebar controls"},"control":{"type":"string","minLength":1,"maxLength":100,"description":"Control name, from `ui_controls`"},"action":{"type":"string","enum":["click","set_text","set_state","select"]},"value":{"description":"set_text: the text; set_state: true or false; select: the choice number (from 1) or its label","anyOf":[{"type":"boolean"},{"type":"number"},{"type":"string","maxLength":20000}]},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["tab","control","action","id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
 
 ### `GET /v1/builds/:id/xml`
@@ -464,7 +482,7 @@ The Skills tab: socket groups with their gems and active skills, the main socket
 - Name: `skills.get` (MCP `pob_skills` action `get`)
 - Read-only: yes; worker: `skills.get`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"mainSocketGroup":{"type":"number"},"groups":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"label":{"type":"string"},"slot":{"type":"string"},"enabled":{"type":"boolean"},"includeInFullDPS":{"type":"boolean"},"gems":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"name":{"type":"string"},"level":{"type":"number"},"quality":{"type":"number"},"enabled":{"type":"boolean"},"count":{"type":"number"},"support":{"type":"boolean"},"error":{"type":"string"}},"required":["index","name","level","quality","enabled","count","support"],"additionalProperties":{}}},"activeSkills":{"type":"array","items":{"type":"string"}},"mainActiveSkill":{"type":"number"},"main":{"type":"boolean"}},"required":["index","label","enabled","includeInFullDPS","gems","activeSkills","main"],"additionalProperties":{}}},"sets":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"title":{"type":"string"},"active":{"type":"boolean"}},"required":["index","title","active"],"additionalProperties":{}}},"options":{"type":"object","properties":{"defaultGemLevel":{"type":"string"},"defaultGemQuality":{"type":"number"},"showSupportGemTypes":{"type":"string"},"showLegacyGems":{"type":"boolean"}},"required":["defaultGemLevel","showSupportGemTypes","showLegacyGems"]}},"required":["mainSocketGroup","groups","sets","options"],"additionalProperties":{}}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"mainSocketGroup":{"type":"number"},"groups":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"label":{"type":"string"},"slot":{"type":"string"},"enabled":{"type":"boolean"},"includeInFullDPS":{"type":"boolean"},"gems":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"name":{"type":"string"},"level":{"type":"number"},"quality":{"type":"number"},"enabled":{"type":"boolean"},"count":{"type":"number"},"support":{"type":"boolean"},"error":{"type":"string"}},"required":["index","name","level","quality","enabled","count","support"],"additionalProperties":{}}},"activeSkills":{"type":"array","items":{"type":"string"}},"mainActiveSkill":{"type":"number"},"main":{"type":"boolean"}},"required":["index","label","enabled","includeInFullDPS","gems","activeSkills","main"],"additionalProperties":{}}},"sets":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"title":{"type":"string"},"active":{"type":"boolean"}},"required":["index","title","active"],"additionalProperties":{}}},"options":{"type":"object","properties":{"defaultGemLevel":{"type":"string"},"defaultGemQuality":{"type":"number"},"showSupportGemTypes":{"type":"string"},"showLegacyGems":{"type":"boolean"}},"required":["defaultGemLevel","showSupportGemTypes","showLegacyGems"]},"mainOptions":{"type":"object","properties":{"part":{"type":"number"},"parts":{"type":"array","items":{"type":"string"}},"stages":{"type":"number"},"mines":{"type":"number"},"minion":{"type":"number"},"minions":{"type":"array","items":{"type":"string"}},"minionSkill":{"type":"number"},"minionSkills":{"type":"array","items":{"type":"string"}}},"additionalProperties":{}},"spectres":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"}},"required":["id","name"],"additionalProperties":{}}}},"required":["mainSocketGroup","groups","sets","options","mainOptions","spectres"],"additionalProperties":{}}`
 
 ### `GET /v1/skills/:id/group-text`
 
@@ -563,6 +581,24 @@ Skills tab gem options: default gem level and quality, which support gems the ge
 - Name: `skills.set_options` (MCP `pob_skills` action `set_options`)
 - Read-only: no; worker: `skills.set_options`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"defaultGemLevel":{"type":"string","enum":["normalMaximum","corruptedMaximum","awakenedMaximum","characterLevel","levelOne"]},"defaultGemQuality":{"type":"integer","minimum":0,"maximum":23,"description":"Gem quality (0-23)"},"showSupportGemTypes":{"description":"NORMAL = non-exceptional","type":"string","enum":["ALL","NORMAL","EXCEPTIONAL"]},"showLegacyGems":{"type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/set-skill-options`
+
+The main skill's sidebar choices: skill part, stages, active mines, minion and minion skill (only those the skill shows; see `get` mainOptions). Dropdowns take their number or label; set part and minion before stages and minion skill (done in that order).
+
+- Name: `skills.set_skill_options` (MCP `pob_skills` action `set_skill_options`)
+- Read-only: no; worker: `skills.set_skill_options`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"part":{"anyOf":[{"type":"integer","minimum":1,"maximum":500},{"type":"string","minLength":1,"maxLength":200}]},"stages":{"type":"integer","minimum":0,"maximum":1000},"mines":{"type":"integer","minimum":0,"maximum":1000},"minion":{"description":"Minion name (or id), or its number in the list","anyOf":[{"type":"integer","minimum":1,"maximum":500},{"type":"string","minLength":1,"maxLength":200}]},"minionSkill":{"anyOf":[{"type":"integer","minimum":1,"maximum":500},{"type":"string","minLength":1,"maxLength":200}]},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/skills/:id/set-spectres`
+
+Add or remove spectres in the build's spectre library (Manage Spectres...), by spectre name or id; spectres are then choices of a Raise Spectre skill's `minion`.
+
+- Name: `skills.set_spectres` (MCP `pob_skills` action `set_spectres`)
+- Read-only: no; worker: `skills.set_spectres`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"add":{"maxItems":50,"type":"array","items":{"type":"string","minLength":1,"maxLength":200}},"remove":{"maxItems":50,"type":"array","items":{"type":"string","minLength":1,"maxLength":200}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
 
 ### `POST /v1/skills/:id/set-new`
@@ -869,6 +905,51 @@ Replace the build notes.
 - Name: `config.set_notes` (MCP `pob_config` action `set_notes`)
 - Read-only: no; worker: `config.set_notes`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"type":"string","maxLength":100000},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["text","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/party/:id/get`
+
+The Party tab inputs: the import destination and toggles, the text boxes (auras, curses, warcries, links, party member stats, enemy conditions, enemy modifiers) and what Path of Building parsed from them.
+
+- Name: `config.party_get` (MCP `pob_config` action `party_get`)
+- Read-only: yes; worker: `party.get`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"destination":{"type":"string"},"append":{"type":"boolean"},"showAdvanced":{"type":"boolean"},"exportSupport":{"type":"boolean"},"auras":{"type":"string"},"curses":{"type":"string"},"warcries":{"type":"string"},"links":{"type":"string"},"partyMemberStats":{"type":"string"},"enemyConditions":{"type":"string"},"enemyMods":{"type":"string"},"summary":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"string"}}},"required":["destination","append","showAdvanced","exportSupport","auras","curses","warcries","links","partyMemberStats","enemyConditions","enemyMods","summary"],"additionalProperties":{}}`
+
+### `POST /v1/party/:id/import`
+
+Import a party member's build code (exported with Export support on) into a destination, as the Party tab's Import button does; Append keeps what is there. Links are not fetched.
+
+- Name: `config.party_import` (MCP `pob_config` action `party_import`)
+- Read-only: no; worker: `party.import`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"code":{"type":"string","minLength":1,"maxLength":2000000},"destination":{"type":"string","enum":["All","Party Member Stats","Aura","Curse","Warcry Skills","Link Skills","EnemyConditions","EnemyMods"],"description":"Which party inputs it applies to"},"append":{"type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["code","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/party/:id/clear`
+
+Clear imported party data for a destination (default the tab's current one), as the Clear button does.
+
+- Name: `config.party_clear` (MCP `pob_config` action `party_clear`)
+- Read-only: no; worker: `party.clear`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"destination":{"type":"string","enum":["All","Party Member Stats","Aura","Curse","Warcry Skills","Link Skills","EnemyConditions","EnemyMods"],"description":"Which party inputs it applies to"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/party/:id/set`
+
+Set party text boxes and toggles; text is parsed (Rebuild All), as when typed in the advanced boxes.
+
+- Name: `config.party_set` (MCP `pob_config` action `party_set`)
+- Read-only: no; worker: `party.set`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"auras":{"type":"string","maxLength":200000},"curses":{"type":"string","maxLength":200000},"warcries":{"type":"string","maxLength":200000},"links":{"type":"string","maxLength":200000},"partyMemberStats":{"type":"string","maxLength":200000},"enemyConditions":{"type":"string","maxLength":200000},"enemyMods":{"type":"string","maxLength":200000},"showAdvanced":{"type":"boolean"},"append":{"type":"boolean"},"destination":{"type":"string","enum":["All","Party Member Stats","Aura","Curse","Warcry Skills","Link Skills","EnemyConditions","EnemyMods"],"description":"Which party inputs it applies to"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/party/:id/effects`
+
+Turn party effects off (Disable Party Effects; the data stays) or back on (Rebuild All parses the boxes again).
+
+- Name: `config.party_effects` (MCP `pob_config` action `party_effects`)
+- Read-only: no; worker: `party.set_effects`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"enabled":{"type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["enabled","id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
 
 ### `POST /v1/evaluate/:id/what-if`

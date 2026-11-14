@@ -274,7 +274,7 @@ local function takePrompt()
 end
 
 local ops = {}
-for _, domain in ipairs({ "builds", "stats", "lookup", "tree", "config", "skills", "items", "evaluate" }) do
+for _, domain in ipairs({ "builds", "stats", "lookup", "tree", "config", "skills", "items", "evaluate", "party", "ui" }) do
 	for name, fn in pairs(dofile(here .. "/ops/" .. domain .. ".lua")(W)) do
 		ops[domain .. "." .. name] = fn
 	end

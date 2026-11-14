@@ -243,7 +243,7 @@ void test("every route refuses an unknown parameter, naming the ones it takes", 
 });
 
 // Query values for routes that need them, per build (OccVortex is on tree 3_13, before masteries).
-const readParams = (id: string): Record<string, string> => ({ key: "Life", query: "Life", nodeId: id === fresh ? "16123" : "46842", to: "Arcane Potency", group: "1", item: "1" });
+const readParams = (id: string): Record<string, string> => ({ key: "Life", query: "Life", nodeId: id === fresh ? "16123" : "46842", to: "Arcane Potency", group: "1", item: "1", tab: "config" });
 
 /** Path and query for one read-only GET route on a build. */
 const readUrl = (r: (typeof routes)[number], id: string): string => {

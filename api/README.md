@@ -119,6 +119,8 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/builds/:id/restore` | `pob_build` `restore` | Restore a deleted build with its history. |
 | `POST /v1/builds/:id/revert` | `pob_build` `revert` | Make a kept revision current again (as a new revision). |
 | `POST /v1/builds/:id/settings` | `pob_build` `settings` | Character level and the Auto/Manual level mode (auto follows points spent). |
+| `GET /v1/ui/:id/controls` | `pob_build` `ui_controls` | The controls of a tab by name (name, type, label or text, state, shown, enabled, a dropdown's choices, and the `ui_invoke` actions each takes now). |
+| `POST /v1/ui/:id/invoke` | `pob_build` `ui_invoke` | A stopgap for actions that have no named op: click a button, type in a box, tick a checkbox or pick a dropdown entry on a tab's control, as `ui_controls` lists them. Hidden or disabled controls, actions the control does not take, and controls that save to a file, reach the network or leave the build are refused. |
 | `GET /v1/builds/:id/xml` | `pob_build` `export_xml` | A build's XML at the current or a kept revision. |
 | `PUT /v1/builds/:id/code` | `pob_build` `replace_code` | Replace a build's content with a build code (the same decode as import/code); id and name stay, the revision moves on. The browser view saves through this. |
 | `GET /v1/builds/:id/code` | `pob_build` `export_code` | A build code for the current revision, importable by Path of Building. |
@@ -164,6 +166,8 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/skills/:id/set-imbued` | `pob_skills` `set_imbued` | Set a group's Imbued Support (needs the group socketed in an item slot), or None to clear it. |
 | `POST /v1/skills/:id/optimise-sockets` | `pob_skills` `optimise_sockets` | Reorder a socketed group's gems to match the item's socket colours (the Optimise Sockets button). |
 | `POST /v1/skills/:id/set-options` | `pob_skills` `set_options` | Skills tab gem options: default gem level and quality, which support gems the gem box shows, legacy gems. |
+| `POST /v1/skills/:id/set-skill-options` | `pob_skills` `set_skill_options` | The main skill's sidebar choices: skill part, stages, active mines, minion and minion skill (only those the skill shows; see `get` mainOptions). Dropdowns take their number or label; set part and minion before stages and minion skill (done in that order). |
+| `POST /v1/skills/:id/set-spectres` | `pob_skills` `set_spectres` | Add or remove spectres in the build's spectre library (Manage Spectres...), by spectre name or id; spectres are then choices of a Raise Spectre skill's `minion`. |
 | `POST /v1/skills/:id/set-new` | `pob_skills` `set_new` | Add a skill set. |
 | `POST /v1/skills/:id/set-copy` | `pob_skills` `set_copy` | Copy a skill set. |
 | `POST /v1/skills/:id/set-rename` | `pob_skills` `set_rename` | Rename a skill set. |
@@ -198,6 +202,11 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/config/:id/set-activate` | `pob_config` `set_activate` | Make a config set the active one. |
 | `GET /v1/config/:id/notes` | `pob_config` `notes` | The build notes (Notes tab), with colour codes. |
 | `POST /v1/config/:id/set-notes` | `pob_config` `set_notes` | Replace the build notes. |
+| `GET /v1/party/:id/get` | `pob_config` `party_get` | The Party tab inputs: the import destination and toggles, the text boxes (auras, curses, warcries, links, party member stats, enemy conditions, enemy modifiers) and what Path of Building parsed from them. |
+| `POST /v1/party/:id/import` | `pob_config` `party_import` | Import a party member's build code (exported with Export support on) into a destination, as the Party tab's Import button does; Append keeps what is there. Links are not fetched. |
+| `POST /v1/party/:id/clear` | `pob_config` `party_clear` | Clear imported party data for a destination (default the tab's current one), as the Clear button does. |
+| `POST /v1/party/:id/set` | `pob_config` `party_set` | Set party text boxes and toggles; text is parsed (Rebuild All), as when typed in the advanced boxes. |
+| `POST /v1/party/:id/effects` | `pob_config` `party_effects` | Turn party effects off (Disable Party Effects; the data stays) or back on (Rebuild All parses the boxes again). |
 | `POST /v1/evaluate/:id/what-if` | `pob_evaluate` `what_if` | What the build would be with changes, without making them: nodes added or removed, an item in a slot, a flask or tincture toggled, conditions on. Answers only the stats that differ. |
 | `POST /v1/evaluate/:id/node-power` | `pob_evaluate` `node_power` | Passive node power for a stat, from the tree's heat map calculation: unallocated nodes show what allocating gains, allocated nodes what removing changes. Masteries are listed once per effect; cluster notables and ascendancy nodes are left out. Sorted by power, highest first. |
 | `POST /v1/evaluate/:id/compare-item` | `pob_evaluate` `compare_item` | What an item would change in each slot it fits (default all of them), as the Items tab's comparison shows. |

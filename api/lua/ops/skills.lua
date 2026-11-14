@@ -21,6 +21,29 @@ return function(W)
 		return out
 	end
 
+	local function labels(ctrl)
+		local out = {}
+		for i, v in ipairs(ctrl.list) do out[i] = W.strip(type(v) == "table" and v.label or v) end
+		return out
+	end
+
+	-- The sidebar's main skill choices (Build.lua:480-560), those the main skill shows; a control that is hidden is absent.
+	local function mainOptions(b)
+		local c, out = b.controls, {}
+		if c.mainSkillPart:IsShown() then out.part, out.parts = c.mainSkillPart.selIndex, labels(c.mainSkillPart) end
+		if c.mainSkillStageCount:IsShown() then out.stages = tonumber(c.mainSkillStageCount.buf) end
+		if c.mainSkillMineCount:IsShown() then out.mines = tonumber(c.mainSkillMineCount.buf) or 0 end -- empty box = no count entered
+		if c.mainSkillMinion:IsShown() then out.minion, out.minions = c.mainSkillMinion.selIndex, labels(c.mainSkillMinion) end
+		if c.mainSkillMinionSkill:IsShown() then out.minionSkill, out.minionSkills = c.mainSkillMinionSkill.selIndex, labels(c.mainSkillMinionSkill) end
+		return out
+	end
+
+	local function spectres(b)
+		local out = {}
+		for i, id in ipairs(b.spectreList) do out[i] = { id = id, name = b.data.minions[id].name } end
+		return out
+	end
+
 	-- Socket groups as the Skills tab lists them, gems with what Path of Building resolved them to.
 	function ops.get()
 		local b = W.build()
@@ -46,7 +69,7 @@ return function(W)
 			}
 		end
 		return {
-			mainSocketGroup = b.mainSocketGroup, groups = groups, sets = sets(tab),
+			mainSocketGroup = b.mainSocketGroup, groups = groups, sets = sets(tab), mainOptions = mainOptions(b), spectres = spectres(b),
 			options = { defaultGemLevel = tab.defaultGemLevel, defaultGemQuality = tab.defaultGemQuality, showSupportGemTypes = tab.showSupportGemTypes, showLegacyGems = tab.showLegacyGems == true },
 		}
 	end
@@ -160,6 +183,81 @@ return function(W)
 			local s = mg and mg.displaySkillList and mg.displaySkillList[mg.mainActiveSkill or 1]
 			return { mainSocketGroup = built.mainSocketGroup, mainSkill = s and s.activeEffect.grantedEffect.name or nil }
 		end
+	end)
+
+	-- Picks a dropdown entry by 1-based number or by its label (or minion id).
+	local function choose(ctrl, want, what)
+		local i
+		if type(want) == "number" then
+			i = ctrl.list[want] and want
+		else
+			for n, v in ipairs(ctrl.list) do
+				if type(v) == "table" and (v.label == want or v.minionId == want) or v == want then i = n; break end
+			end
+		end
+		if not i then W.fail("invalid_input", "no " .. what .. " " .. tostring(want) .. "; choices: " .. table.concat(labels(ctrl), ", ")) end
+		ctrl.selIndex = i
+		ctrl.selFunc(i, ctrl.list[i])
+	end
+	local function number(v, what)
+		if type(v) ~= "number" or v ~= math.floor(v) or v < 0 then W.fail("invalid_input", what .. " is a whole number, 0 or more") end
+		return tostring(v)
+	end
+	-- A sidebar control of the main skill, which must be shown (the skill has that choice).
+	local function shown(b, name, what)
+		local ctrl = b.controls[name]
+		if not ctrl:IsShown() then W.fail("invalid_input", "the main skill has no " .. what .. " choice") end
+		return ctrl
+	end
+
+	-- args: part?, stages?, mines?, minion?, minionSkill?: the main skill's sidebar controls (Skill part, Stages, Active
+	-- Mines, the minion and minion skill dropdowns), for the main socket group (`set_main` first to change it). Dropdowns
+	-- take a 1-based number or the label; the controls show after a recalculation, so part and minion go first.
+	ops.set_skill_options = W.mutation(function(args, b)
+		if args.part == nil and args.stages == nil and args.mines == nil and args.minion == nil and args.minionSkill == nil then
+			W.fail("invalid_input", "part, stages, mines, minion or minionSkill is required")
+		end
+		local function settle()
+			b.buildFlag = true
+			W.pump()
+		end
+		if args.part ~= nil then choose(shown(b, "mainSkillPart", "part"), args.part, "part"); settle() end
+		if args.minion ~= nil then choose(shown(b, "mainSkillMinion", "minion"), args.minion, "minion"); settle() end
+		if args.stages ~= nil then shown(b, "mainSkillStageCount", "stages"):SetText(number(args.stages, "stages"), true) end
+		if args.mines ~= nil then shown(b, "mainSkillMineCount", "active mines"):SetText(number(args.mines, "mines"), true) end
+		if args.minionSkill ~= nil then choose(shown(b, "mainSkillMinionSkill", "minion skill"), args.minionSkill, "minion skill") end
+		settle()
+		return mainOptions(b)
+	end)
+
+	-- args: add? (spectres to put in the library, by name or id), remove? (by name or id). The Manage Spectres... popup:
+	-- pick in the source list and Add, pick in the library and Remove, Save.
+	ops.set_spectres = W.mutation(function(args, b)
+		local add, remove = args.add or {}, args.remove or {}
+		if type(add) ~= "table" or type(remove) ~= "table" or #add + #remove == 0 then W.fail("invalid_input", "add or remove is required") end
+		b:OpenSpectreLibrary()
+		local popup = main.popups[1]
+		local ok, err = pcall(function()
+			local list, source = popup.controls.list, popup.controls.source
+			local function find(ctrl, want)
+				for i, id in ipairs(ctrl.list) do
+					if id == want or b.data.minions[id].name == want then return i, id end
+				end
+				W.fail("invalid_input", "no spectre " .. tostring(want))
+			end
+			for _, want in ipairs(remove) do
+				list.selIndex, list.selValue = find(list, want)
+				list.controls.delete:Click()
+			end
+			for _, want in ipairs(add) do
+				source.selIndex, source.selValue = find(source, want)
+				if source.controls.add:IsEnabled() then source.controls.add:Click() end
+			end
+			popup.controls.save:Click()
+		end)
+		while main.popups[1] do main:ClosePopup() end
+		if not ok then error(err, 0) end
+		return { spectres = spectres(b) }
 	end)
 
 	-- Selects a gem in a gem name box the way picking it from the dropdown does (GemSelectControl:UpdateGem).
