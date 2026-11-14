@@ -1,0 +1,25 @@
+# Example systemd user unit for the Path of Building API server. Copy to
+# ~/.config/systemd/user/pob-api.service, replace the <placeholders>, then:
+#   systemctl --user daemon-reload && systemctl --user enable --now pob-api
+# The environment file holds POB_API_TOKEN=<32+ random characters> (mode 0600) and any other
+# variables from api/README.md. Logs are JSON lines on stdout: journalctl --user -u pob-api.
+
+[Unit]
+Description=Path of Building API and MCP server
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=<checkout>/api/server
+EnvironmentFile=<path to env file>
+Environment=HOST=127.0.0.1
+Environment=PORT=8730
+Environment=POB_DATA_DIR=<data directory, outside the checkout>
+ExecStart=<path to node 22> <checkout>/api/server/dist/src/index.js
+Restart=on-failure
+RestartSec=2
+KillMode=control-group
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target
