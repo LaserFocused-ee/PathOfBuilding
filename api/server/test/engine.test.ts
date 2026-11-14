@@ -99,6 +99,23 @@ void test("a build code round-trips byte-exact", async () => {
   ok(await srv.call("DELETE", `/v1/builds/${copy.build.id}`));
 });
 
+void test("a legacy build's code is byte-stable from its second save on", async () => {
+  // Upstream's first save of a build with no includeInFullDPS attribute writes "nil" (SkillsTab.lua:448
+  // and :591); loading that reads false, so one save normalises it and every later trip is exact.
+  const codes: string[] = [];
+  let id = occ;
+  const made: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    codes.push(ok(await srv.call<{ code: string }>("GET", `/v1/builds/${id}/code`)).code);
+    id = ok(await srv.call<Created>("POST", "/v1/builds/import/code", { code: codes[i] })).build.id;
+    made.push(id);
+  }
+  const stored = ok(await srv.call<{ xml: string }>("GET", `/v1/builds/${occ}/xml`)).xml;
+  assert.ok(stored.includes('includeInFullDPS="nil"'), "the first save carries upstream's nil");
+  assert.equal(codes[2], codes[1]);
+  for (const m of made) ok(await srv.call("DELETE", `/v1/builds/${m}`));
+});
+
 void test("killing a worker mid-session is recovered from the store", async () => {
   const pool = srv.runtime.svc.pool;
   ok(await srv.call("GET", `/v1/stats/${occ}/versions`)); // make sure the session is open
