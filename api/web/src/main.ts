@@ -1,6 +1,7 @@
 // Browser view: `/` lists the server's builds, `/?build=<id>` opens one in the real Path of Building UI
 // (pob-web's driver) and keeps it in step with the server (sync.ts).
 import { Driver } from "pob-driver/driver";
+import { accountNote, profileStandIn } from "./account-import.ts";
 import { api, ApiError, type BuildMeta, isBuildId } from "./api.ts";
 import { buildContent } from "./content.ts";
 import { safeExternalUrl } from "./links.ts";
@@ -164,10 +165,18 @@ async function viewPage(id: string) {
       }
     },
     // Path of Building's own downloads (public-profile character import, build links) go through the
-    // server's allow-listed fetch route; the browser never calls those sites itself.
+    // server's allow-listed fetch route; the browser never calls those sites itself (account-import.ts).
     onFetch: async (url, headers, body) => {
+      const local = profileStandIn(url);
+      if (local) return { ...local, error: undefined };
       try {
-        return { ...await withSession(() => api.fetch(url, headers, body)), error: undefined };
+        const result = await withSession(() => api.fetch(url, headers, body));
+        const note = accountNote(url, result);
+        if (url.startsWith("https://www.pathofexile.com/character-window/")) {
+          text($("#import-note"), note ?? "");
+          $("#import-note").hidden = note === null;
+        }
+        return { ...result, error: undefined };
       } catch (e) {
         return { body: "", status: undefined, headers: {}, error: e instanceof Error ? e.message : String(e) };
       }

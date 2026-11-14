@@ -11,8 +11,12 @@ tree the API server's workers run, so the page and the API calculate the same nu
   are written back with the revision they were based on; if the server moved on in the meantime the page shows the
   conflict and offers to load the server's version or overwrite it. Logic and tests: `src/sync.ts`.
 
-Path of Building's own network features (import from a link, character import) are off in the page; import through the
-API instead. Builds saved with Path of Building's own Save button stay in the browser's storage.
+Path of Building's own downloads (import from a build-site link, character import by account name) go through the
+server's relay, never from the browser to those sites. Character import by account name: the page answers Path of
+Building's profile-page request itself with the name as typed (that page is not reachable through the relay), so the
+name must match exactly, upper and lower case and the #number included; an empty or refused character list says so above
+the view, with the status. Nothing is retried. Sign-in with a Path of Exile account is not available in the page. Builds
+saved with Path of Building's own Save button stay in the browser's storage. Logic and tests: `src/account-import.ts`.
 
 ## Build
 

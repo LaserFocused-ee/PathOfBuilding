@@ -132,7 +132,8 @@
       min-height: 0;
       overflow: hidden;
     }
-    #driver-error {
+    #driver-error,
+    #import-note {
       margin: 0;
       padding: 0.3rem 0.6rem;
       background: #1b1b1b;
@@ -203,6 +204,7 @@
           <a href="https://www.exljbris.nl" target="_blank" rel="noopener noreferrer">exljbris</a>.</span>
       </div>
       <p id="driver-error" class="error" role="alert" hidden></p>
+      <p id="import-note" class="error" role="status" hidden></p>
       <div id="window"></div>
     </div>
     <script type="module" src="./main.ts"></script>
