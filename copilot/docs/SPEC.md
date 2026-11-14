@@ -83,6 +83,18 @@ Self-hosted build of pob-web (https://github.com/atty303/pob-web, MIT) under `co
 
 `copilot/deploy`: systemd user unit, deploy script with health poll, observability files, and a Dockerfile that produces the same package for any host. Hosted on the LaserFocused server per `~/.claude/skills/backend-box-deploy/SKILL.md` (loopback port 7480, tunnel hostname `app-pob.laserfocused.ee`). The orchestrator does the tunnel and first install; the owner supplies the files with F1.
 
+### F6. Market watch (own area: `copilot/market`, own owner)
+
+Justin, 14 Nov 2026: trade is not about sniping; "we are looking for trends and patterns and for you to try to flag them and get on them as early as we can". History that is not collected cannot be recovered, so collection starts before anything else in this feature.
+
+- **Collector** (`copilot/market`, Node 22, no framework): a long-running process with its own schedule, declared in `copilot/docs/SCHEDULED-JOBS.md`. Sources, all documented and unauthenticated, each fetched with ETag, a descriptive User-Agent from config and back-off on any 4xx or 429: poe.ninja economy overviews for every item type of the current trade league every 30 minutes; the publisher's currency-exchange hourly files at five past each hour, with a one-time backfill from league start; the league list daily. No trade-site calls, no stash stream, no build or profile endpoints.
+- **Store**: one SQLite file in the data directory (portable with the package). Raw responses are kept compressed for 14 days; normalised rows are kept for the league: `item(id, type, name, variant, first_seen)`, `price_point(item, ts, chaos, divine, listing_count, source)`, `exchange_hour(pair, hour, volume, ratio_low, ratio_high, stock)`, `signal(ts, item, kind, score, detail)`. The schema file `copilot/market/SCHEMA.md` is the contract with the engine server, which opens the file read-only.
+- **Signals**, computed by code after each collection and stored with their inputs so each can be checked: price change over 6, 24 and 72 hours against the item's own volatility; listing count falling while price holds or rises (supply squeeze); listing count rising while price falls (dump); first appearance of an item or variant; exchange volume spikes and widening or closing spread between exchange ratio and poe.ninja price; items whose price trend differs from their group (one gem, one unique, one Thread against its class); low-liquidity flag (few listings) on everything. Each signal carries a plain statement of why it fired. Popularity is used in reverse: the largest, most-traded items are down-ranked so thin and unusual markets surface first.
+- **Read side** (served by the engine server in F3 from the same file): movers, active signals ranked by score, one item's history, a watch list Justin or the AI can edit, and a daily digest. MCP tool `pob_market` (the tenth tool).
+- **Checks**: parser tests on recorded responses, signal tests on synthetic series (each signal has a series that fires it and one that must not), and a dry-run mode that fetches once and prints row counts.
+
+Done when: the collector has run unattended for 24 hours on the server with no gaps in its schedule log; signals fire on recorded data; a restart resumes without duplicate rows.
+
 ## Not in scope
 
 Path of Exile 2. Multi-user accounts or OAuth. Any automation of game or trade actions. A rewrite of the calculation engine.
