@@ -88,10 +88,12 @@ return function(W)
 		"CritMultiplier", "TotalDotDPS", "BleedDPS", "IgniteDPS", "PoisonDPS", "ImpaleDPS", "WithPoisonDPS", "CullingDPS",
 		"ManaCost", "LifeCost", "ESCost", "ManaPerSecondCost" }
 
-	-- Every socket group with its outputs when it is the main skill, plus FullDPS. Each group is
-	-- recalculated as main group through the normal buildFlag path, then the original is restored.
+	-- Every socket group with its outputs when it is the main skill, plus FullDPS. Each group is calculated
+	-- in a throwaway CALCULATOR env (as Calcs.getMiscCalculator does), which never writes the build's own
+	-- state; only build.mainSocketGroup is pointed at the group for the env setup and put back.
 	function ops.skills()
 		local b = W.build()
+		local calcs = b.calcsTab.calcs
 		local origGroup = b.mainSocketGroup
 		local groups = {}
 		local ok, err = pcall(function()
@@ -106,22 +108,21 @@ return function(W)
 				end
 				if entry.enabled and #entry.activeSkills > 0 then
 					b.mainSocketGroup = i
-					b.buildFlag = true
-					W.pump()
-					local o = b.calcsTab.mainOutput
+					local env = calcs.initEnv(b, "CALCULATOR")
+					calcs.perform(env)
+					b.mainSocketGroup = origGroup
+					local o = env.player.output
 					entry.output = object({})
 					for _, k in ipairs(skillKeys) do
 						if type(o[k]) == "number" then entry.output[k] = o[k] end
 					end
-					local ms = b.calcsTab.mainEnv.player.mainSkill
+					local ms = env.player.mainSkill
 					entry.mainSkill = ms and ms.activeEffect and ms.activeEffect.grantedEffect.name or nil
 				end
 				groups[#groups + 1] = entry
 			end
 		end)
 		b.mainSocketGroup = origGroup
-		b.buildFlag = true
-		W.pump()
 		if not ok then error(err, 0) end
 		local o = b.calcsTab.mainOutput
 		local full = {}
