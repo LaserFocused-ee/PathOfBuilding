@@ -27,6 +27,7 @@ function setup() {
     },
     read: () => Promise.resolve(view.code),
     content: (code) => Promise.resolve(code),
+    shown: () => Promise.resolve(),
   };
   const states: SyncState[] = [];
   const sync = new BuildSync(api, ui, (s) => states.push(s));
@@ -187,6 +188,9 @@ Deno.test("view state (tab, tree zoom) is not an edit", async () => {
   await sync.poll();
   await sync.poll();
   assertEquals(server.saves, [{ code: "A1@items-tab", base: 1 }]); // the full code is what gets written
+  await sync.poll();
+  await sync.poll();
+  assertEquals(server.saves.length, 1); // the new baseline is the content, not the code with view state
 });
 
 Deno.test("a deleted build stops following: no reload, no write", async () => {
@@ -271,4 +275,120 @@ Deno.test("unsaved is true from the first sight of an edit until it is written",
   assertEquals(sync.unsaved, true);
   await sync.poll();
   assertEquals(sync.unsaved, false);
+});
+
+Deno.test("input while the loaded build is being drawn is an edit, not part of the baseline", async () => {
+  const { sync, view, server, ui } = setup();
+  ui.shown = () => {
+    view.code = "A1"; // the user clicks before the frames are drawn
+    return Promise.resolve();
+  };
+  await sync.start();
+  await sync.poll();
+  await sync.poll();
+  assertEquals(server.saves, [{ code: "A1", base: 1 }]);
+});
+
+Deno.test("a failed revision lookup after a refused write keeps the edit and retries", async () => {
+  const { sync, view, server, api, remoteEdit } = setup();
+  await sync.start();
+  remoteEdit("B");
+  const realRevision = api.revision;
+  api.revision = () => Promise.reject(new Error("network down"));
+  view.code = "A1";
+  await sync.poll();
+  await sync.poll();
+  assertEquals(sync.state, { kind: "save_failed", revision: 1, reason: "network down", retrying: true });
+  assertEquals(sync.unsaved, true);
+  await sync.start(); // a retry while the server is still unreachable stops, but never loads over the edit
+  assertEquals(sync.state, { kind: "failed", reason: "network down" });
+  assertEquals(view.code, "A1");
+  assertEquals(server.loads, 1);
+  api.revision = realRevision;
+  await sync.start(); // "Try again"
+  assertEquals(sync.state, { kind: "conflict", revision: 1, serverRevision: 2 });
+  assertEquals(view.code, "A1");
+});
+
+Deno.test("keep mine with a failed revision lookup stays unsaved and does not stop", async () => {
+  const { sync, view, api, remoteEdit } = setup();
+  await sync.start();
+  view.code = "A1";
+  await sync.poll();
+  await sync.serverRevision(remoteEdit("B"));
+  assertEquals(sync.state.kind, "conflict");
+  api.revision = () => Promise.reject(new Error("network down"));
+  await sync.resolve("overwrite");
+  assertEquals(sync.state, { kind: "save_failed", revision: 1, reason: "network down", retrying: true });
+  assertEquals(sync.unsaved, true);
+  assertEquals(view.code, "A1");
+});
+
+Deno.test("try again after a stop never loads over an edit: conflict if the server moved, else write", async () => {
+  const { sync, view, server, ui, remoteEdit } = setup();
+  await sync.start();
+  const realRead = ui.read;
+  ui.read = () => Promise.reject(new Error("busy"));
+  view.code = "A1";
+  await sync.poll();
+  assertEquals(sync.state, { kind: "failed", reason: "busy" });
+  assertEquals(sync.unsaved, true);
+  ui.read = realRead;
+  await sync.start(); // the server has not moved: the edit is written
+  assertEquals(server.saves, [{ code: "A1", base: 1 }]);
+  assertEquals(sync.state, { kind: "synced", revision: 2 });
+  ui.read = () => Promise.reject(new Error("busy"));
+  view.code = "A2";
+  await sync.poll();
+  ui.read = realRead;
+  remoteEdit("B");
+  await sync.start(); // the server moved: the user chooses
+  assertEquals(sync.state, { kind: "conflict", revision: 2, serverRevision: 3 });
+  assertEquals(view.code, "A2");
+  assertEquals(server.loads, 1);
+});
+
+Deno.test("a tick that arrives while one is still running is skipped", async () => {
+  const { sync, view, ui } = setup();
+  await sync.start();
+  let reads = 0;
+  let release!: () => void;
+  ui.read = () => {
+    reads++;
+    return new Promise((done) => release = () => done(view.code));
+  };
+  const first = sync.poll();
+  await Promise.resolve();
+  const second = sync.poll();
+  await new Promise((r) => setTimeout(r, 0));
+  release();
+  await Promise.all([first, second]);
+  assertEquals(reads, 1);
+});
+
+Deno.test("back-off starts again after a successful write", async () => {
+  const { sync, view, server, api } = setup();
+  await sync.start();
+  const realSave = api.save;
+  let fail = true;
+  api.save = (code, base) => {
+    if (!fail) return realSave(code, base);
+    server.saves.push({ code, base });
+    return Promise.reject(new Error("network down"));
+  };
+  view.code = "A1";
+  await sync.poll(); // first sight
+  await sync.poll(); // attempt 1 fails: next attempt at once
+  await sync.poll(); // attempt 2 fails: wait one tick
+  await sync.poll(); // waiting
+  fail = false;
+  await sync.poll(); // attempt 3 succeeds
+  assertEquals(sync.state, { kind: "synced", revision: 2 });
+  fail = true;
+  view.code = "A2";
+  await sync.poll(); // first sight
+  await sync.poll(); // fails
+  const before = server.saves.length;
+  await sync.poll(); // the first retry after a success is at once, as after the first failure
+  assertEquals(server.saves.length, before + 1);
 });

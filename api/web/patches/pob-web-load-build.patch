@@ -15,12 +15,13 @@ index a921ed4..b5c494f 100644
      if not mainObject.main then
          error("loadBuildFromCode: mainObject.main is nil")
      end
-@@ -215,8 +221,15 @@ function loadBuildFromCode(code)
+@@ -215,8 +221,16 @@ function loadBuildFromCode(code)
      end
  
      importTab.controls.importCodeIn:SetText(code, true)
-+    -- The import button returns quietly on a code it cannot read; the caller must not take the old build as loaded.
-+    if not importTab.importCodeValid or importTab.importCodeFetching then
++    -- Only decoded build XML loads here. A code it cannot read (the import button returns quietly) or a
++    -- share link (valid, but it would start a download) must not leave the old build looking loaded.
++    if not importTab.importCodeXML or importTab.importCodeFetching then
 +        error("loadBuildFromCode: not a valid build code")
 +    end
      importTab.controls.importCodeMode.selIndex = 2
