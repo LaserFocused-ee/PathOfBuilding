@@ -143,6 +143,9 @@ cp "$T2D/lib/LICENSE" "$DIST/licenses/texture2ddecoder-LICENSE"
 cp "$T2D/bindings/LICENSE" "$DIST/licenses/texture2ddecoder-wasm-LICENSE"
 # Output checks: no React development build, no builder path in anything but the packed sources and licences.
 if [ -n "$(grep -rlF jsxDEV "$DIST/assets" || true)" ]; then echo "output contains React's development build (jsxDEV)" >&2; exit 1; fi
+# Lowered optional calls (`x?.(a)` built as `x.call(this, a)`) post the worker object through Comlink
+# proxies: a DataCloneError on every diagnostic. vite.config.ts build.target keeps them native.
+if [ -n "$(grep -rlE '==null\|\|[A-Za-z_$][A-Za-z0-9_$]*\.call\(this' "$DIST/assets" || true)" ]; then echo "output contains lowered optional calls (check build.target)" >&2; exit 1; fi
 LEAK="$(grep -rlF -e "$REPO" -e "$HERE" "$DIST" --exclude-dir=pob --exclude-dir=licenses || true)"
 if [ -n "$LEAK" ]; then echo "builder path leaked into output:" >&2; echo "$LEAK" | head -n 20 >&2; exit 1; fi
 mkdir -p "$DIST/pob"

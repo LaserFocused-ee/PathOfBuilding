@@ -37,6 +37,9 @@ export default defineConfig({
     outDir: env("POB_WEB_OUT"),
     emptyOutDir: true,
     sourcemap: false,
+    // Keep `?.` native. Lowered, the worker's `this.onDiagnostic?.(x)` becomes `onDiagnostic.call(this, x)`;
+    // on a Comlink proxy that posts the worker object itself and fails with a DataCloneError.
+    target: "es2022",
   },
   worker: { format: "es" },
   optimizeDeps: { exclude: ["@bokuweb/zstd-wasm"] },
