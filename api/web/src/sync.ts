@@ -3,6 +3,8 @@
 // server reports a newer revision it did not cause, and writes its own edits back with the revision
 // they were based on. A refused write (stale revision) becomes a conflict the user resolves.
 // Every operation runs on one queue, so a write and an incoming event never interleave.
+// Two rules: never load over a view that differs from the baseline without the user's choice, and never
+// write a view that does not hold the build the page loaded (`read()` gives null then).
 
 export interface SyncApi {
   load(): Promise<{ code: string; revision: number }>;
@@ -13,8 +15,14 @@ export interface SyncApi {
 }
 
 export interface SyncView {
+  /** Shows a build code; throws when the view did not take it. */
   load(code: string): Promise<void>;
-  read(): Promise<string>;
+  /** The view's current build code; null when the view no longer holds the build the page loaded. */
+  read(): Promise<string | null>;
+  /** What counts as an edit: the code without view state (open tab, tree zoom, search text). */
+  content(code: string): Promise<string>;
+  /** Resolves once a loaded build is on screen (the baseline is read before, so input meanwhile is an edit). */
+  shown(): Promise<void>;
 }
 
 export type SyncState =
@@ -22,15 +30,28 @@ export type SyncState =
   | { kind: "failed"; reason: string }
   | { kind: "synced"; revision: number }
   | { kind: "saving"; revision: number }
-  | { kind: "save_failed"; revision: number; reason: string }
+  | { kind: "save_failed"; revision: number; reason: string; retrying: boolean }
   | { kind: "conflict"; revision: number; serverRevision: number }
+  | { kind: "released" } // another build is open in the view; nothing is written until this one is loaded again
   | { kind: "deleted" };
+
+/** An error whose `permanent` is true is a refusal that the same request would get again. */
+function isPermanent(error: unknown): boolean {
+  return (error as { permanent?: unknown } | undefined)?.permanent === true;
+}
+
+const MAX_BACKOFF_TICKS = 15; // 30 s at the page's 2 s tick
 
 export class BuildSync {
   private queue: Promise<void> = Promise.resolve();
+  private pending = 0;
   private revision = 0;
   private baseline = "";
   private candidate: string | undefined;
+  private refused: string | undefined; // content a permanent refusal was given for
+  private backoff = 0;
+  private skipTicks = 0;
+  private overwriteBase: number | undefined; // "Keep mine" chosen over this server revision, not yet written
   state: SyncState = { kind: "loading" };
 
   constructor(
@@ -39,9 +60,29 @@ export class BuildSync {
     private readonly onState: (state: SyncState) => void,
   ) {}
 
-  /** Loads the server's build into the view. */
+  /** True while the page holds an edit the server does not have (leaving would lose it). */
+  get unsaved(): boolean {
+    const kind = this.state.kind;
+    // ponytail: a stop after a load counts as unsaved without reading the view (polls do not run once stopped)
+    const stoppedHolding = kind === "failed" && this.baseline !== "";
+    return kind === "saving" || kind === "save_failed" || kind === "conflict" || stoppedHolding ||
+      this.candidate !== undefined;
+  }
+
+  /** Loads the server's build into the view; also the retry after a stop, which never loads over an edit. */
   start(): Promise<void> {
-    return this.run(() => this.reload());
+    return this.run(async () => {
+      const code = this.baseline !== "" ? await this.view.read() : null;
+      if (code !== null) {
+        const content = await this.view.content(code);
+        if (content !== this.baseline) {
+          const server = await this.api.revision();
+          if (server === (this.overwriteBase ?? this.revision)) return await this.save(code, content, server);
+          return this.conflict(server);
+        }
+      }
+      await this.reload();
+    });
   }
 
   /** A revision the server reported (the event stream's first frame or a change event). */
@@ -54,8 +95,10 @@ export class BuildSync {
         this.set({ ...this.state, serverRevision: Math.max(revision, this.state.serverRevision) });
         return;
       }
-      if (await this.view.read() !== this.baseline) {
-        this.set({ kind: "conflict", revision: this.revision, serverRevision: revision });
+      const code = await this.view.read();
+      if (code === null) return this.release();
+      if (await this.view.content(code) !== this.baseline) {
+        this.conflict(revision);
         return;
       }
       await this.reload();
@@ -68,18 +111,26 @@ export class BuildSync {
 
   /** Called on a timer: a change in the view that stayed the same for one tick is written back. */
   poll(): Promise<void> {
+    if (this.pending > 0) return this.queue; // a slow tick is still running: skip, never pile up
     return this.run(async () => {
       if (this.state.kind !== "synced" && this.state.kind !== "save_failed") return;
+      if (this.skipTicks > 0) {
+        this.skipTicks--;
+        return;
+      }
       const code = await this.view.read();
-      if (code === this.baseline) {
+      if (code === null) return this.release();
+      const content = await this.view.content(code);
+      if (content === this.baseline) {
         this.candidate = undefined;
         return;
       }
-      if (code !== this.candidate) {
-        this.candidate = code; // still changing: wait one more tick
+      if (content !== this.candidate) {
+        this.candidate = content; // still changing: wait one more tick
         return;
       }
-      await this.save(code, this.revision);
+      if (content === this.refused) return; // refused for good; a further edit may change that
+      await this.save(code, content, this.overwriteBase ?? this.revision);
     });
   }
 
@@ -88,39 +139,67 @@ export class BuildSync {
     return this.run(async () => {
       if (this.state.kind !== "conflict") return;
       if (choice === "reload") return await this.reload();
-      await this.save(await this.view.read(), await this.api.revision());
+      const code = await this.view.read();
+      if (code === null) return this.release();
+      // Overwrite the revision the user saw; a retry after a failed write keeps that base.
+      this.overwriteBase = this.state.serverRevision;
+      await this.save(code, await this.view.content(code), this.overwriteBase);
     });
   }
 
   private async reload(): Promise<void> {
     this.set({ kind: "loading" });
-    try {
-      const { code, revision } = await this.api.load();
-      await this.view.load(code);
-      this.baseline = await this.view.read();
-      this.revision = revision;
-      this.candidate = undefined;
-      this.set({ kind: "synced", revision });
-    } catch (error) {
-      this.set({ kind: "failed", reason: message(error) });
-    }
+    const { code, revision } = await this.api.load();
+    await this.view.load(code);
+    // Read before the build is drawn: input from here on differs from the baseline, so it is an edit.
+    const loaded = await this.view.read();
+    if (loaded === null) throw new Error("the build did not open in Path of Building");
+    this.baseline = await this.view.content(loaded);
+    this.revision = revision;
+    this.overwriteBase = undefined;
+    this.candidate = undefined;
+    this.refused = undefined;
+    this.backoff = this.skipTicks = 0;
+    await this.view.shown();
+    this.set({ kind: "synced", revision });
   }
 
-  private async save(code: string, baseRevision: number): Promise<void> {
+  private async save(code: string, content: string, base: number): Promise<void> {
     this.set({ kind: "saving", revision: this.revision });
+    let result: { revision: number } | "stale";
+    let serverRevision = 0;
     try {
-      const result = await this.api.save(code, baseRevision);
-      if (result === "stale") {
-        this.set({ kind: "conflict", revision: this.revision, serverRevision: await this.api.revision() });
-        return;
-      }
-      this.revision = result.revision;
-      this.baseline = code;
-      this.candidate = undefined;
-      this.set({ kind: "synced", revision: result.revision });
+      // The revision lookup sits inside the try: a failed one is a failed write (kept, retried), never a stop.
+      result = await this.api.save(code, base);
+      if (result === "stale") serverRevision = await this.api.revision();
     } catch (error) {
-      this.set({ kind: "save_failed", revision: this.revision, reason: message(error) });
+      const permanent = isPermanent(error);
+      if (permanent) this.refused = content;
+      else {
+        this.skipTicks = this.backoff;
+        this.backoff = Math.min(this.backoff * 2 + 1, MAX_BACKOFF_TICKS);
+      }
+      this.set({ kind: "save_failed", revision: this.revision, reason: message(error), retrying: !permanent });
+      return;
     }
+    if (result === "stale") return this.conflict(serverRevision);
+    this.revision = result.revision;
+    this.overwriteBase = undefined;
+    this.baseline = content;
+    this.candidate = undefined;
+    this.refused = undefined;
+    this.backoff = this.skipTicks = 0;
+    this.set({ kind: "synced", revision: result.revision });
+  }
+
+  private conflict(serverRevision: number): void {
+    this.set({ kind: "conflict", revision: this.revision, serverRevision });
+  }
+
+  /** The view holds another build: drop the claim on it; "Try again" loads this build again. */
+  private release(): void {
+    this.candidate = undefined;
+    this.set({ kind: "released" });
   }
 
   private set(state: SyncState): void {
@@ -128,8 +207,20 @@ export class BuildSync {
     this.onState(state);
   }
 
+  // Runs one operation after the previous one. An operation that throws stops syncing with the
+  // reason on screen (state "failed", which never writes) instead of leaving a stale "Saved".
   private run(op: () => Promise<void>): Promise<void> {
-    this.queue = this.queue.then(op, op);
+    this.pending++;
+    const guarded = async () => {
+      try {
+        await op();
+      } catch (error) {
+        this.set({ kind: "failed", reason: message(error) });
+      } finally {
+        this.pending--;
+      }
+    };
+    this.queue = this.queue.then(guarded);
     return this.queue;
   }
 }

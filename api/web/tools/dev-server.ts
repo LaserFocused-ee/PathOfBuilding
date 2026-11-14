@@ -1,13 +1,10 @@
 // Development only (not shipped): serves api/web/dist with the headers in README.md "Serve contract"
 // and proxies /v1 to a running API server, adding its bearer token so the page needs no session.
-// Usage: POB_API_URL=http://127.0.0.1:<port> POB_API_TOKEN=... deno run --allow-net --allow-read --allow-env \
+// Answers 403 unless the Host is 127.0.0.1:<port> or localhost:<port> and, for writes, the Origin is that same origin.
+// Usage: [POB_API_URL=http://127.0.0.1:8730 (default)] POB_API_TOKEN=... deno run --allow-net --allow-read --allow-env \
 //          tools/dev-server.ts [port]
 import { serveDir } from "@std/http/file-server";
 import { fromFileUrl } from "@std/path";
-
-const dist = fromFileUrl(new URL("../dist", import.meta.url));
-const api = Deno.env.get("POB_API_URL") ?? "http://127.0.0.1:8080";
-const token = Deno.env.get("POB_API_TOKEN") ?? "";
 
 /** Same origin only; WebAssembly compilation allowed; inline styles for the page and the driver's overlay. */
 export const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
@@ -27,19 +24,36 @@ export function staticHeaders(path: string, headers: Headers): Headers {
   return headers;
 }
 
-Deno.serve({ hostname: "127.0.0.1", port: Number(Deno.args[0] ?? 0) }, async (req) => {
-  const url = new URL(req.url);
-  if (url.pathname.startsWith("/v1/")) {
-    const headers = new Headers(req.headers);
-    headers.set("authorization", `Bearer ${token}`);
-    headers.delete("cookie");
-    return await fetch(api + url.pathname + url.search, {
-      method: req.method,
-      headers,
-      body: req.body,
-      redirect: "manual",
+/** Loopback Host only (blocks DNS rebinding); writes also need the same Origin (blocks cross-site requests). */
+export function allowed(req: Request, port: number): boolean {
+  const host = req.headers.get("host");
+  if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) return false;
+  if (req.method === "GET" || req.method === "HEAD") return true;
+  return req.headers.get("origin") === `http://${host}`;
+}
+
+if (import.meta.main) {
+  const dist = Deno.env.get("POB_WEB_DIST") ?? fromFileUrl(new URL("../dist", import.meta.url));
+  const api = Deno.env.get("POB_API_URL") ?? "http://127.0.0.1:8730";
+  const token = Deno.env.get("POB_API_TOKEN") ?? "";
+  const server = Deno.serve({ hostname: "127.0.0.1", port: Number(Deno.args[0] ?? 0) }, async (req) => {
+    if (!allowed(req, server.addr.port)) return new Response("Forbidden", { status: 403 });
+    const url = new URL(req.url);
+    if (url.pathname.startsWith("/v1/")) {
+      const headers = new Headers(req.headers);
+      headers.set("authorization", `Bearer ${token}`);
+      headers.delete("cookie");
+      return await fetch(api + url.pathname + url.search, {
+        method: req.method,
+        headers,
+        body: req.body,
+        redirect: "manual",
+      });
+    }
+    const res = await serveDir(req, { fsRoot: dist, quiet: true });
+    return new Response(res.body, {
+      status: res.status,
+      headers: staticHeaders(url.pathname, new Headers(res.headers)),
     });
-  }
-  const res = await serveDir(req, { fsRoot: dist, quiet: true });
-  return new Response(res.body, { status: res.status, headers: staticHeaders(url.pathname, new Headers(res.headers)) });
-});
+  });
+}
