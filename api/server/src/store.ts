@@ -70,9 +70,12 @@ export class BuildStore {
   async list(): Promise<BuildMeta[]> {
     const names = await readdir(join(this.dir, "builds"));
     const metas = await Promise.all(
-      names.filter((n) => n.endsWith(".json") && isBuildId(n.slice(0, -5))).map((n) => this.get(n.slice(0, -5))),
+      names
+        .filter((n) => n.endsWith(".json") && isBuildId(n.slice(0, -5)))
+        // A build deleted between the directory read and its file read is left out, not a failed list.
+        .map((n) => this.get(n.slice(0, -5)).catch((e: unknown) => (e instanceof ApiError && e.code === "not_found" ? undefined : Promise.reject(e as Error)))),
     );
-    return metas.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return metas.filter((m) => m !== undefined).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
   async get(id: string): Promise<BuildMeta> {

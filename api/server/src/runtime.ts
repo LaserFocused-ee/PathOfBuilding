@@ -24,17 +24,31 @@ const alive = (pid: number) => {
   }
 };
 
+/** A process's start time (clock ticks since boot, /proc/<pid>/stat field 22); undefined without /proc. */
+export async function startTime(pid: number): Promise<string | undefined> {
+  const stat = await readFile(`/proc/${pid}/stat`, "utf8").catch(() => undefined);
+  return stat?.slice(stat.lastIndexOf(")") + 2).split(" ")[19];
+}
+
+/**
+ * The lock holds "<pid> <start time>". It is stale when it names this process (a restart that reused the
+ * pid, as pid 1 in a container always does), a process that is gone, or a live process that started at a
+ * different time (the pid was reused).
+ */
 async function lock(dir: string): Promise<string> {
   const path = join(dir, "server.lock");
+  const self = `${process.pid} ${(await startTime(process.pid)) ?? "-"}`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      await writeFile(path, String(process.pid), { flag: "wx", mode: 0o600 });
+      await writeFile(path, self, { flag: "wx", mode: 0o600 });
       return path;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
-      const holder = Number(await readFile(path, "utf8").catch(() => "0"));
-      if (holder > 0 && alive(holder)) throw new Error(`data directory ${dir} is in use by process ${holder}`, { cause: e });
-      await rm(path, { force: true }); // stale lock from a process that is gone
+      const [pidText, started] = (await readFile(path, "utf8").catch(() => "0")).trim().split(" ");
+      const holder = Number(pidText);
+      const held = holder > 0 && holder !== process.pid && alive(holder) && (started === undefined || started === "-" || started === (await startTime(holder)));
+      if (held) throw new Error(`data directory ${dir} is in use by process ${holder}`, { cause: e });
+      await rm(path, { force: true });
     }
   }
   throw new Error(`could not lock data directory ${dir}`);

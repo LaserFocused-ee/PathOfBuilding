@@ -105,7 +105,7 @@ return function(W)
 		main:SetMode("BUILD", false, args.name or "Imported build", args.xml, true)
 		local ok, b = pcall(settledOrFail, "invalid_input")
 		if not ok then
-			if type(b) == "table" and b.code == "not_loaded" then W.fail("invalid_input", "the XML is not a Path of Building build") end
+			if type(b) == "table" and b.notLoaded then W.fail("invalid_input", "the XML is not a Path of Building build") end
 			error(b, 0)
 		end
 		return summary(b)

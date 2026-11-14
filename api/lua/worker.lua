@@ -146,7 +146,7 @@ end
 function W.build()
 	local b = main.modes.BUILD
 	if main.mode ~= "BUILD" or not b.calcsTab or not b.calcsTab.mainOutput then
-		W.fail("not_loaded", "no build is loaded in this worker")
+		error({ code = "worker_error", message = "no build is loaded in this worker", notLoaded = true }, 0)
 	end
 	return b
 end

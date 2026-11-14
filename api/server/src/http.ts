@@ -43,7 +43,16 @@ export class FailureWindow {
   }
 }
 
-const bearer = (req: Request) => /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1];
+const bearer = (req: Request) => /^Bearer (.+)$/i.exec(req.headers.authorization ?? "")?.[1]; // the scheme is case-insensitive (RFC 9110)
+
+/** The route pattern for logs: never a raw path, which can carry build ids. */
+const FIXED_PATHS = ["/health", "/health/deep", "/mcp"];
+const routeLabel = (req: Request): string => {
+  const pattern = (req.route as { path?: string } | undefined)?.path;
+  if (pattern) return pattern;
+  const path = req.originalUrl.split("?")[0] ?? "";
+  return FIXED_PATHS.includes(path) ? path : "(unmatched)";
+};
 
 /** Turns query-string values into the types a route's input schema declares (number, boolean, list). */
 function queryCoercer(route: Route): (q: Record<string, unknown>) => Record<string, unknown> {
@@ -75,8 +84,7 @@ export function createApp(svc: Service, log: Logger): express.Express {
     const requestId = randomUUID();
     res.setHeader("x-request-id", requestId);
     res.on("finish", () => {
-      const route = (req.route as { path?: string } | undefined)?.path ?? (req.path.startsWith("/v1") ? "(unmatched)" : req.path);
-      log.info({ event: "http.request", request_id: requestId, method: req.method, route, status: res.statusCode, duration_ms: Date.now() - started });
+      log.info({ event: "http.request", request_id: requestId, method: req.method, route: routeLabel(req), status: res.statusCode, duration_ms: Date.now() - started });
     });
     next();
   });
@@ -130,10 +138,11 @@ export function createApp(svc: Service, log: Logger): express.Express {
 
   for (const route of routes) {
     const method = route.method.toLowerCase() as "get" | "post" | "delete";
+    const coerce = queryCoercer(route);
     if (route.stream) {
       app.get(route.path, async (req, res, next) => {
         try {
-          const input = parseInput(route, { ...req.params });
+          const input = parseInput(route, { ...coerce(req.query), ...req.params });
           const meta = await svc.store.get(String(input.id));
           svc.events.serve(meta.id, meta.revision, req, res);
         } catch (e) {
@@ -142,7 +151,6 @@ export function createApp(svc: Service, log: Logger): express.Express {
       });
       continue;
     }
-    const coerce = queryCoercer(route);
     app[method](route.path, async (req, res, next) => {
       try {
         const fromQuery = coerce(req.query);
@@ -171,7 +179,7 @@ export function createApp(svc: Service, log: Logger): express.Express {
 
   app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
     const e = toApiError(err);
-    if (e.status >= 500) reportError(log, err, ["http", e.code], { route: String((req.route as { path?: string } | undefined)?.path ?? req.path) });
+    if (e.status >= 500) reportError(log, err, ["http", e.code], { route: routeLabel(req) });
     if (res.headersSent) return;
     if (typeof e.details?.retryAfterSeconds === "number") res.setHeader("retry-after", String(e.details.retryAfterSeconds));
     res.status(e.status).json({ ok: false, error: { code: e.code, message: e.message, ...(e.details ? { details: e.details } : {}) } });

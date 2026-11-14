@@ -39,6 +39,7 @@ const buildId = z.string().regex(/^[a-f0-9]{16}$/, "a build id is 16 lowercase h
 const revision = z.number().int().min(1);
 const name = z.string().trim().min(1).max(200);
 const limit = z.number().int().min(1).max(200).optional().describe("Result cap (1-200)");
+const offset = z.number().int().min(0).max(100000).optional().describe("Skip this many results (paging with limit)");
 const any = z.unknown();
 const meta = z.looseObject({ id: z.string(), name: z.string(), revision: z.number(), createdAt: z.string(), updatedAt: z.string(), source: z.looseObject({ kind: z.string() }) });
 const summary = z.looseObject({ name: z.string(), className: z.string(), ascendancy: z.string().optional(), level: z.number(), treeVersion: z.string(), mainSkill: z.string().optional() });
@@ -207,18 +208,23 @@ export const routes: Route[] = [
   mutateRoute("config", "config", "set_notes", "Replace the build notes.", z.object({ text: z.string().max(100000) }), ["text"]),
 
   // lookup
-  lookupRoute("gems", "/v1/lookup/gems", "Search gems by name and tag, with requirements at a level.", z.object({ query: z.string().max(100).optional(), tag: z.string().max(50).optional(), support: z.boolean().optional(), level: z.number().int().min(1).max(40).optional(), limit }), ["query", "tag", "support", "level", "limit"]),
-  lookupRoute("uniques", "/v1/lookup/uniques", "Search uniques by name or by a line of their text.", z.object({ query: z.string().max(100).optional(), text: z.string().max(200).optional(), limit }), ["query", "text", "limit"]),
-  lookupRoute("bases", "/v1/lookup/bases", "Search item bases by name and type.", z.object({ query: z.string().max(100).optional(), type: z.string().max(50).optional(), limit }), ["query", "type", "limit"]),
-  lookupRoute("nodes", "/v1/lookup/nodes", "Search passive tree nodes by name or stat text (the tree search box).", z.object({ query: z.string().min(1).max(200), type: z.string().max(30).optional().describe("Normal, Notable, Keystone, Mastery, Socket, ..."), limit }), ["query", "type", "limit"]),
+  lookupRoute("gems", "/v1/lookup/gems", "Search gems by name and tag, with requirements at a level.", z.object({ query: z.string().max(100).optional(), tag: z.string().max(50).optional(), support: z.boolean().optional(), level: z.number().int().min(1).max(40).optional(), limit, offset }), ["query", "tag", "support", "level", "limit", "offset"]),
+  lookupRoute("uniques", "/v1/lookup/uniques", "Search uniques by name or by a line of their text.", z.object({ query: z.string().max(100).optional(), text: z.string().max(200).optional(), limit, offset }), ["query", "text", "limit", "offset"]),
+  lookupRoute("bases", "/v1/lookup/bases", "Search item bases by name and type.", z.object({ query: z.string().max(100).optional(), type: z.string().max(50).optional(), limit, offset }), ["query", "type", "limit", "offset"]),
+  lookupRoute("nodes", "/v1/lookup/nodes", "Search passive tree nodes by name or stat text (the tree search box).", z.object({ query: z.string().min(1).max(200), type: z.string().max(30).optional().describe("Normal, Notable, Keystone, Mastery, Socket, ..."), limit, offset }), ["query", "type", "limit", "offset"]),
   lookupRoute("node", "/v1/lookup/nodes/:nodeId", "One passive node: stats, links, path length from the current tree, mastery effects.", z.object({ nodeId: z.number().int().min(0) }), (i) => ({ id: i.nodeId })),
-  lookupRoute("config", "/v1/lookup/config", "The configuration option catalogue: type, section, allowed values, current value; `var` adds the tooltip.", z.object({ section: z.string().max(100).optional(), query: z.string().max(100).optional(), var: z.string().max(100).optional(), relevantOnly: z.boolean().optional().describe("Only options that apply to this build") }), ["section", "query", "var", "relevantOnly"]),
+  lookupRoute("config", "/v1/lookup/config", "The configuration option catalogue: type, section, allowed values, current value; `var` adds the tooltip.", z.object({ section: z.string().max(100).optional(), query: z.string().max(100).optional(), var: z.string().max(100).optional(), relevantOnly: z.boolean().optional().describe("Only options that apply to this build"), offset, limit }), ["section", "query", "var", "relevantOnly", "offset", "limit"]),
 ];
 
 export const action = (r: Route): string => r.name.slice(r.name.indexOf(".") + 1);
 
 /** Validates a route's input; failures are invalid_input naming each bad field. */
 export function parseInput(route: Route, raw: Record<string, unknown>): Record<string, unknown> {
+  const allowed = Object.keys(route.input.shape);
+  const unknown = Object.keys(raw).filter((k) => raw[k] !== undefined && !allowed.includes(k));
+  if (unknown.length > 0) {
+    throw new ApiError("invalid_input", `unknown parameter${unknown.length > 1 ? "s" : ""} ${unknown.join(", ")}; ${route.name} takes ${allowed.join(", ") || "no parameters"}`);
+  }
   const parsed = route.input.safeParse(raw);
   if (!parsed.success) {
     throw new ApiError("invalid_input", parsed.error.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`).join("; "));

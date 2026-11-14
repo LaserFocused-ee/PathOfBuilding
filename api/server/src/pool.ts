@@ -2,7 +2,7 @@
 // idle session is recycled when a new one needs a process. A session whose worker died, timed out,
 // failed, or grew past its memory ceiling is reloaded from the store on next use.
 import { randomBytes } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
@@ -25,8 +25,11 @@ export class Pool {
     private readonly store: BuildStore,
   ) {}
 
+  /** Called once the data directory is locked: state left by workers of an earlier run is removed. */
   async init(): Promise<void> {
-    await mkdir(join(this.cfg.dataDir, "worker-state"), { recursive: true });
+    const dir = join(this.cfg.dataDir, "worker-state");
+    await rm(dir, { recursive: true, force: true });
+    await mkdir(dir, { recursive: true });
   }
 
   /** Serializes everything done to one session (acquire, load, command, store write). */

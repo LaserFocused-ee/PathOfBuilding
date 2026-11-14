@@ -102,3 +102,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     ...overrides,
   };
 }
+
+/** Config for the stdio transport: the token guards HTTP only, so stdio needs none and a placeholder fills it. */
+export function loadStdioConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  return loadConfig({ POB_API_TOKEN: "stdio-transport-has-no-network-listener", ...env });
+}

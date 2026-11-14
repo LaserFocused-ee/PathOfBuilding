@@ -210,6 +210,36 @@ void test("every route in the table refuses a request without the bearer token",
       await res.body?.cancel();
     }
   }
+  assert.ok(!srv.lines.some((l) => l.event === "http.request" && String(l.route).includes(fresh)), "refusals log the route pattern, not the path");
+  assert.equal((await fetch(`${base}/v1/builds/${fresh}`, { headers: { authorization: `bearer ${TOKEN}` } })).status, 200, "the scheme is case-insensitive");
+});
+
+void test("lookups page with offset and limit; the whole config catalogue fits an MCP result in pages", async () => {
+  type Page = { total: number; offset: number; gems?: Array<{ name: string }>; options?: Array<{ var: string }> };
+  const p1 = ok(await srv.call<Page>("GET", "/v1/lookup/gems?query=Fire&limit=3"));
+  const p2 = ok(await srv.call<Page>("GET", "/v1/lookup/gems?query=Fire&limit=3&offset=3"));
+  const all = ok(await srv.call<Page>("GET", "/v1/lookup/gems?query=Fire&limit=6"));
+  assert.equal(p2.offset, 3);
+  assert.deepEqual([...(p1.gems ?? []), ...(p2.gems ?? [])].map((g) => g.name), (all.gems ?? []).map((g) => g.name));
+  const c1 = ok(await srv.call<Page>("GET", "/v1/lookup/config"));
+  assert.ok(c1.total > 100 && c1.options?.length === 100, `total ${c1.total}`);
+  assert.ok(JSON.stringify(c1).length < srv.runtime.svc.cfg.mcpMaxResultChars, "a default page fits one MCP result");
+  const seen = new Set<string>();
+  for (let off = 0; off < c1.total; off += 100) {
+    for (const o of ok(await srv.call<Page>("GET", `/v1/lookup/config?offset=${off}`)).options ?? []) seen.add(o.var);
+  }
+  assert.equal(seen.size, c1.total, "pages cover every option once");
+});
+
+void test("every route refuses an unknown parameter, naming the ones it takes", async () => {
+  for (const r of routes) {
+    const path = r.path.replace(":id", fresh).replace(":nodeId", "1");
+    const res = r.method === "POST" ? await srv.call(r.method, path, { zzUnknown: 1 }) : await srv.call(r.method, `${path}?zzUnknown=1`);
+    assert.deepEqual([res.status, res.body.error?.code], [400, "invalid_input"], `${r.method} ${r.path}`);
+    assert.match(res.body.error?.message ?? "", /unknown parameter zzUnknown; .* takes /, r.name);
+  }
+  const gems = await srv.call("GET", "/v1/lookup/gems?q=Pact");
+  assert.match(gems.body.error?.message ?? "", /unknown parameter q; lookup\.gems takes query, /);
 });
 
 void test("no read-only route changes the build: the session's code is the same before and after each", async () => {

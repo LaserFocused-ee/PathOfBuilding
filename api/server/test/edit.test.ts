@@ -204,10 +204,14 @@ void test("revert makes an older revision current; edits stream change events", 
   fails(await srv.call("POST", `/v1/builds/${id}/revert`, { revision: 99 }), 404, "not_found");
   const hist = ok(await srv.call<{ history: Array<{ cause: string }> }>("GET", `/v1/builds/${id}/history`));
   assert.deepEqual(hist.history.map((h) => h.cause), ["revert:1", "tree.allocate", "create:new"]);
+  ok(await srv.call("POST", `/v1/builds/${id}/rename`, { name: "Renamed" }));
+  ok(await srv.call("DELETE", `/v1/builds/${id}`));
+  for (let i = 0; i < 50 && !events.join("").includes("event: deleted"); i++) await new Promise((r) => setTimeout(r, 20));
   ac.abort();
   await reading;
   const text = events.join("");
-  assert.match(text, /"cause":"tree\.allocate"/);
+  const order = [...text.matchAll(/event: (\w+)\ndata: (\{[^\n]*\})/g)].map((m) => `${m[1]}:${(JSON.parse(m[2] ?? "{}") as { revision: number; cause?: string }).revision}:${(JSON.parse(m[2] ?? "{}") as { cause?: string }).cause ?? ""}`);
+  assert.deepEqual(order, ["hello:1:", "change:2:tree.allocate", "change:3:revert", "change:4:rename", "deleted:4:delete"]);
   assert.match(text, /"Int":\{[^}]*"after":122/);
 });
 

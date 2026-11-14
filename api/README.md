@@ -17,7 +17,7 @@ Licence: MIT, the same as Path of Building (`LICENSE.md` at the repository root)
 
 ## Build and run
 
-Needs Linux (or macOS) with `git`, `gcc`, `make`, the system zlib (`libz.so.1`) and Node 22.
+Needs Linux with `git`, `gcc`, `make`, the system zlib (`libz.so.1`) and Node 22.
 
 ```sh
 api/runtime/build-runtime.sh               # about 10 s; prints the LuaJIT version and "lua-utf8 ok"
@@ -77,7 +77,7 @@ All settings are environment variables, read and checked once at start (an inval
 | `MCP_MAX_RESULT_CHARS` | `90000` | Larger MCP results are replaced by their keys and a hint to narrow the request |
 | `POB_AUTH_FAILURES_PER_MINUTE` | 30 | Failed credential checks per minute, all clients together, before requests without a valid credential get 429 (a valid token always passes) |
 | `POB_HEALTH_TOKEN` | unset | A second secret (16+ characters) for monitors: `/health/deep` accepts it in `x-health-token`; without it, `/health/deep` needs the bearer token |
-| `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `RELEASE` | unset | Optional error tracking (no request data is sent) |
+| `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `RELEASE` | unset | Optional error tracking (no request data is sent). Opt-in install: `npm install --no-save @sentry/node@11.12.0`; it is not in the default install because its dependency tree is not permissively licensed |
 | `LOG_LEVEL` | `info` | JSON log lines on stdout |
 
 ## Behaviour worth knowing

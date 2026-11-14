@@ -532,7 +532,7 @@ Search gems by name and tag, with requirements at a level.
 
 - Name: `lookup.gems` (MCP `pob_lookup` action `gems`)
 - Read-only: yes; worker: `lookup.gems`
-- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","maxLength":100},"tag":{"type":"string","maxLength":50},"support":{"type":"boolean"},"level":{"type":"integer","minimum":1,"maximum":40},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","maxLength":100},"tag":{"type":"string","maxLength":50},"support":{"type":"boolean"},"level":{"type":"integer","minimum":1,"maximum":40},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
 
 ### `GET /v1/lookup/uniques`
@@ -541,7 +541,7 @@ Search uniques by name or by a line of their text.
 
 - Name: `lookup.uniques` (MCP `pob_lookup` action `uniques`)
 - Read-only: yes; worker: `lookup.uniques`
-- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","maxLength":100},"text":{"type":"string","maxLength":200},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","maxLength":100},"text":{"type":"string","maxLength":200},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
 
 ### `GET /v1/lookup/bases`
@@ -550,7 +550,7 @@ Search item bases by name and type.
 
 - Name: `lookup.bases` (MCP `pob_lookup` action `bases`)
 - Read-only: yes; worker: `lookup.bases`
-- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","maxLength":100},"type":{"type":"string","maxLength":50},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","maxLength":100},"type":{"type":"string","maxLength":50},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
 
 ### `GET /v1/lookup/nodes`
@@ -559,7 +559,7 @@ Search passive tree nodes by name or stat text (the tree search box).
 
 - Name: `lookup.nodes` (MCP `pob_lookup` action `nodes`)
 - Read-only: yes; worker: `lookup.nodes`
-- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","minLength":1,"maxLength":200},"type":{"description":"Normal, Notable, Keystone, Mastery, Socket, ...","type":"string","maxLength":30},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}},"required":["query"]}`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","minLength":1,"maxLength":200},"type":{"description":"Normal, Notable, Keystone, Mastery, Socket, ...","type":"string","maxLength":30},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}},"required":["query"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
 
 ### `GET /v1/lookup/nodes/:nodeId`
@@ -577,5 +577,5 @@ The configuration option catalogue: type, section, allowed values, current value
 
 - Name: `lookup.config` (MCP `pob_lookup` action `config`)
 - Read-only: yes; worker: `lookup.config`
-- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"section":{"type":"string","maxLength":100},"query":{"type":"string","maxLength":100},"var":{"type":"string","maxLength":100},"relevantOnly":{"description":"Only options that apply to this build","type":"boolean"},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"section":{"type":"string","maxLength":100},"query":{"type":"string","maxLength":100},"var":{"type":"string","maxLength":100},"relevantOnly":{"description":"Only options that apply to this build","type":"boolean"},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
