@@ -4,6 +4,7 @@ import { Driver } from "pob-driver/driver";
 import { api, ApiError, type BuildMeta, isBuildId } from "./api.ts";
 import { buildContent } from "./content.ts";
 import { safeExternalUrl } from "./links.ts";
+import { endSession, sessionGate } from "./session.ts";
 import { BuildSync, type SyncState } from "./sync.ts";
 
 declare const __POB_ASSETS__: string;
@@ -29,7 +30,8 @@ function text(el: HTMLElement, value: string) {
   el.textContent = value;
 }
 
-// Sign-in: shown whenever the server answers 401. The token is sent once and not stored by the page.
+// Sign-in: shown whenever the server answers 401 (session.ts runs one at a time). The token is sent once
+// and not stored by the page.
 function signIn(): Promise<void> {
   const interrupted = document.querySelector<HTMLElement>("[data-screen]:not([hidden])")?.dataset.screen;
   show("signin");
@@ -54,29 +56,17 @@ function signIn(): Promise<void> {
   });
 }
 
-async function withSession<T>(fn: () => Promise<T>): Promise<T> {
-  for (;;) {
-    try {
-      return await fn();
-    } catch (e) {
-      if (!(e instanceof ApiError && e.status === 401)) throw e;
-      await signIn();
-    }
-  }
-}
+const withSession = sessionGate(signIn);
 
-async function signOut() {
-  try {
-    await api.signOut();
-  } catch (e) {
-    console.warn("Sign-out request failed", e);
-  }
-  location.assign("/");
+// Leaves only once the server has ended the session; otherwise says so and stays.
+async function signOut(button: HTMLElement) {
+  if (await endSession(api.signOut)) return location.assign("/");
+  text(button, "Sign-out failed: still signed in. Try again");
 }
 
 async function listPage(note = "") {
   show("list");
-  $("#signout-list").onclick = () => void signOut();
+  $("#signout-list").onclick = (e) => void signOut(e.currentTarget as HTMLElement);
   const status = $("#list-status");
   const list = $("#build-list");
   text(status, "Loading builds…");
@@ -125,7 +115,7 @@ function describe(state: SyncState): string {
 
 async function viewPage(id: string) {
   show("view");
-  $("#signout-view").onclick = () => void signOut(); // unsent edits: the beforeunload guard asks
+  $("#signout-view").onclick = (e) => void signOut(e.currentTarget as HTMLElement); // unsent edits: beforeunload asks
   const state = $("#sync-state");
   const conn = $("#connection");
   const conflict = $("#conflict");
@@ -175,7 +165,7 @@ async function viewPage(id: string) {
     // server's allow-listed fetch route; the browser never calls those sites itself.
     onFetch: async (url, headers, body) => {
       try {
-        return { ...await api.fetch(url, headers, body), error: undefined };
+        return { ...await withSession(() => api.fetch(url, headers, body)), error: undefined };
       } catch (e) {
         return { body: "", status: undefined, headers: {}, error: e instanceof Error ? e.message : String(e) };
       }
@@ -228,13 +218,11 @@ async function viewPage(id: string) {
       revision: () => withSession(() => api.build(id)).then((b) => b.revision),
     },
     {
-      // Shown, not just parsed: Path of Building applies the build at once but draws it over the next frames.
-      load: async (code) => {
-        await driver.loadBuildFromCode(`${name}\n${code.trim()}`); // named load: patches/pob-web-load-build.patch
-        await drawn(2);
-      },
+      // Path of Building applies a build at once and draws it over the next frames; `shown` waits for them.
+      load: (code) => driver.loadBuildFromCode(`${name}\n${code.trim()}`), // named: patches/pob-web-load-build.patch
       read: () => driver.getBuildCode(),
       content: buildContent,
+      shown: () => drawn(2),
     },
     (s) => {
       text(state, describe(s));
@@ -287,8 +275,9 @@ function follow(id: string, sync: BuildSync, conn: HTMLElement, delay = 1000) {
     setTimeout(async () => {
       try {
         await withSession(() => api.build(id));
-      } catch {
-        // not reachable or gone: the retry below tries again
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return void sync.deleted(); // deleted while away
+        // not reachable: the retry below tries again
       }
       follow(id, sync, conn, Math.min(delay * 2, 30_000));
     }, delay);

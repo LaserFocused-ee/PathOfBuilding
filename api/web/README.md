@@ -75,7 +75,9 @@ Content types by extension: `.html` `text/html; charset=utf-8`, `.js` `text/java
 
 The page calls these API routes, all same-origin: `POST /v1/session`, `GET /v1/builds`, `GET /v1/builds/:id`,
 `GET /v1/builds/:id/code`, `PUT /v1/builds/:id/code` with `{ code, baseRevision }` (409 `stale_revision` when the base
-is old) and the event stream `GET /v1/builds/:id/events` (`hello`, `change` and `deleted` events carrying `revision`).
+is old), the event stream `GET /v1/builds/:id/events` (`hello`, `change` and `deleted` events carrying `revision`) and
+`POST /v1/fetch`, which relays Path of Building's own downloads (public-profile character import, build-site links); the
+server only relays to its allowlist.
 
 Session: when a call answers 401 the page asks for the API token once and sends it to `POST /v1/session` in an
 `Authorization: Bearer` header; the page never stores it. The server answers 204 with a session cookie and from then on

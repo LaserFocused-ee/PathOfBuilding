@@ -50,10 +50,12 @@ git -C "$P" submodule update -q --init --recursive
 (cd "$P" && deno ci >"$B/deno-ci.log" 2>&1) ||
   { echo "deno ci failed; see $B/deno-ci.log" >&2; tail -n 20 "$B/deno-ci.log" >&2; exit 1; }
 # patches/: small changes to pob-web's boot script (compiled into the driver), each explained in its file.
-# The driver is rebuilt when a patch or a pin changes.
+# The driver is rebuilt when a patch or a pin changes. Patched files go back to the pin first, so an
+# edited patch applies cleanly over the old one.
 for patch in "$HERE"/patches/*.patch; do
-  git -C "$P" apply --reverse --check "$patch" 2>/dev/null || git -C "$P" apply "$patch"
+  git -C "$P" apply --numstat "$patch" | cut -f3 | xargs -r git -C "$P" checkout -q --
 done
+for patch in "$HERE"/patches/*.patch; do git -C "$P" apply "$patch"; done
 STAMP="$P/packages/driver/dist/release/.view-patches"
 PATCHES_SUM="$( (echo "$POBWEB_REV $EMSDK_VERSION map4"; cat "$HERE"/patches/*.patch) | sha256sum | cut -d' ' -f1)"
 if [ ! -f "$P/packages/driver/dist/release/driver.wasm" ] || [ "$(cat "$STAMP" 2>/dev/null)" != "$PATCHES_SUM" ]; then
@@ -109,6 +111,10 @@ if [ -d "$STAGE/repo" ] && [ "$(cat "$STAGE/.tools-sum" 2>/dev/null)" != "$TOOLS
   mv "$STAGE/repo" "$STALE/repo"
   [ ! -f "$STAGE/rewrites.jsonl" ] || mv "$STAGE/rewrites.jsonl" "$STALE/rewrites.jsonl"
   [ ! -d "$OUT" ] || mv "$OUT" "$STALE/packed" # the packer skips a version whose output exists
+  # Keep the newest 2 staged trees in $B/stale; older ones move to $B/stale-old (delete them by hand).
+  mkdir -p "$B/stale-old"
+  find "$B/stale" -mindepth 1 -maxdepth 1 -printf '%T@ %p\n' | sort -rn | tail -n +3 | cut -d' ' -f2- |
+    while IFS= read -r OLD; do mv "$OLD" "$B/stale-old/"; done
 fi
 if [ ! -d "$STAGE/repo" ]; then
   TMP="$(mktemp -d "$STAGE/repo.XXXX")"
@@ -143,7 +149,10 @@ cp "$T2D/lib/LICENSE" "$DIST/licenses/texture2ddecoder-LICENSE"
 cp "$T2D/bindings/LICENSE" "$DIST/licenses/texture2ddecoder-wasm-LICENSE"
 # Output checks: no React development build, no builder path in anything but the packed sources and licences.
 if [ -n "$(grep -rlF jsxDEV "$DIST/assets" || true)" ]; then echo "output contains React's development build (jsxDEV)" >&2; exit 1; fi
-LEAK="$(grep -rlF -e "$REPO" -e "$HERE" "$DIST" --exclude-dir=pob --exclude-dir=licenses || true)"
+# Lowered optional calls (`x?.(a)` built as `x.call(this, a)`) post the worker object through Comlink
+# proxies: a DataCloneError on every diagnostic. vite.config.ts build.target keeps them native.
+if [ -n "$(grep -rlE '==null\|\|[A-Za-z_$][A-Za-z0-9_$]*\.call\(this' "$DIST/assets" || true)" ]; then echo "output contains lowered optional calls (check build.target)" >&2; exit 1; fi
+LEAK="$(grep -rlF -e "$REPO" -e "$HERE" -e "$B" -e "$HOME/" "$DIST" --exclude-dir=pob --exclude-dir=licenses || true)"
 if [ -n "$LEAK" ]; then echo "builder path leaked into output:" >&2; echo "$LEAK" | head -n 20 >&2; exit 1; fi
 mkdir -p "$DIST/pob"
 cp -al "$OUT" "$DIST/pob/$VERSION_ID" 2>/dev/null || cp -r "$OUT" "$DIST/pob/$VERSION_ID"

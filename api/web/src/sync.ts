@@ -19,6 +19,8 @@ export interface SyncView {
   read(): Promise<string>;
   /** What counts as an edit: the code without view state (open tab, tree zoom, search text). */
   content(code: string): Promise<string>;
+  /** Resolves once a loaded build is on screen (the baseline is read before, so input meanwhile is an edit). */
+  shown(): Promise<void>;
 }
 
 export type SyncState =
@@ -57,12 +59,26 @@ export class BuildSync {
   /** True while the page holds an edit the server does not have (leaving would lose it). */
   get unsaved(): boolean {
     const kind = this.state.kind;
-    return kind === "saving" || kind === "save_failed" || kind === "conflict" || this.candidate !== undefined;
+    // ponytail: a stop after a load counts as unsaved without reading the view (polls do not run once stopped)
+    const stoppedHolding = kind === "failed" && this.baseline !== "";
+    return kind === "saving" || kind === "save_failed" || kind === "conflict" || stoppedHolding ||
+      this.candidate !== undefined;
   }
 
-  /** Loads the server's build into the view (also the retry after a failure). */
+  /** Loads the server's build into the view; also the retry after a stop, which never loads over an edit. */
   start(): Promise<void> {
-    return this.run(() => this.reload());
+    return this.run(async () => {
+      if (this.baseline !== "") {
+        const code = await this.view.read();
+        const content = await this.view.content(code);
+        if (content !== this.baseline) {
+          const server = await this.api.revision();
+          if (server === this.revision) return await this.save(code, content, server);
+          return this.set({ kind: "conflict", revision: this.revision, serverRevision: server });
+        }
+      }
+      await this.reload();
+    });
   }
 
   /** A revision the server reported (the event stream's first frame or a change event). */
@@ -117,7 +133,7 @@ export class BuildSync {
       if (this.state.kind !== "conflict") return;
       if (choice === "reload") return await this.reload();
       const code = await this.view.read();
-      await this.save(code, await this.view.content(code), await this.api.revision());
+      await this.save(code, await this.view.content(code), "server");
     });
   }
 
@@ -125,19 +141,25 @@ export class BuildSync {
     this.set({ kind: "loading" });
     const { code, revision } = await this.api.load();
     await this.view.load(code);
+    // Read before the build is drawn: input from here on differs from the baseline, so it is an edit.
     this.baseline = await this.view.content(await this.view.read());
     this.revision = revision;
     this.candidate = undefined;
     this.refused = undefined;
     this.backoff = this.skipTicks = 0;
+    await this.view.shown();
     this.set({ kind: "synced", revision });
   }
 
-  private async save(code: string, content: string, baseRevision: number): Promise<void> {
+  /** `base` "server": overwrite whatever revision the server holds now. */
+  private async save(code: string, content: string, base: number | "server"): Promise<void> {
     this.set({ kind: "saving", revision: this.revision });
     let result: { revision: number } | "stale";
+    let serverRevision = 0;
     try {
-      result = await this.api.save(code, baseRevision);
+      // The revision lookups sit inside the try: a failed one is a failed write (kept, retried), never a stop.
+      result = await this.api.save(code, base === "server" ? await this.api.revision() : base);
+      if (result === "stale") serverRevision = await this.api.revision();
     } catch (error) {
       const permanent = isPermanent(error);
       if (permanent) this.refused = content;
@@ -149,7 +171,7 @@ export class BuildSync {
       return;
     }
     if (result === "stale") {
-      this.set({ kind: "conflict", revision: this.revision, serverRevision: await this.api.revision() });
+      this.set({ kind: "conflict", revision: this.revision, serverRevision });
       return;
     }
     this.revision = result.revision;

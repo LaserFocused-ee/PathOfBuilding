@@ -10,6 +10,11 @@ const cases: [string, string, Record<string, string>, boolean][] = [
   ["POST from another origin", "POST", { host: `127.0.0.1:${port}`, origin: "http://evil.test" }, false],
   ["foreign host", "GET", { host: `evil.test:${port}` }, false],
   ["other port", "GET", { host: "127.0.0.1:1234" }, false],
+  ["localhost, other port", "GET", { host: "localhost:1234" }, false],
+  ["localhost POST, matching origin on another port", "POST", {
+    host: `localhost:${port}`,
+    origin: "http://localhost:1234",
+  }, false],
 ];
 
 for (const [name, method, headers, want] of cases) {
