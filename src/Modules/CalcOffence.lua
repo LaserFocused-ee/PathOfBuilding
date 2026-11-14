@@ -3307,7 +3307,7 @@ function calcs.offence(env, actor, activeSkill)
 
 		-- Calculate chance and multiplier for dealing triple damage on Normal and Crit
 		output.TripleDamageChanceOnCrit = m_min(skillModList:Sum("BASE", cfg, "TripleDamageChanceOnCrit"), 100)
-		output.TripleDamageChance = m_min(skillModList:Sum("BASE", cfg, "TripleDamageChance") or 0 + (env.mode_effective and enemyDB:Sum("BASE", cfg, "SelfTripleDamageChance") or 0) + (output.TripleDamageChanceOnCrit * output.CritChance / 100), 100)
+		output.TripleDamageChance = m_min(skillModList:Sum("BASE", cfg, "TripleDamageChance") + (env.mode_effective and enemyDB:Sum("BASE", cfg, "SelfTripleDamageChance") or 0) + (output.TripleDamageChanceOnCrit * output.CritChance / 100), 100)
 		output.TripleDamageEffect = 2 * output.TripleDamageChance / 100
 
 		-- Calculate chance and multiplier for dealing double damage on Normal and Crit
