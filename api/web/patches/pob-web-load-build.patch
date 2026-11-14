@@ -1,10 +1,27 @@
 diff --git a/packages/driver/boot.lua b/packages/driver/boot.lua
-index a921ed4..b5c494f 100644
+index a921ed4..6c4eb55 100644
 --- a/packages/driver/boot.lua
 +++ b/packages/driver/boot.lua
-@@ -196,6 +196,12 @@ local function runCallback(name, ...)
+@@ -195,7 +195,29 @@ local function runCallback(name, ...)
+     error("runCallback: no handler for '" .. tostring(name) .. "'")
  end
  
++-- The page writes back only the build it loaded. Every other Init of the build module (Back then New,
++-- opening a saved build, importing a new build in the view) clears the mark, and getBuildCode then
++-- returns "!not-loaded" instead of exporting another build (a Lua error reaches the page only as
++-- "getBuildCode failed"; "!" never occurs in a build code).
++local function markLoadedBuilds(build)
++    if build.viewInitMarked then
++        return
++    end
++    local init = build.Init
++    build.Init = function(self, ...)
++        self.viewLoaded = false
++        return init(self, ...)
++    end
++    build.viewInitMarked = true
++end
++
  function loadBuildFromCode(code)
 +    -- "<name>\n<code>" names the loaded build (a build code never holds a newline); plain "<code>" keeps
 +    -- Path of Building's own "Imported build".
@@ -15,7 +32,7 @@ index a921ed4..b5c494f 100644
      if not mainObject.main then
          error("loadBuildFromCode: mainObject.main is nil")
      end
-@@ -215,8 +221,16 @@ function loadBuildFromCode(code)
+@@ -215,8 +237,19 @@ function loadBuildFromCode(code)
      end
  
      importTab.controls.importCodeIn:SetText(code, true)
@@ -24,11 +41,24 @@ index a921ed4..b5c494f 100644
 +    if not importTab.importCodeXML or importTab.importCodeFetching then
 +        error("loadBuildFromCode: not a valid build code")
 +    end
++    local build = mainObject.main.modes["BUILD"]
++    markLoadedBuilds(build)
      importTab.controls.importCodeMode.selIndex = 2
      importTab.controls.importCodeGo.onClick()
++    build.viewLoaded = true
 +    if name and name ~= "" then
-+        mainObject.main.modes["BUILD"].buildName = name
++        build.buildName = name
 +    end
  
      -- Flush to process the import
      runCallback("OnFrame")
+@@ -231,6 +264,9 @@ function getBuildCode()
+     if not build then
+         error("getBuildCode: not in BUILD mode")
+     end
++    if mainObject.main.mode ~= "BUILD" or not build.viewLoaded then
++        return "!not-loaded"
++    end
+ 
+     local xmlText = build:SaveDB("code")
+     if not xmlText then

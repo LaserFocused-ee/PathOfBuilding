@@ -18,7 +18,7 @@ function setup() {
     },
     revision: () => Promise.resolve(server.revision),
   };
-  const view = { code: "", loads: [] as string[] };
+  const view = { code: "" as string | null, loads: [] as string[] }; // null: another build is open
   const ui: SyncView = {
     load: (code) => {
       view.code = code;
@@ -310,18 +310,22 @@ Deno.test("a failed revision lookup after a refused write keeps the edit and ret
   assertEquals(view.code, "A1");
 });
 
-Deno.test("keep mine with a failed revision lookup stays unsaved and does not stop", async () => {
-  const { sync, view, api, remoteEdit } = setup();
+Deno.test("keep mine: a failed write is retried on the revision the user chose, without asking again", async () => {
+  const { sync, view, server, api, remoteEdit } = setup();
   await sync.start();
   view.code = "A1";
   await sync.poll();
   await sync.serverRevision(remoteEdit("B"));
-  assertEquals(sync.state.kind, "conflict");
-  api.revision = () => Promise.reject(new Error("network down"));
+  assertEquals(sync.state, { kind: "conflict", revision: 1, serverRevision: 2 });
+  const realSave = api.save;
+  api.save = () => Promise.reject(new Error("network down"));
   await sync.resolve("overwrite");
   assertEquals(sync.state, { kind: "save_failed", revision: 1, reason: "network down", retrying: true });
   assertEquals(sync.unsaved, true);
-  assertEquals(view.code, "A1");
+  api.save = realSave;
+  await sync.poll();
+  assertEquals(server.saves.at(-1), { code: "A1", base: 2 });
+  assertEquals(sync.state, { kind: "synced", revision: 3 });
 });
 
 Deno.test("try again after a stop never loads over an edit: conflict if the server moved, else write", async () => {
@@ -391,4 +395,75 @@ Deno.test("back-off starts again after a successful write", async () => {
   const before = server.saves.length;
   await sync.poll(); // the first retry after a success is at once, as after the first failure
   assertEquals(server.saves.length, before + 1);
+});
+
+Deno.test("another build open in the view: nothing is written, and try again loads this build", async () => {
+  const { sync, view, server } = setup();
+  await sync.start();
+  view.code = "A1";
+  await sync.poll(); // an edit was on its way
+  view.code = null; // Back, then New: Path of Building holds another build
+  await sync.poll();
+  assertEquals(sync.state, { kind: "released" });
+  assertEquals(sync.unsaved, false);
+  await sync.poll();
+  await sync.serverRevision(5);
+  await sync.start(); // "Try again"
+  assertEquals(server.saves, []);
+  assertEquals(server.loads, 2);
+  assertEquals(view.code, "A");
+  assertEquals(sync.state, { kind: "synced", revision: 1 });
+});
+
+Deno.test("another build open when a remote change or keep mine arrives: released, not written", async () => {
+  const { sync, view, server, remoteEdit } = setup();
+  await sync.start();
+  view.code = null;
+  await sync.serverRevision(remoteEdit("B"));
+  assertEquals(sync.state, { kind: "released" });
+  assertEquals(server.loads, 1);
+  await sync.start();
+  view.code = "B1";
+  await sync.poll();
+  await sync.serverRevision(remoteEdit("C"));
+  assertEquals(sync.state.kind, "conflict");
+  view.code = null;
+  await sync.resolve("overwrite");
+  assertEquals(sync.state, { kind: "released" });
+  assertEquals(server.saves, []);
+});
+
+Deno.test("try again after a stop with no edit loads once more and writes nothing", async () => {
+  const { sync, server, ui, remoteEdit } = setup();
+  await sync.start();
+  const realLoad = ui.load;
+  ui.load = () => Promise.reject(new Error("not a valid build code"));
+  await sync.serverRevision(remoteEdit("B"));
+  assertEquals(sync.state.kind, "failed");
+  ui.load = realLoad;
+  await sync.start();
+  assertEquals(server.loads, 3);
+  assertEquals(server.saves, []);
+  assertEquals(sync.state, { kind: "synced", revision: 2 });
+});
+
+Deno.test("back-off starts again after a reload", async () => {
+  const { sync, view, server, api, remoteEdit } = setup();
+  await sync.start();
+  api.save = (code, base) => {
+    server.saves.push({ code, base });
+    return Promise.reject(new Error("network down"));
+  };
+  view.code = "A1";
+  await sync.poll();
+  await sync.poll(); // fails: next at once
+  await sync.poll(); // fails: wait one tick
+  await sync.serverRevision(remoteEdit("B")); // edit held: conflict
+  await sync.resolve("reload"); // the user takes the server's version
+  const before = server.saves.length;
+  view.code = "B1";
+  await sync.poll(); // first sight
+  await sync.poll(); // fails
+  await sync.poll(); // the first retry after a reload is at once
+  assertEquals(server.saves.length, before + 2);
 });

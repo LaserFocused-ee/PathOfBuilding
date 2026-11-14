@@ -19,7 +19,7 @@ function setup() {
     );
   });
   const call = (value: string) => () => {
-    server.calls++;
+    if (++server.calls > 20) return Promise.reject(new Error("resent without end")); // ends a runaway loop
     return server.session ? Promise.resolve(value) : Promise.reject(refused());
   };
   return { server, withSession, call, asks: () => asks, submit: () => submit() };
@@ -65,4 +65,18 @@ Deno.test("sign-out leaves only when the session is over", async () => {
   assertEquals(await endSession(() => Promise.reject(refused())), true);
   assertEquals(await endSession(() => Promise.reject(new ApiError(500, "internal", "boom"))), false);
   assertEquals(await endSession(() => Promise.reject(new TypeError("Failed to fetch"))), false);
+});
+
+Deno.test("a second lapse asks again", async () => {
+  const { withSession, call, server, asks, submit } = setup();
+  const first = withSession(call("one"));
+  await tick();
+  submit();
+  assertEquals(await first, "one");
+  server.session = false; // the server restarted again
+  const second = withSession(call("two"));
+  await tick();
+  assertEquals(asks(), 2);
+  submit();
+  assertEquals(await second, "two");
 });
