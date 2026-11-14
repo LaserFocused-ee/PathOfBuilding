@@ -19,6 +19,8 @@ const schema = z.object({
   XDG_DATA_HOME: z.string().optional(),
   HOME: z.string().optional(),
   POB_RUNTIME_DIR: z.string().optional(),
+  POB_WEB_DIR: z.string().optional(),
+  POB_PUBLIC_ORIGIN: z.url().optional(),
   POB_POOL_SIZE: int(4),
   POB_WORKER_TIMEOUT_MS: int(30_000),
   POB_WORKER_BOOT_TIMEOUT_MS: int(60_000),
@@ -45,6 +47,10 @@ export interface Config {
   pobRoot: string;
   dataDir: string;
   runtimeDir: string;
+  /** The built browser view (api/web/dist), served at /; absent = not served. */
+  webDir: string;
+  /** The origin the page is opened at behind a proxy (e.g. https://pob.example.org), when Host and X-Forwarded-Proto do not give it. */
+  publicOrigin: string | undefined;
   poolSize: number;
   workerTimeoutMs: number;
   workerBootTimeoutMs: number;
@@ -82,6 +88,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     pobRoot: e.POB_ROOT,
     dataDir: e.POB_DATA_DIR ?? join(e.XDG_DATA_HOME ?? join(e.HOME ?? homedir(), ".local/share"), "pob-api"),
     runtimeDir: e.POB_RUNTIME_DIR ?? join(e.POB_ROOT, "api/runtime/rt"),
+    webDir: e.POB_WEB_DIR ?? join(e.POB_ROOT, "api/web/dist"),
+    publicOrigin: e.POB_PUBLIC_ORIGIN === undefined ? undefined : new URL(e.POB_PUBLIC_ORIGIN).origin,
     poolSize: e.POB_POOL_SIZE,
     workerTimeoutMs: e.POB_WORKER_TIMEOUT_MS,
     workerBootTimeoutMs: e.POB_WORKER_BOOT_TIMEOUT_MS,

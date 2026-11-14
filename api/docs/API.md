@@ -12,7 +12,7 @@ GET inputs go in the query string (lists comma-separated); POST inputs are a JSO
 
 | Tool | Read-only | Actions |
 | --- | --- | --- |
-| `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `export_xml`, `export_code`, `save_point`, `history` |
+| `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `export_xml`, `replace_code`, `export_code`, `save_point`, `history` |
 | `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `versions` |
 | `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `export_url`, `import_url`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `convert` |
 | `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `notes`, `set_notes` |
@@ -165,6 +165,15 @@ A build's XML at the current or a kept revision.
 - Read-only: yes; worker: `(store)`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"revision":{"type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string"},"revision":{"type":"number"},"xml":{"type":"string"}},"required":["id","revision","xml"]}`
+
+### `PUT /v1/builds/:id/code`
+
+Replace a build's content with a build code (the same decode as import/code); id and name stay, the revision moves on. The browser view saves through this.
+
+- Name: `build.replace_code` (MCP `pob_build` action `replace_code`)
+- Read-only: no; worker: `builds.replace`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"code":{"type":"string","minLength":1},"baseRevision":{"type":"integer","minimum":1,"maximum":9007199254740991,"description":"Refuse the change unless the build is at this revision"}},"required":["id","code","baseRevision"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"build":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"revision":{"type":"number"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"},"source":{"type":"object","properties":{"kind":{"type":"string"}},"required":["kind"],"additionalProperties":{}}},"required":["id","name","revision","createdAt","updatedAt","source"],"additionalProperties":{}},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"}},"required":["build","changed"]}`
 
 ### `GET /v1/builds/:id/code`
 

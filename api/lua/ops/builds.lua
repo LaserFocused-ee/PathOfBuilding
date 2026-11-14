@@ -99,6 +99,19 @@ return function(W)
 		return summary(b)
 	end
 
+	-- args: xml. Replaces the held build's content with this build (the name stays), as a mutation, so the
+	-- server stores it as the next revision with the sidebar stats that changed.
+	ops.replace = W.mutation(function(args, b)
+		if type(args.xml) ~= "string" or args.xml == "" then W.fail("invalid_input", "xml is required") end
+		main:SetMode("BUILD", false, b.buildName, args.xml, true)
+		local ok, err = pcall(settledOrFail, "invalid_input")
+		if not ok then
+			if type(err) == "table" and err.notLoaded then W.fail("invalid_input", "the code is not a Path of Building build") end
+			error(err, 0)
+		end
+		return {}
+	end)
+
 	function ops.load(args)
 		if type(args.xml) ~= "string" or args.xml == "" then W.fail("invalid_input", "xml is required") end
 		-- convertBuild=true: legacy builds convert instead of waiting on the conversion popup (Build.lua:103).

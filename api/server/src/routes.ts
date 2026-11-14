@@ -21,7 +21,7 @@ export interface Route {
   /** `<domain>.<action>`; the action is the MCP `action` value. */
   name: string;
   domain: Domain;
-  method: "GET" | "POST" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "DELETE";
   /** Express path; `:id` and other params are merged into the input. */
   path: string;
   summary: string;
@@ -156,6 +156,12 @@ export const routes: Route[] = [
   { name: "build.revert", domain: "build", method: "POST", path: "/v1/builds/:id/revert", summary: "Make a kept revision current again (as a new revision).", input: z.object({ id: buildId, revision, baseRevision: revision.optional() }), output: z.object({ build: meta }), readOnly: false, workerOp: "(store)", run: (s, i) => s.revert(str(i.id), { revision: i.revision as number, baseRevision: i.baseRevision as number | undefined }) },
   mutateRoute("build", "builds", "settings", "Character level and the Auto/Manual level mode (auto follows points spent).", z.object({ level: z.number().int().min(1).max(100).optional(), autoLevel: z.boolean().optional() }), ["level", "autoLevel"], "config.set_level"),
   { name: "build.export_xml", domain: "build", method: "GET", path: "/v1/builds/:id/xml", summary: "A build's XML at the current or a kept revision.", input: z.object({ id: buildId, revision: revision.optional() }), output: z.object({ id: z.string(), revision: z.number(), xml: z.string() }), readOnly: true, workerOp: "(store)", run: (s, i) => s.exportXml(str(i.id), { revision: i.revision as number | undefined }) },
+  {
+    name: "build.replace_code", domain: "build", method: "PUT", path: "/v1/builds/:id/code", summary: "Replace a build's content with a build code (the same decode as import/code); id and name stay, the revision moves on. The browser view saves through this.",
+    input: z.object({ id: buildId, code: z.string().min(1), baseRevision: revision.describe("Refuse the change unless the build is at this revision") }),
+    output: z.object({ build: meta, changed: mutationOutput.shape.changed }), readOnly: false, workerOp: "builds.replace",
+    run: (s, i) => s.replaceCode(str(i.id), { code: str(i.code), baseRevision: i.baseRevision as number }),
+  },
   { name: "build.export_code", domain: "build", method: "GET", path: "/v1/builds/:id/code", summary: "A build code for the current revision, importable by Path of Building.", input: z.object({ id: buildId }), output: z.object({ id: z.string(), revision: z.number(), code: z.string() }), readOnly: true, workerOp: "builds.export", run: (s, i) => s.exportCode(str(i.id)) },
   { name: "build.save_point", domain: "build", method: "POST", path: "/v1/builds/:id/save-points", summary: "Mark the current revision as a save point (kept past history pruning).", input: z.object({ id: buildId, label: z.string().trim().min(1).max(200).optional() }), output: z.object({ id: z.string(), revision: z.number(), label: z.string().optional() }), readOnly: false, workerOp: "(store)", run: (s, i) => s.savePoint(str(i.id), { label: i.label as string | undefined }) },
   { name: "build.history", domain: "build", method: "GET", path: "/v1/builds/:id/history", summary: "Revisions kept for a build, newest first (last 50 plus save points).", input: z.object({ id: buildId }), output: z.object({ id: z.string(), revision: z.number(), history: z.array(z.looseObject({ revision: z.number(), at: z.string(), cause: z.string() })) }), readOnly: true, workerOp: "(store)", run: (s, i) => s.history(str(i.id)) },

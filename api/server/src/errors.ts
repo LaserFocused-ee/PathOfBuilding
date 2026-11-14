@@ -4,6 +4,7 @@ export const errorStatus = {
   invalid_input: 400,
   unauthorized: 401,
   profile_private: 403,
+  forbidden: 403,
   stale_revision: 409,
   worker_error: 500,
   worker_timeout: 504,

@@ -41,6 +41,12 @@ curl -s -H "$auth" http://127.0.0.1:8730/v1/builds/<id>/code
 
 Container: `docker build -f api/deploy/Dockerfile -t pob-api .` from the repository root, then `docker run -e POB_API_TOKEN=... -p 127.0.0.1:8730:8730 -v pob-data:/data pob-api`. A systemd example is in `deploy/pob-api.service.example`.
 
+## Browser view
+
+Build it with `api/web/build-web.sh <commit>` (needs Deno 2.9+, gcc, cmake, ninja, python3; no root); the server serves `api/web/dist` at `/`; open `/` and sign in with the API token. Details: `api/web/README.md`.
+
+Signing in is `POST /v1/session` with the bearer token: the answer sets an `HttpOnly`, `SameSite=Strict` session cookie (30 days, kept in memory, so a restart signs the page out) that authenticates every `/v1` route, the event stream included, but not `/mcp`. A cookie-authenticated request that changes something must carry an `Origin` equal to the server's own origin. `DELETE /v1/session` signs out.
+
 ## Connect an MCP client
 
 Over HTTP (stateless Streamable HTTP at `POST /mcp`, same bearer token):
@@ -68,6 +74,8 @@ All settings are environment variables, read and checked once at start (an inval
 | `POB_DATA_DIR` | `$XDG_DATA_HOME/pob-api` or `~/.local/share/pob-api` | Build store and worker state |
 | `POB_ROOT` | the checkout | Path of Building checkout the worker runs from |
 | `POB_RUNTIME_DIR` | `api/runtime/rt` | Output of `build-runtime.sh` |
+| `POB_WEB_DIR` | `api/web/dist` | The built browser view, served at `/`; not served when the directory is missing |
+| `POB_PUBLIC_ORIGIN` | unset | The origin the browser view is opened at behind a proxy (e.g. `https://pob.example.org`), when the proxy's `Host` and `X-Forwarded-Proto` do not give it; cookie-authenticated changes must come from this origin |
 | `POB_POOL_SIZE` | `4` | Worker processes (open builds kept warm; the least recently used is recycled) |
 | `POB_WORKER_TIMEOUT_MS`, `POB_WORKER_BOOT_TIMEOUT_MS` | `30000`, `60000` | A command or boot past this is killed; the build reloads from the store |
 | `POB_WORKER_RSS_MB` | `900` | A worker above this memory is replaced after its command |
@@ -110,6 +118,7 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/builds/:id/revert` | `pob_build` `revert` | Make a kept revision current again (as a new revision). |
 | `POST /v1/builds/:id/settings` | `pob_build` `settings` | Character level and the Auto/Manual level mode (auto follows points spent). |
 | `GET /v1/builds/:id/xml` | `pob_build` `export_xml` | A build's XML at the current or a kept revision. |
+| `PUT /v1/builds/:id/code` | `pob_build` `replace_code` | Replace a build's content with a build code (the same decode as import/code); id and name stay, the revision moves on. The browser view saves through this. |
 | `GET /v1/builds/:id/code` | `pob_build` `export_code` | A build code for the current revision, importable by Path of Building. |
 | `POST /v1/builds/:id/save-points` | `pob_build` `save_point` | Mark the current revision as a save point (kept past history pruning). |
 | `GET /v1/builds/:id/history` | `pob_build` `history` | Revisions kept for a build, newest first (last 50 plus save points). |

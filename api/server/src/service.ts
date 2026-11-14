@@ -220,7 +220,8 @@ export class Service {
    * revision. Any failure drops the session, so a half-applied change never outlives the request:
    * the next use reloads the last stored revision.
    */
-  mutate(id: string, op: string, args: Record<string, unknown>, baseRevision?: number): Promise<Output> {
+  /** Runs a worker mutation under the build's lock and stores its XML as the next revision when it changed. */
+  private applyMutation(id: string, op: string, args: Record<string, unknown>, baseRevision: number | undefined, cause = op): Promise<{ meta: BuildMeta; mutation: Mutation; warnings: string[] }> {
     return this.pool.withLock(id, async () => {
       const current = await this.store.get(id);
       if (baseRevision !== undefined && baseRevision !== current.revision) {
@@ -228,19 +229,31 @@ export class Service {
       }
       try {
         const r = await this.pool.runLocked<Mutation>(id, op, args);
-        const { xml, changed, result } = r.result;
         let meta = current;
-        if (xml !== (await this.store.xml(id))) {
-          this.checkXml(xml);
-          meta = await this.store.update(id, { xml, cause: op, baseRevision: current.revision });
-          this.events.emit(id, { revision: meta.revision, cause: op, changedStats: changed });
+        if (r.result.xml !== (await this.store.xml(id))) {
+          this.checkXml(r.result.xml);
+          meta = await this.store.update(id, { xml: r.result.xml, cause, baseRevision: current.revision });
+          this.events.emit(id, { revision: meta.revision, cause, changedStats: r.result.changed });
         }
-        return { result: { result, changed, revision: meta.revision }, warnings: r.warnings };
+        return { meta, mutation: r.result, warnings: r.warnings };
       } catch (e) {
         this.pool.invalidate(id);
         throw e;
       }
     });
+  }
+
+  async mutate(id: string, op: string, args: Record<string, unknown>, baseRevision?: number): Promise<Output> {
+    const { meta, mutation, warnings } = await this.applyMutation(id, op, args, baseRevision);
+    return { result: { result: mutation.result, changed: mutation.changed, revision: meta.revision }, warnings };
+  }
+
+  /** Replaces a build's content with a build code; id and name stay, the revision moves on. */
+  async replaceCode(id: string, input: { code: string; baseRevision: number }): Promise<Output> {
+    const xml = decodeBuildCode(input.code, this.cfg.maxXmlBytes);
+    this.checkXml(xml);
+    const { meta, mutation, warnings } = await this.applyMutation(id, "builds.replace", { xml }, input.baseRevision, "replace");
+    return { result: { build: publicMeta(meta), changed: mutation.changed }, warnings };
   }
 
   /** Makes a stored revision current again, as a new revision. */

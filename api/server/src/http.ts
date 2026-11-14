@@ -11,6 +11,7 @@ import { mcpServer } from "./mcp.js";
 import { LOOKUP_SESSION } from "./pool.js";
 import { parseInput, routes, type Route } from "./routes.js";
 import type { Service } from "./service.js";
+import { cookie, mountWeb, SESSION_COOKIE, SESSION_SECONDS, sessionCookie, Sessions } from "./web.js";
 
 const digest = (s: string) => createHash("sha256").update(s).digest();
 
@@ -76,6 +77,8 @@ export function createApp(svc: Service, log: Logger): express.Express {
   const { cfg } = svc;
   const app = express();
   app.disable("x-powered-by");
+  // A proxy on this host (a tunnel, say) tells us the request came over HTTPS (Secure cookie, own origin).
+  app.set("trust proxy", "loopback");
   app.set("query parser", "simple");
 
   // Boundary log line per request (route pattern, never the URL's query or body).
@@ -124,20 +127,46 @@ export function createApp(svc: Service, log: Logger): express.Express {
     }
   });
 
-  // Everything below needs the bearer token.
-  const auth = (req: Request, res: Response, next: NextFunction) => {
+  // The browser view signs in once with the token and then holds a session cookie (POST needs the token itself).
+  const sessions = new Sessions();
+  app.post("/v1/session", (req, res) => {
+    if (!secretMatches(bearer(req), cfg.token)) {
+      refuse(res, "bearer");
+      return;
+    }
+    res.setHeader("set-cookie", sessionCookie(sessions.create(), SESSION_SECONDS, req.secure));
+    log.info({ event: "http.session_created" }, "browser session created");
+    res.status(204).end();
+  });
+
+  // Everything below needs the bearer token; /v1 also takes a session cookie. A cookie-authenticated
+  // request that can change something must come from this server's own origin (on top of SameSite=Strict).
+  const auth = (allowCookie: boolean) => (req: Request, res: Response, next: NextFunction) => {
     if (secretMatches(bearer(req), cfg.token)) return next();
+    if (allowCookie && sessions.valid(cookie(req, SESSION_COOKIE))) {
+      const origin = req.headers.origin;
+      const own = origin !== undefined && (origin === `${req.protocol}://${req.get("host") ?? ""}` || origin === cfg.publicOrigin);
+      if (req.method === "GET" || req.method === "HEAD" || own) return next();
+      log.warn({ event: "http.cross_origin_refused", method: req.method, route: routeLabel(req) }, "cookie request from another origin");
+      res.status(403).json({ ok: false, error: { code: "forbidden", message: "a cookie-authenticated change must come from this server's own page" } });
+      return;
+    }
     refuse(res, "bearer");
   };
-  app.use("/v1", auth);
-  app.use("/mcp", auth);
+  app.use("/v1", auth(true));
+  app.use("/mcp", auth(false));
+  app.delete("/v1/session", (req, res) => {
+    sessions.delete(cookie(req, SESSION_COOKIE));
+    res.setHeader("set-cookie", sessionCookie("", 0, req.secure));
+    res.status(204).end();
+  });
 
   // JSON bodies: room for the largest accepted build XML plus JSON escaping.
   const bodyLimit = cfg.maxXmlBytes * 2;
   app.use("/v1", express.json({ limit: bodyLimit }));
 
   for (const route of routes) {
-    const method = route.method.toLowerCase() as "get" | "post" | "delete";
+    const method = route.method.toLowerCase() as "get" | "post" | "put" | "delete";
     const coerce = queryCoercer(route);
     if (route.stream) {
       app.get(route.path, async (req, res, next) => {
@@ -155,7 +184,7 @@ export function createApp(svc: Service, log: Logger): express.Express {
       try {
         const fromQuery = coerce(req.query);
         const params = coerce(req.params);
-        const body = route.method === "POST" && req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {};
+        const body = (route.method === "POST" || route.method === "PUT") && req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {};
         const input = parseInput(route, { ...fromQuery, ...body, ...params });
         const out = await route.run(svc, input);
         res.json({ ok: true, result: out.result, warnings: out.warnings });
@@ -175,6 +204,11 @@ export function createApp(svc: Service, log: Logger): express.Express {
 
   app.use("/v1", (_req, res) => {
     res.status(404).json({ ok: false, error: { code: "not_found", message: "no such route" } });
+  });
+
+  mountWeb(app, cfg.webDir, log);
+  app.use((_req, res) => {
+    res.status(404).json({ ok: false, error: { code: "not_found", message: "not found" } });
   });
 
   app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
