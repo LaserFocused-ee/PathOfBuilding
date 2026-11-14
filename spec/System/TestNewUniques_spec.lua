@@ -52,7 +52,7 @@ describe("TestNewUniques", function()
 		assert.is_true(hasSupport(findSkill("Fireball"), "Added Lightning Damage"))
 	end)
 
-	it("Hide of the Vendigo lets claw attacks be used with an empty main hand", function()
+	it("Hide of the Vendigo lets claw attacks be used with an empty main hand, with claw and unarmed modifiers", function()
 		build.skillsTab:PasteSocketGroup("Double Strike 20/0  1\n")
 		runCallback("OnFrame")
 		assert.is_true(findSkill("Double Strike").skillFlags.disable)
@@ -69,7 +69,7 @@ describe("TestNewUniques", function()
 		assert.is_falsy(doubleStrike.skillFlags.disable)
 		assert.is_true(doubleStrike.skillFlags.weapon1Attack)
 		assert.are.equals(ModFlag.Unarmed, bit.band(doubleStrike.weapon1Flags, ModFlag.Unarmed))
-		assert.are.equals(0, bit.band(doubleStrike.weapon1Flags, ModFlag.Claw))
+		assert.are.equals(ModFlag.Claw, bit.band(doubleStrike.weapon1Flags, ModFlag.Claw))
 
 		local speedBefore = build.calcsTab.mainOutput.Speed
 		build.configTab.input.conditionUsedMovementSkillRecently = true

@@ -206,6 +206,10 @@ local function getWeaponFlags(env, weaponData, weaponTypes)
 		end
 	end
 	local flags = ModFlag[info.flag]
+	if weaponData.canUseClawAttacks then
+		-- Attacking as though using a Claw: "with Claws" modifiers apply as well as unarmed ones
+		flags = bor(flags, ModFlag.Claw)
+	end
 	if weaponData.countsAsAll1H then
 		flags = bor(ModFlag.Axe, ModFlag.Claw, ModFlag.Dagger, ModFlag.Mace, ModFlag.Sword)
 	end

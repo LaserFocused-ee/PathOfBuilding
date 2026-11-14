@@ -16881,7 +16881,8 @@ c["Grants Level 20 Surging Torrent Trigger Level 20 Surging Torrent when you cas
 c["Grants Level 20 Thirst for Blood"]={{[1]={flags=0,keywordFlags=0,name="ExtraSkill",type="LIST",value={level=20,skillId="ThirstForBlood"}}},nil}
 c["Grants Level 20 Unbound Avatar"]={{[1]={flags=0,keywordFlags=0,name="ExtraSkill",type="LIST",value={level=20,skillId="AilmentBearer"}}},nil}
 c["Grants Level 20 Ward Shatter"]={{[1]={flags=0,keywordFlags=0,name="ExtraSkill",type="LIST",value={level=20,skillId="WardShatter"}}},nil}
-c["Grants Level 20 Witchhunter's Pyre"]={nil,nil}
+c["Grants Level 20 Witchhunter's Pyre Skill"]={nil,nil}
+c["Grants Level 20 Witchhunter's Pyre Skill +2 to maximum Witchhunter's Pyres"]={nil,nil}
 c["Grants Level 21 Despair Curse Aura during Effect"]={{[1]={[1]={type="Condition",var="UsingFlask"},flags=0,keywordFlags=0,name="ExtraCurse",type="LIST",value={level=21,skillId="Despair"}}},nil}
 c["Grants Level 21 Vulnerability Curse Aura during Effect"]={{[1]={[1]={type="Condition",var="UsingFlask"},flags=0,keywordFlags=0,name="ExtraCurse",type="LIST",value={level=21,skillId="Vulnerability"}}},nil}
 c["Grants Level 22 Blight"]={{[1]={flags=0,keywordFlags=0,name="ExtraSkill",type="LIST",value={level=22,skillId="Blight"}}},nil}
@@ -20006,8 +20007,8 @@ c["Requires Class Witch Allocates Unhallowed Rite if you have the matching modif
 c["Requires Class Witch Allocates Unholy Authority if you have the matching modifier on Forbidden Flame"]={nil,"Requires Class Witch Allocates Unholy Authority if you have the matching modifier on Forbidden Flame "}
 c["Requires Class Witch Allocates Unholy Authority if you have the matching modifier on Forbidden Flesh"]={nil,"Requires Class Witch Allocates Unholy Authority if you have the matching modifier on Forbidden Flesh "}
 c["Requires Class Witch Allocates Unnatural Strength if you have the matching modifier on Forbidden Flame"]={nil,"Requires Class Witch Allocates Unnatural Strength if you have the matching modifier on Forbidden Flame "}
-c["Requires Class Witch Allocates Unnatural Strength if you have the matching modifier on Forbidden Flesh"]={nil,"Requires Class Witch Allocates Unnatural Strength if you have the matching modifier on Forbidden Flesh "}
 end)();(function()
+c["Requires Class Witch Allocates Unnatural Strength if you have the matching modifier on Forbidden Flesh"]={nil,"Requires Class Witch Allocates Unnatural Strength if you have the matching modifier on Forbidden Flesh "}
 c["Requires Class Witch Allocates Vile Bastion if you have the matching modifier on Forbidden Flame"]={nil,"Requires Class Witch Allocates Vile Bastion if you have the matching modifier on Forbidden Flame "}
 c["Requires Class Witch Allocates Vile Bastion if you have the matching modifier on Forbidden Flesh"]={nil,"Requires Class Witch Allocates Vile Bastion if you have the matching modifier on Forbidden Flesh "}
 c["Requires Class Witch Allocates Void Beacon if you have the matching modifier on Forbidden Flame"]={nil,"Requires Class Witch Allocates Void Beacon if you have the matching modifier on Forbidden Flame "}

@@ -84,7 +84,8 @@ Implicits: 1
 (150-220)% increased Fire Damage
 (35-50)% increased Area of Effect
 (20-30)% increased Skill Effect Duration
-Grants Level 20 Witchhunter's Pyre
+Grants Level 20 Witchhunter's Pyre Skill
++2 to maximum Witchhunter's Pyres
 ]],
 [[
 Hide of the Vendigo
