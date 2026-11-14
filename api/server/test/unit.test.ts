@@ -1,7 +1,7 @@
 // Unit tests: config, auth compare, build-code decoding, the fetch allowlist, the store, API.md drift.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 import { deflateSync } from "node:zlib";
@@ -140,6 +140,101 @@ void test("store: delete is recoverable for 7 days, then purged with its history
   assert.deepEqual(await store.listTrash(), []);
   await assert.rejects(store.restore(a.id), rejects("not_found"));
   await assert.rejects(store.restore("../../builds/x"), rejects("not_found"));
+});
+
+void test("store: a purge beside an unfinished trash entry keeps it, and never sees staging", async (t) => {
+  const dir = await tempDir("trash-purge");
+  t.after(dir.remove);
+  const store = new BuildStore(dir.path, 3);
+  await store.init();
+  const id = "0123456789abcdef";
+  const entry = join(dir.path, "trash", id);
+  await mkdir(entry);
+  await writeFile(join(entry, "build.json"), "{}");
+  const staging = join(dir.path, "trash", `.${id}.deleting`);
+  await mkdir(staging);
+  const old = new Date(Date.now() - 8 * 86_400_000);
+  await utimes(staging, old, old);
+  assert.deepEqual(await store.purgeTrash(), [], "no marker, fresh directory: kept");
+  assert.ok(existsSync(staging), "staging is left alone");
+  await utimes(entry, old, old);
+  assert.deepEqual(await store.purgeTrash(), [id], "no marker, old directory: purged");
+  assert.ok(existsSync(staging), "staging is left alone");
+});
+
+/** A stored build with two revisions, and where its live files are. */
+async function twoRevisions(store: BuildStore, dir: string) {
+  const a = await store.create("A", "<x>1</x>", { kind: "xml" });
+  await store.update(a.id, { xml: "<x>2</x>", cause: "edit" });
+  const live = { meta: join(dir, "builds", `${a.id}.json`), xml: join(dir, "builds", `${a.id}.xml`), history: join(dir, "history", a.id) };
+  const trash = join(dir, "trash", a.id);
+  return { id: a.id, live, trash };
+}
+
+void test("store: a delete stopped after k moves is finished by recover and restores whole", async (t) => {
+  for (const k of [1, 2, 3]) {
+    const dir = await tempDir(`delete-resume-${k}`);
+    t.after(dir.remove);
+    const store = new BuildStore(dir.path, 3);
+    await store.init();
+    const { id, live } = await twoRevisions(store, dir.path);
+    const stage = join(dir.path, "trash", `.${id}.deleting`);
+    await mkdir(stage);
+    await writeFile(join(stage, "deleted.json"), JSON.stringify({ deletedAt: new Date().toISOString() }));
+    await rename(live.meta, join(stage, "build.json"));
+    if (k >= 2) await rename(live.xml, join(stage, "build.xml"));
+    if (k >= 3) await rename(live.history, join(stage, "history"));
+    assert.deepEqual(await store.recover(), [id], `k=${k}`);
+    assert.deepEqual(await store.recover(), [], "idempotent");
+    assert.deepEqual((await store.listTrash()).map((m) => [m.id, m.revision]), [[id, 2]], `k=${k}`);
+    await store.restore(id);
+    assert.deepEqual((await store.get(id)).history.map((h) => h.revision), [1, 2], `k=${k}`);
+    assert.deepEqual([await store.xml(id), await store.xml(id, 1)], ["<x>2</x>", "<x>1</x>"], `k=${k}`);
+  }
+});
+
+void test("store: a delete stopped before any file moved leaves the build live", async (t) => {
+  const dir = await tempDir("delete-resume-0");
+  t.after(dir.remove);
+  const store = new BuildStore(dir.path, 3);
+  await store.init();
+  const { id } = await twoRevisions(store, dir.path);
+  await mkdir(join(dir.path, "trash", `.${id}.deleting`));
+  await store.recover();
+  assert.equal((await store.get(id)).revision, 2);
+  assert.deepEqual(await store.listTrash(), []);
+});
+
+void test("store: a restore stopped after k moves is finished by recover", async (t) => {
+  for (const k of [1, 2, 3]) {
+    const dir = await tempDir(`restore-resume-${k}`);
+    t.after(dir.remove);
+    const store = new BuildStore(dir.path, 3);
+    await store.init();
+    const { id, live, trash } = await twoRevisions(store, dir.path);
+    await store.delete(id);
+    const stage = join(dir.path, "trash", `.${id}.restoring`);
+    await rename(trash, stage);
+    await rename(join(stage, "history"), live.history);
+    if (k >= 2) await rename(join(stage, "build.xml"), live.xml);
+    if (k >= 3) await rename(join(stage, "build.json"), live.meta);
+    assert.deepEqual(await store.recover(), [id], `k=${k}`);
+    assert.deepEqual((await store.list()).map((m) => m.id), [id], `k=${k}`);
+    assert.deepEqual([await store.xml(id), await store.xml(id, 1)], ["<x>2</x>", "<x>1</x>"], `k=${k}`);
+    assert.deepEqual(await store.listTrash(), []);
+    assert.deepEqual(await readdir(join(dir.path, "trash")), []);
+  }
+});
+
+void test("store: parallel deletes beside purges lose no build and fail no call", async (t) => {
+  const dir = await tempDir("delete-parallel");
+  t.after(dir.remove);
+  const store = new BuildStore(dir.path, 3);
+  await store.init();
+  const ids = await Promise.all(Array.from({ length: 20 }, (_, i) => store.create(`b${i}`, "<x/>", { kind: "xml" }).then((m) => m.id)));
+  await Promise.all(ids.map(async (id) => { await store.delete(id); await store.purgeTrash(); }));
+  assert.deepEqual((await store.listTrash()).map((m) => m.id).sort(), [...ids].sort());
+  assert.deepEqual(await store.list(), []);
 });
 
 void test("failed credential window: limit inside a minute, then clear", () => {

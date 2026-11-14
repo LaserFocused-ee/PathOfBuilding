@@ -64,6 +64,7 @@ export async function openRuntime(cfg: Config, log: Logger, deps: RuntimeDeps = 
   const lockPath = await lock(cfg.dataDir);
   const store = new BuildStore(cfg.dataDir, cfg.historyKeep);
   await store.init();
+  for (const id of await store.recover()) log.warn({ event: "store.recovered", build_id: id }, "finished a delete or restore a stop interrupted");
   const pool = new Pool(cfg, log, store);
   await pool.init();
   const svc = new Service(cfg, store, pool, new Events(), new Fetcher(cfg, log, SHARE_HOSTS, deps.fetch), new Fetcher(cfg, log, [GAME_HOST], deps.fetch), log);
