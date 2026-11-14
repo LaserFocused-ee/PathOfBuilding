@@ -163,7 +163,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | Operation | Tier | State | Route / note |
 | --- | --- | --- | --- |
 | `config.options.list` | H | done | `lookup.config`; engine.test.ts |
-| `config.options.relevant` | H | open | `lookup.config` has a `relevantOnly` option, but no test uses it |
+| `config.options.relevant` | H | done | `lookup.config` `relevantOnly`; settings.test.ts |
 | `config.get` | H | done | `config.get`; edit.test.ts |
 | `config.set` | S | done | `config.set`; edit.test.ts |
 | `config.sets.*` | S | done | `config.set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`; edit.test.ts |
@@ -179,7 +179,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `calcs.output_for_skill` | S | done | `stats.skills`; engine.test.ts |
 | `calcs.sections` | S | open | No route; `stats.output` returns the raw table |
 | `calcs.breakdown` | S | done | `stats.breakdown`; engine.test.ts |
-| `calcs.warnings` | S | open | Route without a test (`stats.warnings`) |
+| `calcs.warnings` | S | done | `stats.warnings`; settings.test.ts |
 | `calcs.requirements` | H | done | `stats.defences`; engine.test.ts |
 | `calcs.resists` | H | done | `stats.defences`; engine.test.ts |
 | `calcs.reservation` | H | done | `stats.output` (`fields`, for example `ManaUnreserved`); skills2.test.ts |
@@ -266,13 +266,13 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | tree | 27 | 18 | 0 | 0 | 0 | 2 | 7 |
 | skills | 17 | 14 | 0 | 0 | 0 | 1 | 2 |
 | items and crafting | 30 | 20 | 0 | 0 | 0 | 0 | 10 |
-| config | 6 | 4 | 0 | 0 | 0 | 0 | 2 |
-| calcs | 13 | 11 | 0 | 0 | 0 | 0 | 2 |
+| config | 6 | 5 | 0 | 0 | 0 | 0 | 1 |
+| calcs | 13 | 12 | 0 | 0 | 0 | 0 | 1 |
 | compare and power | 12 | 4 | 0 | 0 | 4 | 1 | 3 |
 | trade | 11 | 0 | 0 | 0 | 0 | 11 | 0 |
 | notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 105 | 1 | 9 | 8 | 28 | 36 |
+| **Total** | 187 | 107 | 1 | 9 | 8 | 28 | 34 |
 
 ## MCP tools
 

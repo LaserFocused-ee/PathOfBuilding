@@ -212,3 +212,27 @@ void test("ui_invoke refuses unknown, denied, hidden, disabled and wrong-type co
   fails(await invoke(id, { tab: "build", control: "save", action: "double_click" }), 400, "invalid_input");
   assert.equal(await revisionOf(id), rev);
 });
+
+void test("stats.warnings: an unmet gem requirement is reported, and clears when the gem goes", async () => {
+  const id = await witch([[{ name: "Heavy Strike" }]]);
+  const warnings = async () => ok(await srv.call<{ warnings: string[] }>("GET", `/v1/stats/${id}/warnings`)).warnings;
+  assert.deepEqual(await warnings(), ["You do not meet the Strength requirement of Heavy Strike"]);
+  ok(await srv.call("POST", `/v1/skills/${id}/delete-group`, { group: 1 }));
+  assert.deepEqual(await warnings(), []);
+});
+
+void test("lookup.config relevantOnly keeps only the options that apply to the build", async () => {
+  type Page = { total: number; options: Array<{ var: string; relevant?: boolean }> };
+  const id = await witch([[{ name: "Fireball" }]]);
+  const pages = async (q: string) => {
+    const first = ok(await srv.call<Page>("GET", `/v1/lookup/config?buildId=${id}&limit=200${q}`));
+    const options = [...first.options];
+    while (options.length < first.total) options.push(...ok(await srv.call<Page>("GET", `/v1/lookup/config?buildId=${id}&limit=200&offset=${options.length}${q}`)).options);
+    return { total: first.total, options };
+  };
+  const all = await pages("");
+  const rel = await pages("&relevantOnly=true");
+  assert.deepEqual([all.total, rel.total], [586, 81]);
+  // The filter keeps exactly the options the full list marks relevant, in the same order.
+  assert.deepEqual(rel.options.map((o) => o.var), all.options.filter((o) => o.relevant === true).map((o) => o.var));
+});
