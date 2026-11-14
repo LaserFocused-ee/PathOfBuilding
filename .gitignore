@@ -45,3 +45,9 @@ runtime/SimpleGraphic/Screenshots
 
 .emmyrc.json
 .luarc.json
+
+# API and MCP package (api/)
+api/runtime/rt/
+api/runtime/.src/
+api/server/node_modules/
+api/server/dist/
