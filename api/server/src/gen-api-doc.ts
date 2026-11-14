@@ -1,0 +1,44 @@
+// Writes docs/API.md from the route table: `npm run docs`. A test fails when the file is out of date.
+import { writeFileSync } from "node:fs";
+import { z } from "zod";
+import { toolDefs } from "./mcp.js";
+import { action, routes, TOOLS } from "./routes.js";
+
+const schemaText = (s: z.ZodType) => JSON.stringify(z.toJSONSchema(s, { io: "input", unrepresentable: "any" }));
+
+export function apiDoc(): string {
+  const out: string[] = [
+    "# Path of Building API",
+    "",
+    "Generated from `server/src/routes.ts` by `npm run docs`; do not edit by hand.",
+    "",
+    "Every `/v1` route and `POST /mcp` need `Authorization: Bearer <POB_API_TOKEN>`. `GET /health` is open; `GET /health/deep` is open unless `POB_HEALTH_TOKEN` is set (then send it as `x-health-token`).",
+    "",
+    "Replies are `{ \"ok\": true, \"result\": ..., \"warnings\": [...] }` or `{ \"ok\": false, \"error\": { \"code\", \"message\" } }`. Error codes: `not_found` 404, `invalid_input` 400, `unauthorized` 401, `stale_revision` 409, `payload_too_large` 413, `rate_limited` 429, `worker_error` 500, `unsupported` 501, `upstream_fetch_failed` 502, `worker_timeout` 504.",
+    "",
+    "GET inputs go in the query string (lists comma-separated); POST inputs are a JSON body; path parameters are part of the input.",
+    "",
+    "## MCP tools",
+    "",
+    "| Tool | Read-only | Actions |",
+    "| --- | --- | --- |",
+  ];
+  for (const d of toolDefs()) out.push(`| \`${d.name}\` | ${d.readOnly ? "yes" : "no"} | ${d.routes.map((r) => `\`${action(r)}\``).join(", ")} |`);
+  const unrouted = Object.entries(TOOLS).filter(([dom]) => !routes.some((r) => r.domain === dom && !r.stream)).map(([, t]) => `\`${t}\``);
+  if (unrouted.length) out.push("", `Not yet routed (no actions, so not listed by the server): ${unrouted.join(", ")}.`);
+  out.push("", "## Routes", "");
+  for (const r of routes) {
+    out.push(`### \`${r.method} ${r.path}\``, "", `${r.summary}`, "");
+    out.push(`- Name: \`${r.name}\`${r.stream ? " (event stream, HTTP only)" : ` (MCP \`${TOOLS[r.domain]}\` action \`${action(r)}\`)`}`);
+    out.push(`- Read-only: ${r.readOnly ? "yes" : "no"}; worker: \`${r.workerOp}\``);
+    out.push(`- Input: \`${schemaText(r.input)}\``);
+    out.push(`- Result: \`${schemaText(r.output)}\``, "");
+  }
+  return `${out.join("\n").trimEnd()}\n`;
+}
+
+if (process.argv[1]?.endsWith("gen-api-doc.js")) {
+  const target = process.argv[2];
+  if (!target) throw new Error("usage: gen-api-doc <output path>");
+  writeFileSync(target, apiDoc());
+}
