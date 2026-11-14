@@ -1,0 +1,12 @@
+{
+  "name": "pob-view",
+  "version": "0.0.0",
+  "exports": "./main.ts",
+  "compilerOptions": {
+    "lib": ["deno.ns", "dom", "dom.iterable", "es2022"],
+    "jsx": "react-jsx",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["../driver/src/js/vite-env.d.ts", "@types/emscripten"]
+  }
+}

@@ -51,3 +51,5 @@ api/runtime/rt/
 api/runtime/.src/
 api/server/node_modules/
 api/server/dist/
+api/web/.build/
+api/web/dist/
