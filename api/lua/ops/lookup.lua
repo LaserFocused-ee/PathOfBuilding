@@ -7,6 +7,10 @@ return function(W)
 		local n = tonumber(args.limit) or default
 		return math.max(1, math.min(200, math.floor(n)))
 	end
+	-- Paging for list results: offset? (skip), limit? (1-200).
+	local function pageOf(args, default)
+		return math.max(0, math.floor(tonumber(args.offset) or 0)), limitOf(args, default)
+	end
 	local function has(hay, needle)
 		return needle == nil or needle == "" or (type(hay) == "string" and hay:lower():find(needle:lower(), 1, true) ~= nil)
 	end
@@ -23,8 +27,8 @@ return function(W)
 			end
 		end
 		table.sort(list, function(a, b) return a.gem.name < b.gem.name end)
-		local out, limit = {}, limitOf(args, 20)
-		for i = 1, math.min(#list, limit) do
+		local out, offset, limit = {}, pageOf(args, 20)
+		for i = offset + 1, math.min(#list, offset + limit) do
 			local g, ge = list[i].gem, list[i].gem.grantedEffect
 			local level = math.floor(tonumber(args.level) or g.naturalMaxLevel or 20)
 			local lv = ge and ge.levels and ge.levels[level]
@@ -43,7 +47,7 @@ return function(W)
 				} or nil,
 			}
 		end
-		return { total = #list, gems = out }
+		return { total = #list, offset = offset, gems = out }
 	end
 
 	-- args: query? (name), text? (any line of the item text), limit?
@@ -53,12 +57,12 @@ return function(W)
 			if has(name, args.query) and has(item.raw, args.text) then list[#list + 1] = item end
 		end
 		table.sort(list, function(a, b) return a.name < b.name end)
-		local out, limit = {}, limitOf(args, 10)
-		for i = 1, math.min(#list, limit) do
+		local out, offset, limit = {}, pageOf(args, 10)
+		for i = offset + 1, math.min(#list, offset + limit) do
 			local it = list[i]
 			out[#out + 1] = { name = it.name, title = it.title, base = it.baseName, type = it.type, variants = it.variantList and #it.variantList or nil, text = strip(it.raw) }
 		end
-		return { total = #list, uniques = out }
+		return { total = #list, offset = offset, uniques = out }
 	end
 
 	-- args: query?, type?, limit?
@@ -68,13 +72,13 @@ return function(W)
 			if has(name, args.query) and (args.type == nil or base.type == args.type) then list[#list + 1] = { name = name, base = base } end
 		end
 		table.sort(list, function(a, b) return a.name < b.name end)
-		local out, limit = {}, limitOf(args, 20)
-		for i = 1, math.min(#list, limit) do
+		local out, offset, limit = {}, pageOf(args, 20)
+		for i = offset + 1, math.min(#list, offset + limit) do
 			local base = W.plain(list[i].base)
 			base.name = list[i].name
 			out[#out + 1] = base
 		end
-		return { total = #list, bases = out }
+		return { total = #list, offset = offset, bases = out }
 	end
 
 	local function nodeBrief(spec, node)
@@ -108,9 +112,9 @@ return function(W)
 		viewer.searchParams = saved
 		if not ok then error(err, 0) end
 		table.sort(list, function(a, c) return a.id < c.id end)
-		local out, limit = {}, limitOf(args, 25)
-		for i = 1, math.min(#list, limit) do out[#out + 1] = nodeBrief(spec, list[i]) end
-		return { total = #list, treeVersion = spec.treeVersion, nodes = out }
+		local out, offset, limit = {}, pageOf(args, 25)
+		for i = offset + 1, math.min(#list, offset + limit) do out[#out + 1] = nodeBrief(spec, list[i]) end
+		return { total = #list, offset = offset, treeVersion = spec.treeVersion, nodes = out }
 	end
 
 	-- args: id
@@ -136,13 +140,14 @@ return function(W)
 		return out
 	end
 
-	-- args: section?, query? (var or label), var? (one option, with tooltip), relevantOnly?
+	-- args: section?, query? (var or label), var? (one option, with tooltip), relevantOnly?, offset?, limit? (default 100)
 	function ops.config(args)
 		local b = W.build()
 		local varList = require("Modules.ConfigOptions")
 		local okVis, vis = pcall(require, "Modules.ConfigVisibility")
 		local section
-		local out = {}
+		local out, matched = {}, 0
+		local offset, limit = pageOf(args, 100)
 		for _, v in ipairs(varList) do
 			if v.section then section = v.section end
 			if v.var and (args.var == nil or v.var == args.var) and (args.section == nil or section == args.section)
@@ -152,7 +157,8 @@ return function(W)
 					local okRel, r = pcall(vis.isRelevantForBuild, v, b)
 					relevant = okRel and r and true or false
 				end
-				if not args.relevantOnly or relevant then
+				if not args.relevantOnly or relevant then matched = matched + 1 end
+				if (not args.relevantOnly or relevant) and matched > offset and #out < limit then
 					local entry = {
 						var = v.var, type = v.type, label = strip(v.label or ""):gsub(":$", ""), section = section,
 						current = W.plain(b.configTab.input[v.var]), placeholder = W.plain(b.configTab.placeholder[v.var]),
@@ -170,7 +176,7 @@ return function(W)
 				end
 			end
 		end
-		return { total = #out, options = out }
+		return { total = matched, offset = offset, options = out }
 	end
 
 	return ops

@@ -146,7 +146,7 @@ end
 function W.build()
 	local b = main.modes.BUILD
 	if main.mode ~= "BUILD" or not b.calcsTab or not b.calcsTab.mainOutput then
-		W.fail("not_loaded", "no build is loaded in this worker")
+		error({ code = "worker_error", message = "no build is loaded in this worker", notLoaded = true }, 0)
 	end
 	return b
 end
@@ -179,6 +179,71 @@ function W.plain(v, depth, seen)
 	seen[v] = nil
 	return out
 end
+-- A mutating op: runs fn, recalculates, and returns the op's result with the sidebar stats that
+-- changed and the build's new XML (the server stores it as the next revision). fn may return a function
+-- of the build, called after the recalculation, for results that only settle then.
+function W.mutation(fn)
+	return function(args)
+		local before = W.sidebarValues(W.build())
+		local result = fn(args, W.build())
+		local b = main.modes.BUILD
+		if main.mode == "BUILD" then b.buildFlag = true end
+		W.pump()
+		b = W.build()
+		if type(result) == "function" then result = result(b) end -- results read after the recalculation
+		local after = W.sidebarValues(b)
+		local changed = {}
+		for k, v in pairs(after) do
+			if before[k] ~= v then changed[k] = { before = before[k] or json.null, after = v } end
+		end
+		for k, v in pairs(before) do
+			if after[k] == nil then changed[k] = { before = v, after = json.null } end
+		end
+		if next(changed) == nil then changed = setmetatable({}, { __jsontype = "object" }) end
+		if result == nil or (type(result) == "table" and next(result) == nil) then result = setmetatable({}, { __jsontype = "object" }) end
+		return { result = result, changed = changed, xml = b:SaveDB("code") }
+	end
+end
+-- Picks the entry of a dropdown the way a click does: sets the selection and runs its select function.
+function W.choose(drop, match)
+	for i, v in ipairs(drop.list) do
+		if match(v) then
+			drop.selIndex = i
+			drop.selFunc(i, v)
+			return v
+		end
+	end
+end
+-- Clicks the button labelled `label` on the top popup (confirm dialogs, rename dialogs).
+function W.clickPopup(label)
+	local p = main.popups[1]
+	if not p then W.fail("worker_error", "expected a dialog, none is open") end
+	for k, c in pairs(p.controls) do
+		if type(c) == "table" and c.Click and (k == label or c.label == label) then
+			c:Click()
+			return true
+		end
+	end
+	W.fail("worker_error", "dialog has no " .. label .. " button")
+end
+-- Opens a list manager's rename/new dialog through its button, types the name, and saves it.
+function W.listAction(list, button, index, title)
+	if index then
+		if not list.list[index] then W.fail("not_found", "no entry " .. tostring(index)) end
+		list.selIndex, list.selValue = index, list.list[index]
+	end
+	local btn = list.controls[button]
+	if not btn:IsEnabled() then W.fail("invalid_input", button .. " is not allowed here") end
+	btn:Click()
+	if button == "delete" then
+		W.clickPopup("confirm")
+	else
+		local p = main.popups[1]
+		p.controls.edit:SetText(title, true)
+		if not p.controls.save:IsEnabled() then main:ClosePopup(); W.fail("invalid_input", "a name is required") end
+		p.controls.save:Click()
+	end
+end
 function W.takeCopied()
 	local c = copied
 	copied = nil
@@ -209,7 +274,7 @@ local function takePrompt()
 end
 
 local ops = {}
-for _, domain in ipairs({ "builds", "stats", "lookup" }) do
+for _, domain in ipairs({ "builds", "stats", "lookup", "tree", "config", "skills", "items", "evaluate", "party", "ui" }) do
 	for name, fn in pairs(dofile(here .. "/ops/" .. domain .. ".lua")(W)) do
 		ops[domain .. "." .. name] = fn
 	end

@@ -6,6 +6,7 @@ import { Writable } from "node:stream";
 import { loadConfig, type Config } from "../src/config.js";
 import { start, type Started } from "../src/index.js";
 import { createLogger } from "../src/log.js";
+import type { RuntimeDeps } from "../src/runtime.js";
 
 export const TOKEN = "test-token-0123456789abcdef0123456789abcdef";
 /** Repository root (dist/test -> four levels up). */
@@ -30,7 +31,7 @@ export function memoryLogger(): { log: ReturnType<typeof createLogger>; lines: A
 }
 
 export function testConfig(dataDir: string, overrides: Partial<Config> = {}): Config {
-  return loadConfig({ POB_API_TOKEN: TOKEN, PORT: "0", POB_DATA_DIR: dataDir, POB_POOL_SIZE: "3", HOME: dataDir }, overrides);
+  return loadConfig({ POB_API_TOKEN: TOKEN, PORT: "0", POB_DATA_DIR: dataDir, POB_POOL_SIZE: "3", POB_AUTH_FAILURES_PER_MINUTE: "100000", HOME: dataDir }, overrides);
 }
 
 export interface TestServer extends Started {
@@ -39,10 +40,10 @@ export interface TestServer extends Started {
   close: () => Promise<void>;
 }
 
-export async function startServer(overrides: Partial<Config> = {}): Promise<TestServer> {
+export async function startServer(overrides: Partial<Config> = {}, deps: RuntimeDeps = {}): Promise<TestServer> {
   const dir = await tempDir("srv");
   const { log, lines } = memoryLogger();
-  const s = await start(testConfig(dir.path, overrides), log);
+  const s = await start(testConfig(dir.path, overrides), log, deps);
   const base = `http://127.0.0.1:${s.port}`;
   return {
     ...s,

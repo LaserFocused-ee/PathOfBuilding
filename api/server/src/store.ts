@@ -6,9 +6,13 @@ import { join } from "node:path";
 import { ApiError } from "./errors.js";
 
 export interface BuildSource {
-  kind: "new" | "xml" | "code" | "link" | "duplicate";
+  kind: "new" | "xml" | "code" | "link" | "duplicate" | "character";
   url?: string;
   from?: string;
+  /** Character imports: the public profile the character came from. */
+  account?: string;
+  realm?: string;
+  character?: string;
 }
 
 export interface RevisionEntry {
@@ -31,6 +35,10 @@ export interface BuildMeta {
 // Ids are generated here and checked against this shape before any path is built from them.
 const ID_RE = /^[a-f0-9]{16}$/;
 
+/** Deleted builds stay restorable this long. */
+export const TRASH_DAYS = 7;
+const TRASH_MS = TRASH_DAYS * 24 * 3600 * 1000;
+
 export function isBuildId(id: string): boolean {
   return ID_RE.test(id);
 }
@@ -44,6 +52,7 @@ export class BuildStore {
   async init(): Promise<void> {
     await mkdir(join(this.dir, "builds"), { recursive: true });
     await mkdir(join(this.dir, "history"), { recursive: true });
+    await mkdir(join(this.dir, "trash"), { recursive: true });
   }
 
   private paths(id: string) {
@@ -61,9 +70,12 @@ export class BuildStore {
   async list(): Promise<BuildMeta[]> {
     const names = await readdir(join(this.dir, "builds"));
     const metas = await Promise.all(
-      names.filter((n) => n.endsWith(".json") && isBuildId(n.slice(0, -5))).map((n) => this.get(n.slice(0, -5))),
+      names
+        .filter((n) => n.endsWith(".json") && isBuildId(n.slice(0, -5)))
+        // A build deleted between the directory read and its file read is left out, not a failed list.
+        .map((n) => this.get(n.slice(0, -5)).catch((e: unknown) => (e instanceof ApiError && e.code === "not_found" ? undefined : Promise.reject(e as Error)))),
     );
-    return metas.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return metas.filter((m) => m !== undefined).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
   async get(id: string): Promise<BuildMeta> {
@@ -130,14 +142,79 @@ export class BuildStore {
     return meta;
   }
 
-  async delete(id: string, baseRevision?: number): Promise<void> {
+  /** Moves a build to trash/<id>/ (restorable until purgeTrash drops it, TRASH_DAYS later). */
+  async delete(id: string, baseRevision?: number): Promise<BuildMeta> {
     const p = this.paths(id);
     const meta = await this.get(id);
     if (baseRevision !== undefined && baseRevision !== meta.revision) {
       throw new ApiError("stale_revision", `build ${id} is at revision ${meta.revision}, not ${baseRevision}`, { revision: meta.revision });
     }
-    await rm(p.meta, { force: true });
-    await rm(p.xml, { force: true });
-    await rm(p.history, { recursive: true, force: true });
+    const t = this.trashPaths(id);
+    await rm(t.dir, { recursive: true, force: true });
+    await mkdir(t.dir, { recursive: true });
+    await this.atomicWrite(t.deleted, JSON.stringify({ deletedAt: new Date().toISOString() }));
+    await rename(p.history, t.history);
+    await rename(p.xml, t.xml);
+    await rename(p.meta, t.meta);
+    return meta;
+  }
+
+  private trashPaths(id: string) {
+    if (!isBuildId(id)) throw new ApiError("not_found", `no deleted build ${id}`);
+    const dir = join(this.dir, "trash", id);
+    return { dir, xml: join(dir, "build.xml"), meta: join(dir, "build.json"), history: join(dir, "history"), deleted: join(dir, "deleted.json") };
+  }
+
+  /** Deleted builds still restorable, newest deletion first. */
+  async listTrash(): Promise<(BuildMeta & { deletedAt: string; purgeAfter: string })[]> {
+    const ids = (await readdir(join(this.dir, "trash"))).filter(isBuildId);
+    const out = await Promise.all(
+      ids.map(async (id) => {
+        const t = this.trashPaths(id);
+        try {
+          const meta = JSON.parse(await readFile(t.meta, "utf8")) as BuildMeta;
+          const { deletedAt } = JSON.parse(await readFile(t.deleted, "utf8")) as { deletedAt: string };
+          return { ...meta, deletedAt, purgeAfter: new Date(Date.parse(deletedAt) + TRASH_MS).toISOString() };
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === "ENOENT") return undefined; // a delete that did not finish
+          throw e;
+        }
+      }),
+    );
+    return out.filter((m) => m !== undefined).sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
+  }
+
+  async restore(id: string): Promise<BuildMeta> {
+    const t = this.trashPaths(id);
+    const p = this.paths(id);
+    let meta: BuildMeta;
+    try {
+      meta = JSON.parse(await readFile(t.meta, "utf8")) as BuildMeta;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") throw new ApiError("not_found", `no deleted build ${id}`);
+      throw e;
+    }
+    await rename(t.history, p.history);
+    await rename(t.xml, p.xml);
+    await rename(t.meta, p.meta);
+    await rm(t.dir, { recursive: true, force: true });
+    return meta;
+  }
+
+  /** Drops trash entries deleted more than TRASH_DAYS before `now`. Runs at start, on delete and on trash list. */
+  async purgeTrash(now = Date.now()): Promise<string[]> {
+    const purged: string[] = [];
+    for (const id of (await readdir(join(this.dir, "trash"))).filter(isBuildId)) {
+      const t = this.trashPaths(id);
+      const deletedAt = await readFile(t.deleted, "utf8").then(
+        (s) => Date.parse((JSON.parse(s) as { deletedAt: string }).deletedAt),
+        () => 0, // ponytail: an entry without its marker is a half-finished delete; purge it
+      );
+      if (now - deletedAt > TRASH_MS) {
+        await rm(t.dir, { recursive: true, force: true });
+        purged.push(id);
+      }
+    }
+    return purged;
   }
 }

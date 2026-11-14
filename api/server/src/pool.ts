@@ -2,7 +2,7 @@
 // idle session is recycled when a new one needs a process. A session whose worker died, timed out,
 // failed, or grew past its memory ceiling is reloaded from the store on next use.
 import { randomBytes } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
@@ -17,7 +17,7 @@ export class Pool {
   private readonly sessions = new Map<string, Worker>(); // Map order is LRU order (oldest first)
   private readonly free: Worker[] = [];
   private readonly locks = new Map<string, Promise<unknown>>();
-  private starting = 0;
+  private live = 0; // processes started and not yet exited, wherever they are (session, free, handed out)
 
   constructor(
     private readonly cfg: Config,
@@ -25,8 +25,11 @@ export class Pool {
     private readonly store: BuildStore,
   ) {}
 
+  /** Called once the data directory is locked: state left by workers of an earlier run is removed. */
   async init(): Promise<void> {
-    await mkdir(join(this.cfg.dataDir, "worker-state"), { recursive: true });
+    const dir = join(this.cfg.dataDir, "worker-state");
+    await rm(dir, { recursive: true, force: true });
+    await mkdir(dir, { recursive: true });
   }
 
   /** Serializes everything done to one session (acquire, load, command, store write). */
@@ -86,13 +89,13 @@ export class Pool {
     this.invalidate(key);
   }
 
-  stats(): { max: number; sessions: number; free: number; starting: number; workers: Array<{ session: string | undefined; busy: boolean }> } {
+  stats(): { max: number; live: number; sessions: number; free: number; workers: Array<{ session: string | undefined; busy: boolean }> } {
     const all = [...this.sessions.values(), ...this.free];
     return {
       max: this.cfg.poolSize,
       sessions: this.sessions.size,
       free: this.free.length,
-      starting: this.starting,
+      live: this.live,
       workers: all.map((w) => ({ session: w.buildId ? (w.buildId === LOOKUP_SESSION ? "lookup" : "build") : undefined, busy: w.busy })),
     };
   }
@@ -130,16 +133,14 @@ export class Pool {
       return live;
     }
     this.sessions.delete(key);
+    // Read the store first: an unknown build fails here without taking a process from anyone.
+    const load = key === LOOKUP_SESSION ? { op: "builds.new", args: { name: "lookup" } } : { op: "builds.load", args: { xml: await this.store.xml(key), name: (await this.store.get(key)).name } };
     const w = await this.process(key);
     try {
-      if (key === LOOKUP_SESSION) {
-        await this.command(key, w, "builds.new", { name: "lookup" });
-      } else {
-        const meta = await this.store.get(key);
-        await this.command(key, w, "builds.load", { xml: await this.store.xml(key), name: meta.name });
-      }
+      await this.command(key, w, load.op, load.args);
     } catch (e) {
-      if (w.alive) w.kill("load_failed");
+      // command() already killed a worker whose own failure this was; any other failure leaves it reusable.
+      if (w.alive) this.free.push(w);
       throw e;
     }
     this.register(key, w);
@@ -152,13 +153,19 @@ export class Pool {
       const free = this.free.shift();
       if (free?.alive) return free;
       if (free) continue;
-      if (this.sessions.size + this.starting < this.cfg.poolSize) {
-        this.starting += 1;
+      if (this.live < this.cfg.poolSize) {
+        this.live += 1;
+        let w: Worker;
         try {
-          return await Worker.start(this.cfg, this.log);
-        } finally {
-          this.starting -= 1;
+          w = await Worker.start(this.cfg, this.log);
+        } catch (e) {
+          this.live -= 1;
+          throw e;
         }
+        w.onExit(() => {
+          this.live -= 1;
+        });
+        return w;
       }
       const victim = [...this.sessions.entries()].find(([k]) => k !== key && !this.locks.has(k));
       if (victim) {

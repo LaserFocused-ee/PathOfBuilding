@@ -19,6 +19,8 @@ const schema = z.object({
   XDG_DATA_HOME: z.string().optional(),
   HOME: z.string().optional(),
   POB_RUNTIME_DIR: z.string().optional(),
+  POB_WEB_DIR: z.string().optional(),
+  POB_PUBLIC_ORIGIN: z.url().optional(),
   POB_POOL_SIZE: int(4),
   POB_WORKER_TIMEOUT_MS: int(30_000),
   POB_WORKER_BOOT_TIMEOUT_MS: int(60_000),
@@ -30,7 +32,8 @@ const schema = z.object({
   POB_FETCH_TIMEOUT_MS: int(10_000),
   POB_FETCH_MAX_BYTES: int(2_000_000),
   MCP_MAX_RESULT_CHARS: int(90_000),
-  POB_HEALTH_TOKEN: z.string().min(1).optional(),
+  POB_AUTH_FAILURES_PER_MINUTE: int(30),
+  POB_HEALTH_TOKEN: z.string().min(16, "POB_HEALTH_TOKEN must be at least 16 characters").optional(),
   SENTRY_DSN: z.string().url().optional(),
   SENTRY_ENVIRONMENT: z.string().default("production"),
   RELEASE: z.string().optional(),
@@ -44,6 +47,10 @@ export interface Config {
   pobRoot: string;
   dataDir: string;
   runtimeDir: string;
+  /** The built browser view (api/web/dist), served at /; absent = not served. */
+  webDir: string;
+  /** The origin the page is opened at behind a proxy (e.g. https://pob.example.org), when Host and X-Forwarded-Proto do not give it. */
+  publicOrigin: string | undefined;
   poolSize: number;
   workerTimeoutMs: number;
   workerBootTimeoutMs: number;
@@ -56,6 +63,8 @@ export interface Config {
   fetchMaxBytes: number;
   mcpMaxResultChars: number;
   healthToken: string | undefined;
+  /** Failed credential checks per minute (all clients together) before unauthenticated requests get 429. */
+  authFailuresPerMinute: number;
   sentryDsn: string | undefined;
   sentryEnvironment: string;
   release: string | undefined;
@@ -79,6 +88,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     pobRoot: e.POB_ROOT,
     dataDir: e.POB_DATA_DIR ?? join(e.XDG_DATA_HOME ?? join(e.HOME ?? homedir(), ".local/share"), "pob-api"),
     runtimeDir: e.POB_RUNTIME_DIR ?? join(e.POB_ROOT, "api/runtime/rt"),
+    webDir: e.POB_WEB_DIR ?? join(e.POB_ROOT, "api/web/dist"),
+    publicOrigin: e.POB_PUBLIC_ORIGIN === undefined ? undefined : new URL(e.POB_PUBLIC_ORIGIN).origin,
     poolSize: e.POB_POOL_SIZE,
     workerTimeoutMs: e.POB_WORKER_TIMEOUT_MS,
     workerBootTimeoutMs: e.POB_WORKER_BOOT_TIMEOUT_MS,
@@ -91,10 +102,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     fetchMaxBytes: e.POB_FETCH_MAX_BYTES,
     mcpMaxResultChars: e.MCP_MAX_RESULT_CHARS,
     healthToken: e.POB_HEALTH_TOKEN,
+    authFailuresPerMinute: e.POB_AUTH_FAILURES_PER_MINUTE,
     sentryDsn: e.SENTRY_DSN,
     sentryEnvironment: e.SENTRY_ENVIRONMENT,
     release: e.RELEASE,
     logLevel: e.LOG_LEVEL,
     ...overrides,
   };
+}
+
+/** Config for the stdio transport: the token guards HTTP only, so stdio needs none and a placeholder fills it. */
+export function loadStdioConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  return loadConfig({ POB_API_TOKEN: "stdio-transport-has-no-network-listener", ...env });
 }

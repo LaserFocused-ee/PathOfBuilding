@@ -3,6 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ApiError } from "./errors.js";
+import { reportError } from "./log.js";
 import { action, parseInput, routes, TOOLS, type Domain, type Route } from "./routes.js";
 import type { Service } from "./service.js";
 
@@ -24,11 +25,20 @@ export function toolDefs(): ToolDef[] {
   for (const [domain, toolName] of Object.entries(TOOLS) as Array<[Domain, string]>) {
     const rs = routes.filter((r) => r.domain === domain && !r.stream);
     if (rs.length === 0) continue;
-    const shape: Record<string, z.core.$ZodType> = {};
+    // A parameter several actions share takes whatever any of them accepts (each action validates
+    // its own again in callTool); identical schemas are listed once.
+    const variants = new Map<string, Map<string, z.ZodType>>();
     for (const r of rs) {
-      for (const [k, v] of Object.entries(r.input.shape)) {
-        if (!(k in shape)) shape[k] = z.optional(v);
+      for (const [k, v] of Object.entries(r.input.shape) as Array<[string, z.ZodType]>) {
+        const seen = variants.get(k) ?? new Map<string, z.ZodType>();
+        seen.set(JSON.stringify(z.toJSONSchema(v, { unrepresentable: "any" })), v);
+        variants.set(k, seen);
       }
+    }
+    const shape: Record<string, z.ZodType> = {};
+    for (const [k, seen] of variants) {
+      const list = [...seen.values()];
+      shape[k] = z.optional(list.length === 1 ? (list[0] as z.ZodType) : z.union(list as [z.ZodType, z.ZodType, ...z.ZodType[]]));
     }
     const actions = rs.map(action) as [string, ...string[]];
     const lines = rs.map((r) => `- ${action(r)}: ${r.summary} Params: ${Object.keys(r.input.shape).join(", ") || "none"}.`);
@@ -74,6 +84,7 @@ export async function callTool(svc: Service, def: ToolDef, args: Record<string, 
   } catch (e) {
     const err = e instanceof ApiError ? e : new ApiError("worker_error", "internal error");
     code = err.code;
+    if (err.status >= 500) reportError(svc.log, e, ["mcp", def.name, err.code], { action: act });
     return reply({ ok: false, error: { code: err.code, message: err.message } }, true);
   } finally {
     svc.log.info({ event: "mcp.tool", tool: def.name, action: act, ok: code === undefined, code, duration_ms: Date.now() - started });

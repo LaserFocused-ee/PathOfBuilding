@@ -3,7 +3,7 @@ import type { Server } from "node:http";
 import { loadConfig } from "./config.js";
 import { createApp } from "./http.js";
 import { createLogger, initErrorTracking, reportError } from "./log.js";
-import { openRuntime, type Runtime } from "./runtime.js";
+import { openRuntime, type Runtime, type RuntimeDeps } from "./runtime.js";
 
 export interface Started {
   server: Server;
@@ -13,9 +13,9 @@ export interface Started {
 }
 
 /** Starts the HTTP server on cfg.host:cfg.port (port 0 picks a free one). Tests call this too. */
-export async function start(cfg = loadConfig(), log = createLogger(cfg)): Promise<Started> {
+export async function start(cfg = loadConfig(), log = createLogger(cfg), deps: RuntimeDeps = {}): Promise<Started> {
   await initErrorTracking(cfg, log);
-  const runtime = await openRuntime(cfg, log);
+  const runtime = await openRuntime(cfg, log, deps);
   const app = createApp(runtime.svc, log);
   const server = await new Promise<Server>((resolve, reject) => {
     const s = app.listen(cfg.port, cfg.host, () => resolve(s));

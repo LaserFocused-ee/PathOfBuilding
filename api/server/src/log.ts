@@ -26,7 +26,14 @@ export async function initErrorTracking(cfg: Config, log: Logger): Promise<void>
     log.info({ event: "errors.gate_shut" }, "SENTRY_DSN not set; error capture disabled");
     return;
   }
-  const Sentry = await import("@sentry/node");
+  // Optional peer dependency (its tree carries a non-permissive licence), installed only by those who opt in.
+  let Sentry: typeof import("@sentry/node");
+  try {
+    Sentry = await import("@sentry/node");
+  } catch {
+    log.error({ event: "errors.unavailable" }, "SENTRY_DSN is set but @sentry/node is not installed (npm install --no-save @sentry/node@11.12.0); error capture disabled");
+    return;
+  }
   Sentry.init({ dsn: cfg.sentryDsn, environment: cfg.sentryEnvironment, release: cfg.release, tracesSampleRate: 0,
     // Build XML, item text and the token must never leave the box: collect no headers, bodies, query or user data.
     dataCollection: { userInfo: false, cookies: false, httpHeaders: false, httpBodies: [], urlQueryParams: false, mcp: { inputs: false, outputs: false }, stackFrameVariables: false },

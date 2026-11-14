@@ -90,7 +90,10 @@ export class Worker {
     });
     // Path of Building's own console output; kept at debug level, never parsed.
     createInterface({ input: this.proc.stderr }).on("line", (line) => this.log.debug({ event: "worker.stderr", pid: this.proc.pid, line: line.slice(0, 500) }));
-    this.proc.on("exit", (code, signal) => {
+    let ended = false;
+    const end = (code: number | null, signal: string | null) => {
+      if (ended) return;
+      ended = true;
       this.alive = false;
       clearTimeout(bootTimer);
       clearTimeout(this.gcTimer);
@@ -103,13 +106,31 @@ export class Worker {
       this.log.info({ event: "worker.exit", pid: this.proc.pid, code, signal, build_id: this.buildId }, "worker exited");
       void rm(this.stateDir, { recursive: true, force: true });
       for (const l of this.exitListeners) l();
+    };
+    this.proc.on("exit", end);
+    // A spawn failure emits only "error"; a write to a process that already died fails on stdin (EPIPE).
+    // Both end the worker the same way an exit does, so a pending command rejects and nothing is left uncaught.
+    this.proc.on("error", (e) => {
+      this.log.warn({ event: "worker.process_error", pid: this.proc.pid, error: e.message }, "worker process error");
+      this.proc.kill("SIGKILL");
+      end(null, null);
+    });
+    this.proc.stdin.on("error", (e) => {
+      this.log.warn({ event: "worker.stdin_error", pid: this.proc.pid, error: e.message }, "worker input closed");
+      this.proc.kill("SIGKILL");
+      end(null, null);
     });
   }
 
   static async start(cfg: Config, log: Logger): Promise<Worker> {
     const stateDir = await mkdtemp(join(cfg.dataDir, "worker-state", "w-"));
     const w = new Worker(cfg, log, stateDir);
-    await w.ready;
+    try {
+      await w.ready;
+    } catch (e) {
+      w.kill("boot_failed");
+      throw e;
+    }
     return w;
   }
 
