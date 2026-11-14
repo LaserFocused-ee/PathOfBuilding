@@ -93,6 +93,7 @@ All settings are environment variables, read and checked once at start (an inval
 ## Behaviour worth knowing
 
 - The server is the source of truth for every build: one XML file plus one JSON metadata file per build under the data directory, with a revision number. A write that names a `baseRevision` older than the current one is refused with `409 stale_revision`.
+- A build imported from a public profile records where it came from in its metadata: the account name with its discriminator, the realm and the character name (so it can be traced back to that profile). It is kept with the build, returned only to callers with the token, and never logged; deleting the build removes it with the build after the 7-day restore window.
 - Share-link imports fetch only from the build sites Path of Building itself supports (`src/Modules/BuildSiteTools.lua`), over https, with a timeout, a size cap, and redirects followed only to those hosts. Nothing else makes outbound requests; the Lua workers have no network access.
 - `GET /health` answers without auth; `GET /health/deep` boots or pings a worker and reports the Path of Building version, the latest tree version and the pool.
 - `GET /v1/builds/:id/events` is a server-sent event stream of revision changes for one build.
