@@ -2,7 +2,7 @@
 
 Generated from `server/src/routes.ts` by `npm run docs`; do not edit by hand.
 
-Every `/v1` route and `POST /mcp` need `Authorization: Bearer <POB_API_TOKEN>`. `GET /health` is open; `GET /health/deep` is open unless `POB_HEALTH_TOKEN` is set (then send it as `x-health-token`).
+Every `/v1` route and `POST /mcp` need `Authorization: Bearer <POB_API_TOKEN>`. `GET /health` is open; `GET /health/deep` needs the bearer token, or `POB_HEALTH_TOKEN` in `x-health-token` when that is set. After `POB_AUTH_FAILURES_PER_MINUTE` (default 30) failed credential checks in a minute, requests without a valid credential get 429 with `Retry-After`.
 
 Replies are `{ "ok": true, "result": ..., "warnings": [...] }` or `{ "ok": false, "error": { "code", "message" } }`. Error codes: `not_found` 404, `invalid_input` 400, `unauthorized` 401, `stale_revision` 409, `payload_too_large` 413, `rate_limited` 429, `worker_error` 500, `unsupported` 501, `upstream_fetch_failed` 502, `worker_timeout` 504.
 
@@ -12,11 +12,13 @@ GET inputs go in the query string (lists comma-separated); POST inputs are a JSO
 
 | Tool | Read-only | Actions |
 | --- | --- | --- |
-| `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `get`, `rename`, `duplicate`, `delete`, `export_xml`, `export_code`, `save_point`, `history` |
+| `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `export_xml`, `export_code`, `save_point`, `history` |
 | `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `versions` |
+| `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `export_url`, `import_url`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `convert` |
+| `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `notes`, `set_notes` |
 | `pob_lookup` | yes | `gems`, `uniques`, `bases`, `nodes`, `node`, `config` |
 
-Not yet routed (no actions, so not listed by the server): `pob_tree`, `pob_skills`, `pob_items`, `pob_config`, `pob_evaluate`, `pob_trade`.
+Not yet routed (no actions, so not listed by the server): `pob_skills`, `pob_items`, `pob_evaluate`, `pob_trade`.
 
 ## Routes
 
@@ -65,6 +67,15 @@ Load a build from a share link on a supported site (pobb.in, pastebin, Maxroll, 
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"url":{"type":"string","maxLength":2000,"format":"uri"},"name":{"type":"string","minLength":1,"maxLength":200}},"required":["url"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"build":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"revision":{"type":"number"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"},"source":{"type":"object","properties":{"kind":{"type":"string"}},"required":["kind"],"additionalProperties":{}}},"required":["id","name","revision","createdAt","updatedAt","source"],"additionalProperties":{}},"summary":{"type":"object","properties":{"name":{"type":"string"},"className":{"type":"string"},"ascendancy":{"type":"string"},"level":{"type":"number"},"treeVersion":{"type":"string"},"mainSkill":{"type":"string"}},"required":["name","className","level","treeVersion"],"additionalProperties":{}}},"required":["build","summary"]}`
 
+### `GET /v1/builds/trash`
+
+Deleted builds that can still be restored (kept 7 days after deletion).
+
+- Name: `build.trash` (MCP `pob_build` action `trash`)
+- Read-only: yes; worker: `(store)`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{}}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"builds":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"revision":{"type":"number"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"},"source":{"type":"object","properties":{"kind":{"type":"string"}},"required":["kind"],"additionalProperties":{}},"deletedAt":{"type":"string"},"purgeAfter":{"type":"string"}},"required":["id","name","revision","createdAt","updatedAt","source","deletedAt","purgeAfter"],"additionalProperties":{}}}},"required":["builds"]}`
+
 ### `GET /v1/builds/:id`
 
 A build's metadata and summary (class, ascendancy, level, tree version, main skill).
@@ -94,12 +105,39 @@ Copy a build into a new build.
 
 ### `DELETE /v1/builds/:id`
 
-Delete a build and its history.
+Delete a build. It stays restorable for 7 days (`restore`), then it and its history are removed.
 
 - Name: `build.delete` (MCP `pob_build` action `delete`)
 - Read-only: no; worker: `(store)`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"deleted":{"type":"string"}},"required":["deleted"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"deleted":{"type":"string"},"restorableDays":{"type":"number"}},"required":["deleted","restorableDays"]}`
+
+### `POST /v1/builds/:id/restore`
+
+Restore a deleted build with its history.
+
+- Name: `build.restore` (MCP `pob_build` action `restore`)
+- Read-only: no; worker: `(store)`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"build":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"revision":{"type":"number"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"},"source":{"type":"object","properties":{"kind":{"type":"string"}},"required":["kind"],"additionalProperties":{}}},"required":["id","name","revision","createdAt","updatedAt","source"],"additionalProperties":{}}},"required":["build"]}`
+
+### `POST /v1/builds/:id/revert`
+
+Make a kept revision current again (as a new revision).
+
+- Name: `build.revert` (MCP `pob_build` action `revert`)
+- Read-only: no; worker: `(store)`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"revision":{"type":"integer","minimum":1,"maximum":9007199254740991},"baseRevision":{"type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id","revision"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"build":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"revision":{"type":"number"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"},"source":{"type":"object","properties":{"kind":{"type":"string"}},"required":["kind"],"additionalProperties":{}}},"required":["id","name","revision","createdAt","updatedAt","source"],"additionalProperties":{}}},"required":["build"]}`
+
+### `POST /v1/builds/:id/settings`
+
+Character level and the Auto/Manual level mode (auto follows points spent).
+
+- Name: `build.settings` (MCP `pob_build` action `settings`)
+- Read-only: no; worker: `config.set_level`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"level":{"type":"integer","minimum":1,"maximum":100},"autoLevel":{"type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
 
 ### `GET /v1/builds/:id/xml`
 
@@ -217,6 +255,258 @@ Path of Building version, the build's tree version and the latest tree version.
 - Read-only: yes; worker: `stats.versions`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+
+### `GET /v1/tree/:id/get`
+
+The allocated tree: class, ascendancy, bloodline, nodes, masteries, tattoos, jewel sockets, tree list.
+
+- Name: `tree.get` (MCP `pob_tree` action `get`)
+- Read-only: yes; worker: `tree.get`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+
+### `POST /v1/tree/:id/set-class`
+
+Change class. If the tree is not connected to the new start, `onDisconnected` decides: fail (default), reset the tree, or connect it by the shortest path.
+
+- Name: `tree.set_class` (MCP `pob_tree` action `set_class`)
+- Read-only: no; worker: `tree.set_class`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"className":{"type":"string","minLength":1,"maxLength":50,"description":"e.g. Shadow"},"onDisconnected":{"type":"string","enum":["fail","reset","connect"]},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["className","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/tree/:id/set-ascendancy`
+
+Change ascendancy (of the current class), or None.
+
+- Name: `tree.set_ascendancy` (MCP `pob_tree` action `set_ascendancy`)
+- Read-only: no; worker: `tree.set_ascendancy`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"ascendancy":{"type":"string","minLength":1,"maxLength":50},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["ascendancy","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/tree/:id/set-bloodline`
+
+Change the secondary ascendancy (bloodline), or None.
+
+- Name: `tree.set_bloodline` (MCP `pob_tree` action `set_bloodline`)
+- Read-only: no; worker: `tree.set_bloodline`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"bloodline":{"type":"string","minLength":1,"maxLength":50},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["bloodline","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/tree/:id/allocate`
+
+Allocate nodes, each with the shortest path to it, as clicking them does.
+
+- Name: `tree.allocate` (MCP `pob_tree` action `allocate`)
+- Read-only: no; worker: `tree.allocate`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"nodes":{"minItems":1,"maxItems":200,"type":"array","items":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["nodes","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/tree/:id/deallocate`
+
+Deallocate nodes and every node that depended on them.
+
+- Name: `tree.deallocate` (MCP `pob_tree` action `deallocate`)
+- Read-only: no; worker: `tree.deallocate`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"nodes":{"minItems":1,"maxItems":200,"type":"array","items":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["nodes","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/tree/:id/reset`
+
+Reset the tree (the Reset Tree button).
+
+- Name: `tree.reset` (MCP `pob_tree` action `reset`)
+- Read-only: no; worker: `tree.reset`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/tree/:id/mastery-options`
+
+The effects a mastery node offers and which is selected.
+
+- Name: `tree.mastery_options` (MCP `pob_tree` action `mastery_options`)
+- Read-only: yes; worker: `tree.mastery_options`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"nodeId":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["nodeId","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+
+### `POST /v1/tree/:id/set-mastery`
+
+Choose a mastery effect; allocates the mastery if needed.
+
+- Name: `tree.set_mastery` (MCP `pob_tree` action `set_mastery`)
+- Read-only: no; worker: `tree.set_mastery`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"nodeId":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"},"effectId":{"type":"integer","minimum":0,"maximum":9007199254740991},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["nodeId","effectId","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/tree/:id/remove-tattoos`
+
+Remove every tattoo from the tree.
+
+- Name: `tree.remove_tattoos` (MCP `pob_tree` action `remove_tattoos`)
+- Read-only: no; worker: `tree.remove_tattoos`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/tree/:id/export-url`
+
+The tree as a passive tree link (pathofexile.com).
+
+- Name: `tree.export_url` (MCP `pob_tree` action `export_url`)
+- Read-only: yes; worker: `tree.export_url`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+
+### `POST /v1/tree/:id/import-url`
+
+Add a tree from a passive tree link as a new tree in the list and make it active.
+
+- Name: `tree.import_url` (MCP `pob_tree` action `import_url`)
+- Read-only: no; worker: `tree.import_url`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"url":{"type":"string","maxLength":4000,"format":"uri"},"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["url","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/tree/:id/path`
+
+Shortest path: without `from`, the nodes allocating `to` would add; with it, the fewest-node route between two nodes.
+
+- Name: `tree.path` (MCP `pob_tree` action `path`)
+- Read-only: yes; worker: `tree.path`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"to":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"},"from":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["to","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+
+### `POST /v1/tree/:id/spec-new`
+
+Add an empty tree to the tree list.
+
+- Name: `tree.spec_new` (MCP `pob_tree` action `spec_new`)
+- Read-only: no; worker: `tree.spec_new`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/tree/:id/spec-copy`
+
+Copy a tree in the tree list.
+
+- Name: `tree.spec_copy` (MCP `pob_tree` action `spec_copy`)
+- Read-only: no; worker: `tree.spec_copy`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Tree number in the tree list, from 1"},"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/tree/:id/spec-rename`
+
+Rename a tree in the tree list.
+
+- Name: `tree.spec_rename` (MCP `pob_tree` action `spec_rename`)
+- Read-only: no; worker: `tree.spec_rename`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Tree number in the tree list, from 1"},"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","title","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/tree/:id/spec-delete`
+
+Delete a tree from the tree list (not the last one).
+
+- Name: `tree.spec_delete` (MCP `pob_tree` action `spec_delete`)
+- Read-only: no; worker: `tree.spec_delete`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Tree number in the tree list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/tree/:id/spec-activate`
+
+Make a tree in the tree list the active one.
+
+- Name: `tree.spec_activate` (MCP `pob_tree` action `spec_activate`)
+- Read-only: no; worker: `tree.spec_activate`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Tree number in the tree list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/tree/:id/convert`
+
+Convert the active tree to another tree version (default the latest); `keepOld` converts a copy.
+
+- Name: `tree.convert` (MCP `pob_tree` action `convert`)
+- Read-only: no; worker: `tree.convert`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"version":{"type":"string","pattern":"^\\d+_\\d+(_[a-z]+)?$","description":"e.g. 3_30"},"keepOld":{"type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/config/:id/get`
+
+Configuration values that differ from default on the active config set, the config set list, level settings.
+
+- Name: `config.get` (MCP `pob_config` action `get`)
+- Read-only: yes; worker: `config.get`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+
+### `POST /v1/config/:id/set`
+
+Set configuration options (see lookup `config` for names and allowed values); `reset` puts options back to their default.
+
+- Name: `config.set` (MCP `pob_config` action `set`)
+- Read-only: no; worker: `config.set`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"values":{"type":"object","propertyNames":{"type":"string","minLength":1,"maxLength":100},"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"number"},{"type":"string","maxLength":20000}]}},"reset":{"maxItems":500,"type":"array","items":{"type":"string","minLength":1,"maxLength":100}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/config/:id/set-new`
+
+Add a config set.
+
+- Name: `config.set_new` (MCP `pob_config` action `set_new`)
+- Read-only: no; worker: `config.set_new`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/config/:id/set-copy`
+
+Copy a config set.
+
+- Name: `config.set_copy` (MCP `pob_config` action `set_copy`)
+- Read-only: no; worker: `config.set_copy`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Config set number in the set list, from 1"},"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/config/:id/set-rename`
+
+Rename a config set.
+
+- Name: `config.set_rename` (MCP `pob_config` action `set_rename`)
+- Read-only: no; worker: `config.set_rename`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Config set number in the set list, from 1"},"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","title","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/config/:id/set-delete`
+
+Delete a config set (not the last one).
+
+- Name: `config.set_delete` (MCP `pob_config` action `set_delete`)
+- Read-only: no; worker: `config.set_delete`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Config set number in the set list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/config/:id/set-activate`
+
+Make a config set the active one.
+
+- Name: `config.set_activate` (MCP `pob_config` action `set_activate`)
+- Read-only: no; worker: `config.set_activate`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Config set number in the set list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/config/:id/notes`
+
+The build notes (Notes tab), with colour codes.
+
+- Name: `config.notes` (MCP `pob_config` action `notes`)
+- Read-only: yes; worker: `config.notes`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema"}`
+
+### `POST /v1/config/:id/set-notes`
+
+Replace the build notes.
+
+- Name: `config.set_notes` (MCP `pob_config` action `set_notes`)
+- Read-only: no; worker: `config.set_notes`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"type":"string","maxLength":100000},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["text","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
 
 ### `GET /v1/lookup/gems`
 

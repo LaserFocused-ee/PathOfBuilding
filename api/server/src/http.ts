@@ -20,6 +20,29 @@ export function secretMatches(presented: string | undefined, expected: string): 
   return timingSafeEqual(digest(presented), digest(expected));
 }
 
+/** Timestamps of recent failures in a sliding window. */
+export class FailureWindow {
+  private times: number[] = [];
+  constructor(
+    private readonly limit: number,
+    private readonly windowMs: number,
+  ) {}
+  private prune(now: number): void {
+    while (this.times.length > 0 && now - (this.times[0] ?? 0) >= this.windowMs) this.times.shift();
+  }
+  /** Seconds until another failure is allowed (0 = allowed now). */
+  retryAfterSeconds(now: number): number {
+    this.prune(now);
+    if (this.times.length < this.limit) return 0;
+    return Math.max(1, Math.ceil(((this.times[0] ?? now) + this.windowMs - now) / 1000));
+  }
+  /** Records a failure; true when this one reaches the limit. */
+  add(now: number): boolean {
+    this.times.push(now);
+    return this.times.length === this.limit;
+  }
+}
+
 const bearer = (req: Request) => /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1];
 
 /** Turns query-string values into the types a route's input schema declares (number, boolean, list). */
@@ -62,9 +85,26 @@ export function createApp(svc: Service, log: Logger): express.Express {
     res.json({ ok: true });
   });
 
+  // Failed credential checks share one budget; past it, unauthenticated requests get 429 until the
+  // window clears. A valid credential always passes, so the owner is never locked out.
+  const failures = new FailureWindow(cfg.authFailuresPerMinute, 60_000);
+  const refuse = (res: Response, header: string) => {
+    const wait = failures.retryAfterSeconds(Date.now());
+    if (wait > 0) {
+      res.setHeader("retry-after", String(wait));
+      res.status(429).json({ ok: false, error: { code: "rate_limited", message: "too many failed credential checks; retry later" } });
+      return;
+    }
+    if (failures.add(Date.now())) log.warn({ event: "http.auth_limited", window_s: 60, limit: cfg.authFailuresPerMinute }, "failed credential checks over the limit");
+    if (header === "bearer") res.setHeader("www-authenticate", "Bearer");
+    res.status(401).json({ ok: false, error: { code: "unauthorized", message: header === "bearer" ? "a valid bearer token is required" : "x-health-token or a bearer token is required" } });
+  };
+
+  // Deep health runs a worker, so it needs a credential: the health token when one is set, or the bearer token.
   app.get("/health/deep", async (req, res) => {
-    if (cfg.healthToken && !secretMatches(req.headers["x-health-token"] as string | undefined, cfg.healthToken)) {
-      res.status(401).json({ ok: false, error: { code: "unauthorized", message: "x-health-token required" } });
+    const healthOk = cfg.healthToken !== undefined && secretMatches(req.headers["x-health-token"] as string | undefined, cfg.healthToken);
+    if (!healthOk && !secretMatches(bearer(req), cfg.token)) {
+      refuse(res, "health");
       return;
     }
     try {
@@ -79,8 +119,7 @@ export function createApp(svc: Service, log: Logger): express.Express {
   // Everything below needs the bearer token.
   const auth = (req: Request, res: Response, next: NextFunction) => {
     if (secretMatches(bearer(req), cfg.token)) return next();
-    res.setHeader("www-authenticate", "Bearer");
-    res.status(401).json({ ok: false, error: { code: "unauthorized", message: "a valid bearer token is required" } });
+    refuse(res, "bearer");
   };
   app.use("/v1", auth);
   app.use("/mcp", auth);

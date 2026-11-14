@@ -13,7 +13,7 @@ export function apiDoc(): string {
     "",
     "Generated from `server/src/routes.ts` by `npm run docs`; do not edit by hand.",
     "",
-    "Every `/v1` route and `POST /mcp` need `Authorization: Bearer <POB_API_TOKEN>`. `GET /health` is open; `GET /health/deep` is open unless `POB_HEALTH_TOKEN` is set (then send it as `x-health-token`).",
+    "Every `/v1` route and `POST /mcp` need `Authorization: Bearer <POB_API_TOKEN>`. `GET /health` is open; `GET /health/deep` needs the bearer token, or `POB_HEALTH_TOKEN` in `x-health-token` when that is set. After `POB_AUTH_FAILURES_PER_MINUTE` (default 30) failed credential checks in a minute, requests without a valid credential get 429 with `Retry-After`.",
     "",
     "Replies are `{ \"ok\": true, \"result\": ..., \"warnings\": [...] }` or `{ \"ok\": false, \"error\": { \"code\", \"message\" } }`. Error codes: `not_found` 404, `invalid_input` 400, `unauthorized` 401, `stale_revision` 409, `payload_too_large` 413, `rate_limited` 429, `worker_error` 500, `unsupported` 501, `upstream_fetch_failed` 502, `worker_timeout` 504.",
     "",

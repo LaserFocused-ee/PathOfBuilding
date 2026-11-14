@@ -48,6 +48,7 @@ export async function openRuntime(cfg: Config, log: Logger): Promise<Runtime> {
   const pool = new Pool(cfg, log, store);
   await pool.init();
   const svc = new Service(cfg, store, pool, new Events(), new Fetcher(cfg, log), log);
+  await svc.purgeTrash();
   return {
     svc,
     close: async () => {

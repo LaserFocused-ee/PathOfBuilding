@@ -30,7 +30,8 @@ const schema = z.object({
   POB_FETCH_TIMEOUT_MS: int(10_000),
   POB_FETCH_MAX_BYTES: int(2_000_000),
   MCP_MAX_RESULT_CHARS: int(90_000),
-  POB_HEALTH_TOKEN: z.string().min(1).optional(),
+  POB_AUTH_FAILURES_PER_MINUTE: int(30),
+  POB_HEALTH_TOKEN: z.string().min(16, "POB_HEALTH_TOKEN must be at least 16 characters").optional(),
   SENTRY_DSN: z.string().url().optional(),
   SENTRY_ENVIRONMENT: z.string().default("production"),
   RELEASE: z.string().optional(),
@@ -56,6 +57,8 @@ export interface Config {
   fetchMaxBytes: number;
   mcpMaxResultChars: number;
   healthToken: string | undefined;
+  /** Failed credential checks per minute (all clients together) before unauthenticated requests get 429. */
+  authFailuresPerMinute: number;
   sentryDsn: string | undefined;
   sentryEnvironment: string;
   release: string | undefined;
@@ -91,6 +94,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     fetchMaxBytes: e.POB_FETCH_MAX_BYTES,
     mcpMaxResultChars: e.MCP_MAX_RESULT_CHARS,
     healthToken: e.POB_HEALTH_TOKEN,
+    authFailuresPerMinute: e.POB_AUTH_FAILURES_PER_MINUTE,
     sentryDsn: e.SENTRY_DSN,
     sentryEnvironment: e.SENTRY_ENVIRONMENT,
     release: e.RELEASE,

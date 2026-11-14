@@ -148,6 +148,13 @@ void test("metadata ops: list, rename with stale check, save point, history, dup
   ok(await srv.call("DELETE", `/v1/builds/${id}?baseRevision=2`));
   const gone = await srv.call("GET", `/v1/builds/${id}`);
   assert.deepEqual([gone.status, gone.body.error?.code], [404, "not_found"]);
+  const trash = ok(await srv.call<{ builds: Array<{ id: string; revision: number; purgeAfter: string }> }>("GET", "/v1/builds/trash"));
+  assert.deepEqual(trash.builds.filter((b) => b.id === id).map((b) => b.revision), [2]);
+  ok(await srv.call("POST", `/v1/builds/${id}/restore`));
+  const back = ok(await srv.call<Created & { summary: { name: string } }>("GET", `/v1/builds/${id}`));
+  assert.deepEqual([back.build.revision, back.summary.name, back.summary.mainSkill], [2, "Occ two", "Vortex"]);
+  assert.equal((await srv.call("POST", `/v1/builds/${id}/restore`)).status, 404, "nothing left to restore");
+  ok(await srv.call("DELETE", `/v1/builds/${id}`));
 });
 
 void test("lookup: gems, uniques, bases, tree nodes, node detail, config catalogue", async () => {
@@ -182,7 +189,8 @@ void test("auth, health, errors and boundary log lines", async () => {
   const base = `http://127.0.0.1:${srv.port}`;
   assert.equal((await fetch(`${base}/mcp`, { method: "POST", body: "{}" })).status, 401);
   assert.deepEqual(await (await fetch(`${base}/health`)).json(), { ok: true });
-  const deep = (await (await fetch(`${base}/health/deep`)).json()) as { ok: boolean; pobVersion: string; latestTreeVersion: string; pool: { max: number } };
+  assert.equal((await fetch(`${base}/health/deep`)).status, 401, "deep health needs a credential");
+  const deep = (await (await fetch(`${base}/health/deep`, { headers: { authorization: `Bearer ${TOKEN}` } })).json()) as { ok: boolean; pobVersion: string; latestTreeVersion: string; pool: { max: number } };
   assert.deepEqual([deep.ok, deep.latestTreeVersion, deep.pool.max], [true, "3_30", 3]);
   assert.match(deep.pobVersion, /^\d+\.\d+\.\d+$/);
   const bad = await srv.call("POST", "/v1/builds/import/xml", { xml: "<NotABuild/>" });
@@ -204,8 +212,8 @@ void test("every route in the table refuses a request without the bearer token",
   }
 });
 
-void test("health/deep needs POB_HEALTH_TOKEN when one is configured", async (t) => {
-  const s = await startServer({ healthToken: "health-token-for-tests", poolSize: 1 });
+void test("health/deep takes POB_HEALTH_TOKEN or the bearer token; failed checks are limited", async (t) => {
+  const s = await startServer({ healthToken: "health-token-for-tests", poolSize: 1, authFailuresPerMinute: 3 });
   t.after(s.close);
   const url = `http://127.0.0.1:${s.port}/health/deep`;
   assert.equal((await fetch(url)).status, 401);
@@ -213,6 +221,16 @@ void test("health/deep needs POB_HEALTH_TOKEN when one is configured", async (t)
   const good = await fetch(url, { headers: { "x-health-token": "health-token-for-tests" } });
   assert.equal(good.status, 200);
   assert.ok(!JSON.stringify(await good.json()).includes("pid"), "health output names no process ids");
+  assert.equal((await fetch(url, { headers: { authorization: `Bearer ${TOKEN}` } })).status, 200);
+  assert.equal((await s.call("GET", "/v1/builds", undefined, "wrong")).status, 401, "third failure");
+  const limited = await s.call("GET", "/v1/builds", undefined, null);
+  assert.deepEqual([limited.status, limited.body.error?.code], [429, "rate_limited"]);
+  const again = await fetch(url, { headers: { "x-health-token": "wrong" } });
+  assert.equal(again.status, 429);
+  assert.ok(Number(again.headers.get("retry-after")) >= 1);
+  assert.equal((await s.call("GET", "/v1/builds")).status, 200, "a valid token still passes");
+  assert.equal((await fetch(url, { headers: { "x-health-token": "health-token-for-tests" } })).status, 200);
+  assert.ok(s.lines.some((l) => l.event === "http.auth_limited"));
   assert.equal((await fetch(`http://127.0.0.1:${s.port}/health`)).status, 200);
 });
 
@@ -221,7 +239,7 @@ void test("MCP over HTTP: list tools, read a loaded build's stats, failures are 
   await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${srv.port}/mcp`), { requestInit: { headers: { authorization: `Bearer ${TOKEN}` } } }));
   try {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_lookup", "pob_stats"]);
+    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_lookup", "pob_stats", "pob_tree"]);
     assert.equal(tools.find((t) => t.name === "pob_stats")?.annotations?.readOnlyHint, true);
     const res = await client.callTool({ name: "pob_stats", arguments: { action: "sidebar", id: fresh } });
     assert.ok(!res.isError);
@@ -242,7 +260,7 @@ void test("MCP over stdio lists the same tools", async (t) => {
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(ROOT, "api/server/dist/src/stdio.js")], env: { POB_DATA_DIR: dir.path, HOME: dir.path, LOG_LEVEL: "warn" }, stderr: "ignore" }));
   try {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_lookup", "pob_stats"]);
+    assert.deepEqual(tools.map((t) => t.name).sort(), ["pob_build", "pob_config", "pob_lookup", "pob_stats", "pob_tree"]);
   } finally {
     await client.close();
   }

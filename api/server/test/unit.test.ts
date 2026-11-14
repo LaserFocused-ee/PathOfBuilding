@@ -8,9 +8,9 @@ import { loadConfig } from "../src/config.js";
 import { ApiError } from "../src/errors.js";
 import { decodeBuildCode, Fetcher } from "../src/fetch.js";
 import { apiDoc, readmeWithRoutes } from "../src/gen-api-doc.js";
-import { secretMatches } from "../src/http.js";
+import { FailureWindow, secretMatches } from "../src/http.js";
 import { toolDefs } from "../src/mcp.js";
-import { BuildStore } from "../src/store.js";
+import { BuildStore, TRASH_DAYS } from "../src/store.js";
 import { memoryLogger, ROOT, tempDir, TOKEN } from "./helpers.js";
 
 const code = (xml: string) => deflateSync(Buffer.from(xml)).toString("base64").replace(/\+/g, "-").replace(/\//g, "_");
@@ -101,9 +101,44 @@ void test("store: revisions, stale writes, history pruning keeps save points, id
   assert.deepEqual(await store.list(), []);
 });
 
+void test("store: delete is recoverable for 7 days, then purged with its history", async (t) => {
+  const dir = await tempDir("trash");
+  t.after(dir.remove);
+  const store = new BuildStore(dir.path, 3);
+  await store.init();
+  const a = await store.create("A", "<x>1</x>", { kind: "xml" });
+  await store.update(a.id, { xml: "<x>2</x>", cause: "edit" });
+  await assert.rejects(store.delete(a.id, 1), rejects("stale_revision"));
+  await store.delete(a.id, 2);
+  await assert.rejects(store.get(a.id), rejects("not_found"));
+  const trash = await store.listTrash();
+  assert.deepEqual(trash.map((m) => [m.id, m.revision]), [[a.id, 2]]);
+  assert.equal(Date.parse(trash[0]?.purgeAfter ?? "") - Date.parse(trash[0]?.deletedAt ?? ""), TRASH_DAYS * 86_400_000);
+  const restored = await store.restore(a.id);
+  assert.equal(restored.revision, 2);
+  assert.deepEqual([await store.xml(a.id), await store.xml(a.id, 1)], ["<x>2</x>", "<x>1</x>"]);
+  assert.deepEqual(await store.listTrash(), []);
+  await store.delete(a.id);
+  const now = Date.now();
+  assert.deepEqual(await store.purgeTrash(now + 6 * 86_400_000), [], "kept inside the window");
+  assert.deepEqual(await store.purgeTrash(now + 8 * 86_400_000), [a.id]);
+  assert.deepEqual(await store.listTrash(), []);
+  await assert.rejects(store.restore(a.id), rejects("not_found"));
+  await assert.rejects(store.restore("../../builds/x"), rejects("not_found"));
+});
+
+void test("failed credential window: limit inside a minute, then clear", () => {
+  const w = new FailureWindow(3, 60_000);
+  assert.equal(w.retryAfterSeconds(0), 0);
+  assert.deepEqual([w.add(0), w.add(1_000), w.add(2_000)], [false, false, true]);
+  assert.equal(w.retryAfterSeconds(2_000), 58);
+  assert.equal(w.retryAfterSeconds(59_999), 1);
+  assert.equal(w.retryAfterSeconds(60_000), 0, "the oldest failure left the window");
+});
+
 void test("mcp: tools come from the route table with accurate read-only hints", () => {
   const defs = toolDefs();
-  assert.deepEqual(defs.map((d) => d.name), ["pob_build", "pob_stats", "pob_lookup"]);
+  assert.deepEqual(defs.map((d) => d.name), ["pob_build", "pob_stats", "pob_tree", "pob_config", "pob_lookup"]);
   assert.equal(defs.find((d) => d.name === "pob_build")?.readOnly, false);
   assert.equal(defs.find((d) => d.name === "pob_stats")?.readOnly, true);
   assert.ok(!defs.some((d) => d.routes.some((r) => r.stream)), "the event stream is not an MCP action");

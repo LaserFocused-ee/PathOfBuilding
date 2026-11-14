@@ -5,7 +5,7 @@ import type { Events } from "./events.js";
 import { decodeBuildCode, type Fetcher } from "./fetch.js";
 import type { Logger } from "./log.js";
 import { LOOKUP_SESSION, type Pool } from "./pool.js";
-import type { BuildMeta, BuildSource, BuildStore } from "./store.js";
+import { type BuildMeta, type BuildSource, type BuildStore, TRASH_DAYS } from "./store.js";
 import type { WorkerReply } from "./worker.js";
 
 export interface Summary {
@@ -20,6 +20,12 @@ export interface Summary {
 export interface Output<T = unknown> {
   result: T;
   warnings: string[];
+}
+
+interface Mutation {
+  result: unknown;
+  changed: Record<string, { before: number | null; after: number | null }>;
+  xml: string;
 }
 
 const publicMeta = (m: BuildMeta) => ({ id: m.id, name: m.name, revision: m.revision, createdAt: m.createdAt, updatedAt: m.updatedAt, source: m.source });
@@ -99,11 +105,69 @@ export class Service {
 
   delete(id: string, input: { baseRevision?: number }): Promise<Output> {
     return this.pool.withLock(id, async () => {
-      const meta = await this.store.get(id);
-      await this.store.delete(id, input.baseRevision);
+      const meta = await this.store.delete(id, input.baseRevision);
       this.pool.close(id);
       this.events.emit(id, { revision: meta.revision, cause: "delete", changedStats: {} });
-      return { result: { deleted: id }, warnings: [] };
+      await this.purgeTrash();
+      return { result: { deleted: id, restorableDays: TRASH_DAYS }, warnings: [] };
+    });
+  }
+
+  async trash(): Promise<Output> {
+    await this.purgeTrash();
+    const metas = await this.store.listTrash();
+    return { result: { builds: metas.map((m) => ({ ...publicMeta(m), deletedAt: m.deletedAt, purgeAfter: m.purgeAfter })) }, warnings: [] };
+  }
+
+  restore(id: string): Promise<Output> {
+    return this.pool.withLock(id, async () => {
+      const meta = await this.store.restore(id);
+      this.events.emit(id, { revision: meta.revision, cause: "restore", changedStats: {} });
+      return { result: { build: publicMeta(meta) }, warnings: [] };
+    });
+  }
+
+  async purgeTrash(): Promise<void> {
+    const purged = await this.store.purgeTrash();
+    if (purged.length > 0) this.log.info({ event: "store.trash_purged", count: purged.length }, "deleted builds past their restore window removed");
+  }
+
+  /**
+   * Runs a worker mutation (an op wrapped in W.mutation) and stores the worker's export as a new
+   * revision. Any failure drops the session, so a half-applied change never outlives the request:
+   * the next use reloads the last stored revision.
+   */
+  mutate(id: string, op: string, args: Record<string, unknown>, baseRevision?: number): Promise<Output> {
+    return this.pool.withLock(id, async () => {
+      const current = await this.store.get(id);
+      if (baseRevision !== undefined && baseRevision !== current.revision) {
+        throw new ApiError("stale_revision", `build ${id} is at revision ${current.revision}, not ${baseRevision}`, { revision: current.revision });
+      }
+      try {
+        const r = await this.pool.runLocked<Mutation>(id, op, args);
+        const { xml, changed, result } = r.result;
+        let meta = current;
+        if (xml !== (await this.store.xml(id))) {
+          this.checkXml(xml);
+          meta = await this.store.update(id, { xml, cause: op, baseRevision: current.revision });
+          this.events.emit(id, { revision: meta.revision, cause: op, changedStats: changed });
+        }
+        return { result: { result, changed, revision: meta.revision }, warnings: r.warnings };
+      } catch (e) {
+        this.pool.invalidate(id);
+        throw e;
+      }
+    });
+  }
+
+  /** Makes a stored revision current again, as a new revision. */
+  revert(id: string, input: { revision: number; baseRevision?: number }): Promise<Output> {
+    return this.pool.withLock(id, async () => {
+      const xml = await this.store.xml(id, input.revision);
+      const meta = await this.store.update(id, { xml, cause: `revert:${input.revision}`, baseRevision: input.baseRevision });
+      this.pool.invalidate(id);
+      this.events.emit(id, { revision: meta.revision, cause: "revert", changedStats: {} });
+      return { result: { build: publicMeta(meta) }, warnings: [] };
     });
   }
 

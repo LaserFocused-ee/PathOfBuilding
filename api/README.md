@@ -75,7 +75,8 @@ All settings are environment variables, read and checked once at start (an inval
 | `POB_MAX_XML_BYTES` | `5000000` | Largest build accepted |
 | `POB_FETCH_USER_AGENT`, `POB_FETCH_TIMEOUT_MS`, `POB_FETCH_MAX_BYTES` | see `server/src/config.ts` | Share-link imports |
 | `MCP_MAX_RESULT_CHARS` | `90000` | Larger MCP results are replaced by their keys and a hint to narrow the request |
-| `POB_HEALTH_TOKEN` | unset | When set, `/health/deep` needs it in `x-health-token` |
+| `POB_AUTH_FAILURES_PER_MINUTE` | 30 | Failed credential checks per minute, all clients together, before requests without a valid credential get 429 (a valid token always passes) |
+| `POB_HEALTH_TOKEN` | unset | A second secret (16+ characters) for monitors: `/health/deep` accepts it in `x-health-token`; without it, `/health/deep` needs the bearer token |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `RELEASE` | unset | Optional error tracking (no request data is sent) |
 | `LOG_LEVEL` | `info` | JSON log lines on stdout |
 
@@ -98,10 +99,14 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/builds/import/xml` | `pob_build` `import_xml` | Load a build from Path of Building XML. |
 | `POST /v1/builds/import/code` | `pob_build` `import_code` | Load a build from a build code (the text Path of Building shares). |
 | `POST /v1/builds/import/link` | `pob_build` `import_link` | Load a build from a share link on a supported site (pobb.in, pastebin, Maxroll, poe.ninja, pob.codes, rentry, poedb). |
+| `GET /v1/builds/trash` | `pob_build` `trash` | Deleted builds that can still be restored (kept 7 days after deletion). |
 | `GET /v1/builds/:id` | `pob_build` `get` | A build's metadata and summary (class, ascendancy, level, tree version, main skill). |
 | `POST /v1/builds/:id/rename` | `pob_build` `rename` | Rename a build (a new revision). |
 | `POST /v1/builds/:id/duplicate` | `pob_build` `duplicate` | Copy a build into a new build. |
-| `DELETE /v1/builds/:id` | `pob_build` `delete` | Delete a build and its history. |
+| `DELETE /v1/builds/:id` | `pob_build` `delete` | Delete a build. It stays restorable for 7 days (`restore`), then it and its history are removed. |
+| `POST /v1/builds/:id/restore` | `pob_build` `restore` | Restore a deleted build with its history. |
+| `POST /v1/builds/:id/revert` | `pob_build` `revert` | Make a kept revision current again (as a new revision). |
+| `POST /v1/builds/:id/settings` | `pob_build` `settings` | Character level and the Auto/Manual level mode (auto follows points spent). |
 | `GET /v1/builds/:id/xml` | `pob_build` `export_xml` | A build's XML at the current or a kept revision. |
 | `GET /v1/builds/:id/code` | `pob_build` `export_code` | A build code for the current revision, importable by Path of Building. |
 | `POST /v1/builds/:id/save-points` | `pob_build` `save_point` | Mark the current revision as a save point (kept past history pruning). |
@@ -115,6 +120,34 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `GET /v1/stats/:id/defences` | `pob_stats` `defences` | Attribute totals and requirements; resistances with total, overcap and maximum. |
 | `GET /v1/stats/:id/points` | `pob_stats` `points` | Passive and ascendancy points used and available, required level. |
 | `GET /v1/stats/:id/versions` | `pob_stats` `versions` | Path of Building version, the build's tree version and the latest tree version. |
+| `GET /v1/tree/:id/get` | `pob_tree` `get` | The allocated tree: class, ascendancy, bloodline, nodes, masteries, tattoos, jewel sockets, tree list. |
+| `POST /v1/tree/:id/set-class` | `pob_tree` `set_class` | Change class. If the tree is not connected to the new start, `onDisconnected` decides: fail (default), reset the tree, or connect it by the shortest path. |
+| `POST /v1/tree/:id/set-ascendancy` | `pob_tree` `set_ascendancy` | Change ascendancy (of the current class), or None. |
+| `POST /v1/tree/:id/set-bloodline` | `pob_tree` `set_bloodline` | Change the secondary ascendancy (bloodline), or None. |
+| `POST /v1/tree/:id/allocate` | `pob_tree` `allocate` | Allocate nodes, each with the shortest path to it, as clicking them does. |
+| `POST /v1/tree/:id/deallocate` | `pob_tree` `deallocate` | Deallocate nodes and every node that depended on them. |
+| `POST /v1/tree/:id/reset` | `pob_tree` `reset` | Reset the tree (the Reset Tree button). |
+| `GET /v1/tree/:id/mastery-options` | `pob_tree` `mastery_options` | The effects a mastery node offers and which is selected. |
+| `POST /v1/tree/:id/set-mastery` | `pob_tree` `set_mastery` | Choose a mastery effect; allocates the mastery if needed. |
+| `POST /v1/tree/:id/remove-tattoos` | `pob_tree` `remove_tattoos` | Remove every tattoo from the tree. |
+| `GET /v1/tree/:id/export-url` | `pob_tree` `export_url` | The tree as a passive tree link (pathofexile.com). |
+| `POST /v1/tree/:id/import-url` | `pob_tree` `import_url` | Add a tree from a passive tree link as a new tree in the list and make it active. |
+| `GET /v1/tree/:id/path` | `pob_tree` `path` | Shortest path: without `from`, the nodes allocating `to` would add; with it, the fewest-node route between two nodes. |
+| `POST /v1/tree/:id/spec-new` | `pob_tree` `spec_new` | Add an empty tree to the tree list. |
+| `POST /v1/tree/:id/spec-copy` | `pob_tree` `spec_copy` | Copy a tree in the tree list. |
+| `POST /v1/tree/:id/spec-rename` | `pob_tree` `spec_rename` | Rename a tree in the tree list. |
+| `POST /v1/tree/:id/spec-delete` | `pob_tree` `spec_delete` | Delete a tree from the tree list (not the last one). |
+| `POST /v1/tree/:id/spec-activate` | `pob_tree` `spec_activate` | Make a tree in the tree list the active one. |
+| `POST /v1/tree/:id/convert` | `pob_tree` `convert` | Convert the active tree to another tree version (default the latest); `keepOld` converts a copy. |
+| `GET /v1/config/:id/get` | `pob_config` `get` | Configuration values that differ from default on the active config set, the config set list, level settings. |
+| `POST /v1/config/:id/set` | `pob_config` `set` | Set configuration options (see lookup `config` for names and allowed values); `reset` puts options back to their default. |
+| `POST /v1/config/:id/set-new` | `pob_config` `set_new` | Add a config set. |
+| `POST /v1/config/:id/set-copy` | `pob_config` `set_copy` | Copy a config set. |
+| `POST /v1/config/:id/set-rename` | `pob_config` `set_rename` | Rename a config set. |
+| `POST /v1/config/:id/set-delete` | `pob_config` `set_delete` | Delete a config set (not the last one). |
+| `POST /v1/config/:id/set-activate` | `pob_config` `set_activate` | Make a config set the active one. |
+| `GET /v1/config/:id/notes` | `pob_config` `notes` | The build notes (Notes tab), with colour codes. |
+| `POST /v1/config/:id/set-notes` | `pob_config` `set_notes` | Replace the build notes. |
 | `GET /v1/lookup/gems` | `pob_lookup` `gems` | Search gems by name and tag, with requirements at a level. |
 | `GET /v1/lookup/uniques` | `pob_lookup` `uniques` | Search uniques by name or by a line of their text. |
 | `GET /v1/lookup/bases` | `pob_lookup` `bases` | Search item bases by name and type. |
