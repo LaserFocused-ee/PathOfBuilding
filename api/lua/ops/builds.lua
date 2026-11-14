@@ -65,7 +65,6 @@ return function(W)
 		return summary(b)
 	end
 
-	-- args: xml, name?
 	-- args: character (its character-window/get-characters entry), passives and items (the get-passive-skills
 	-- and get-items response bodies), name?, clearJewels?, clearItems?, clearSkills?, ignoreWeaponSwap? (default:
 	-- the Import tab's boxes). A new build on the latest tree, then the Import tab's two account imports in the

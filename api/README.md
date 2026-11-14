@@ -227,7 +227,7 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/evaluate/:id/compare-specs` | `pob_evaluate` `compare_specs` | What switching from one tree to another changes (b against a; a is the active tree by default). |
 | `POST /v1/evaluate/:id/compare-item-sets` | `pob_evaluate` `compare_item_sets` | What switching from one item set to another changes (b against a; a is the active set by default). |
 | `POST /v1/evaluate/:id/compare-builds` | `pob_evaluate` `compare_builds` | What differs between this build and another build: this build's stats as before, the other's as after. |
-| `GET /v1/lookup/gems` | `pob_lookup` `gems` | Search gems by name and tag, with requirements at a level. `requirements` is absent at a `level` the game data has no row for: some gems list levels only up to `naturalMaxLevel` (Convocation stops at 1). |
+| `GET /v1/lookup/gems` | `pob_lookup` `gems` | Search gems by name and tag, with requirements at a level (`level` defaults to each gem's natural maximum). `requirements` is absent at a `level` the game data has no row for: some gems list levels only up to `naturalMaxLevel` (Convocation stops at 1). |
 | `GET /v1/lookup/uniques` | `pob_lookup` `uniques` | Search uniques by name or by a line of their text. |
 | `GET /v1/lookup/bases` | `pob_lookup` `bases` | Search item bases by name and type. |
 | `GET /v1/lookup/nodes` | `pob_lookup` `nodes` | Search passive tree nodes by name or stat text (the tree search box). |

@@ -1125,7 +1125,7 @@ What differs between this build and another build: this build's stats as before,
 
 ### `GET /v1/lookup/gems`
 
-Search gems by name and tag, with requirements at a level. `requirements` is absent at a `level` the game data has no row for: some gems list levels only up to `naturalMaxLevel` (Convocation stops at 1).
+Search gems by name and tag, with requirements at a level (`level` defaults to each gem's natural maximum). `requirements` is absent at a `level` the game data has no row for: some gems list levels only up to `naturalMaxLevel` (Convocation stops at 1).
 
 - Name: `lookup.gems` (MCP `pob_lookup` action `gems`)
 - Read-only: yes; worker: `lookup.gems`

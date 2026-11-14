@@ -29,6 +29,7 @@ after(async () => {
 void test("the built page is served at / with isolation headers, exact types and cache rules; nothing else falls back to it", async () => {
   const isolated = (r: Response) => [r.headers.get("cross-origin-opener-policy"), r.headers.get("cross-origin-embedder-policy"), r.headers.get("cross-origin-resource-policy"), r.headers.get("x-content-type-options")];
   assert.equal((await fetch(`${base}/`)).headers.get("content-security-policy"), "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+  assert.equal((await fetch(`${base}/`)).headers.get("referrer-policy"), "no-referrer");
   const index = await fetch(`${base}/`);
   assert.equal(index.status, 200);
   assert.equal(await index.text(), "<!doctype html><title>pob</title>");
