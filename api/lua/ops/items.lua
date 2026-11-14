@@ -193,6 +193,41 @@ return function(W)
 		W.fail("invalid_input", "no " .. what)
 	end
 
+	-- The index of the entry whose text is `text` (exact, else the one entry containing it) in a dropdown's list.
+	local function choose(list, text, what)
+		local want, found, seen = tostring(text):lower(), nil, {}
+		for i, v in ipairs(list) do
+			local label = W.strip(type(v) == "table" and (v.label or "") or v):lower()
+			if label == want then return i end
+			if label:find(want, 1, true) then
+				found = found or i
+				seen[#seen + 1] = W.strip(type(v) == "table" and v.label or v)
+			end
+		end
+		if #seen > 1 then W.fail("invalid_input", "more than one " .. what .. " matches " .. tostring(text) .. ": " .. table.concat(seen, " | ", 1, math.min(#seen, 6))) end
+		if not found then W.fail("invalid_input", "no " .. what .. " matches " .. tostring(text)) end
+		return found
+	end
+
+	-- Runs fn(controls) on the popup a button just opened, then closes it if fn left it open; errors pass through.
+	local function inPopup(fn)
+		local p = main.popups[1]
+		if not p then W.fail("worker_error", "expected a dialog, none is open") end
+		local ok, err = pcall(fn, p.controls)
+		if main.popups[1] == p then main:ClosePopup() end
+		if not ok then error(err, 0) end
+	end
+
+	-- One affix box of a crafted item: the choice by text and its roll (0..1 across the tiers), as the box's own selection does.
+	local function setAffix(tab, slot, text, roll)
+		local drop = tab.controls["displayItemAffix" .. tostring(slot)]
+		if not drop or not drop:IsShown() then W.fail("invalid_input", "no affix box " .. tostring(slot)) end
+		local found = choose(drop.list, text, "choice in affix box " .. slot)
+		if drop.slider then drop.slider.val = roll or 1 end
+		drop.selIndex = found
+		drop.selFunc(found, drop.list[found])
+	end
+
 	-- Sockets like "R-G-B W": colours R G B W A, "-" links. Uses the socket dropdowns, link boxes and + button.
 	local function setSockets(tab, item, spec)
 		if type(spec) ~= "string" or not spec:match("^[RGBWA]") or spec:sub(2):gsub("[ %-][RGBWA]", "") ~= "" then W.fail("invalid_input", "sockets look like R-G-B B") end
@@ -344,24 +379,139 @@ return function(W)
 		if not item then W.fail("worker_error", "craft made no item") end
 		for _, a in ipairs(args.affixes or {}) do
 			if not item.crafted then W.fail("invalid_input", "this base has no affix boxes") end
-			local drop = tab.controls["displayItemAffix" .. tostring(a.slot)]
-			if not drop or not drop:IsShown() then W.fail("invalid_input", "no affix box " .. tostring(a.slot)) end
-			local want, found, seen = tostring(a.mod):lower(), nil, {}
-			for i, v in ipairs(drop.list) do
-				local label = W.strip(v.label or ""):lower()
-				if label == want then found = i; seen = nil break end
-				if label:find(want, 1, true) then
-					found = found or i
-					seen[#seen + 1] = W.strip(v.label)
-				end
-			end
-			if seen and #seen > 1 then W.fail("invalid_input", "more than one affix matches " .. tostring(a.mod) .. ": " .. table.concat(seen, " | ", 1, math.min(#seen, 6))) end
-			if not found then W.fail("invalid_input", "affix box " .. a.slot .. " has no choice matching " .. tostring(a.mod)) end
-			if drop.slider then drop.slider.val = a.roll or 1 end
-			drop.selIndex = found
-			drop.selFunc(found, drop.list[found])
+			setAffix(tab, a.slot, a.mod, a.roll)
 		end
 		return describe(tab, save(tab, args.equip), true)
+	end)
+
+	-- args: item, influences ([name]: 0 to 2 of the Influence dropdowns' entries, e.g. Shaper, Elder, Searing Exarch; [] clears).
+	ops.influence = W.mutation(function(args, b)
+		local tab = b.itemsTab
+		open(tab, args.item)
+		local drops = { tab.controls.displayItemInfluence, tab.controls.displayItemInfluence2 }
+		if not drops[1]:IsShown() then W.fail("invalid_input", "this item cannot have an influence") end
+		if type(args.influences) ~= "table" or #args.influences > 2 then W.fail("invalid_input", "influences takes up to two names") end
+		local want, wanted = {}, {}
+		for i = 1, 2 do
+			local name = args.influences[i]
+			want[i] = name == nil and 1 or choose(drops[i].list, name, "influence") -- entry 1 is the empty "Influence"
+			if want[i] > 1 and wanted[want[i]] then W.fail("invalid_input", "an influence can be given once") end
+			wanted[want[i]] = true
+		end
+		for i = 1, 2 do drops[i]:SetSel(want[i]) end
+		return describe(tab, save(tab), true)
+	end)
+
+	-- args: item, implicits ([text]: up to 2 entries of the popup's implicit lists, exact or one unique part; [] corrupts as is). The Corrupt... popup, Corrupted source.
+	ops.corrupt = W.mutation(function(args, b)
+		local tab = b.itemsTab
+		open(tab, args.item)
+		if not tab.controls.displayItemCorrupt:IsShown() then W.fail("invalid_input", "this item cannot be corrupted") end
+		if type(args.implicits) ~= "table" then W.fail("invalid_input", "implicits is required") end
+		tab:CorruptDisplayItem()
+		inPopup(function(c)
+			for i, text in ipairs(args.implicits) do
+				local drop = c["implicit" .. i]
+				if not (drop and drop:IsShown()) then W.fail("invalid_input", "this item takes " .. (i - 1) .. " corruption implicits at most") end
+				drop:SetSel(choose(drop.list, text, "implicit"))
+			end
+			c.save:Click()
+		end)
+		return describe(tab, save(tab), true)
+	end)
+
+	-- args: item, source? (Vestigial, Searing Exarch, Eater of Worlds or Custom; default Custom with `text`, else the first listed),
+	-- mod (text of a choice, exact or one unique part), text (for Custom). The Add Implicit... popup.
+	ops.add_implicit = W.mutation(function(args, b)
+		local tab = b.itemsTab
+		open(tab, args.item)
+		if not tab.controls.displayItemAddImplicit:IsShown() then W.fail("invalid_input", "this item takes no added implicit") end
+		tab.controls.displayItemAddImplicit:Click()
+		inPopup(function(c)
+			local source = args.source or (args.text and "Custom") or nil
+			if source then c.source:SetSel(choose(c.source.list, source, "source")) end
+			if c.custom:IsShown() then
+				if type(args.text) ~= "string" or not args.text:match("%S") then W.fail("invalid_input", "the Custom source needs text") end
+				c.custom:SetText(args.text)
+			else
+				if type(args.mod) ~= "string" then W.fail("invalid_input", "mod is required for this source") end
+				-- The Type box picks a group whose Modifier box lists the tiers (Vestigial lists one mod per Type entry).
+				local entries, groups = {}, c.modGroupSelect
+				for gi, group in ipairs(groups.list) do
+					groups.selIndex = gi
+					groups.selFunc(gi, group)
+					if c.modSelect:IsShown() then
+						for mi, entry in ipairs(c.modSelect.list) do entries[#entries + 1] = { label = entry.label, group = gi, mod = mi } end
+					else
+						entries[#entries + 1] = { label = group.label, group = gi }
+					end
+				end
+				local hit = entries[choose(entries, args.mod, "modifier")]
+				groups.selIndex = hit.group
+				groups.selFunc(hit.group, groups.list[hit.group])
+				if hit.mod then c.modSelect.selIndex = hit.mod end
+			end
+			c.save:Click()
+		end)
+		return describe(tab, save(tab), true)
+	end)
+
+	-- args: item, source (a listed source: Crafting Bench, Essence, Veiled, Beastcraft, Necropolis, Fossil, Prefix, Suffix, Custom ...),
+	-- mod (text of a choice, exact or one unique part), text (for Custom). The Add modifier... popup.
+	ops.custom_mod = W.mutation(function(args, b)
+		local tab = b.itemsTab
+		open(tab, args.item)
+		if not tab.controls.displayItemAddCustom:IsShown() then W.fail("invalid_input", "this item takes no added modifiers (magic and rare items do)") end
+		tab.controls.displayItemAddCustom:Click()
+		inPopup(function(c)
+			c.source:SetSel(choose(c.source.list, args.source, "source"))
+			if c.custom:IsShown() then
+				if type(args.text) ~= "string" or not args.text:match("%S") then W.fail("invalid_input", "the Custom source needs text") end
+				c.custom:SetText(args.text)
+			else
+				if type(args.mod) ~= "string" then W.fail("invalid_input", "mod is required for this source") end
+				c.modSelect:SetSel(choose(c.modSelect.list, args.mod, "modifier"))
+			end
+			c.save:Click()
+		end)
+		return describe(tab, save(tab), true)
+	end)
+
+	-- args: item, mods ([{ node (box 1 to 5), mod (text of its choice, "None" empties the box) }]). The Add Crucible mod... popup; boxes not named keep their choice.
+	ops.crucible_mod = W.mutation(function(args, b)
+		local tab = b.itemsTab
+		open(tab, args.item)
+		if not tab.controls.displayItemAddCrucible:IsShown() then W.fail("invalid_input", "this item takes no crucible modifiers (weapons and shields do)") end
+		tab.controls.displayItemAddCrucible:Click()
+		inPopup(function(c)
+			for _, m in ipairs(args.mods or {}) do
+				local drop = c["modSelectNode" .. tostring(m.node)]
+				if not drop then W.fail("invalid_input", "no crucible node box " .. tostring(m.node)) end
+				drop:SetSel(choose(drop.list, m.mod, "choice in node box " .. m.node))
+			end
+			c.save:Click()
+		end)
+		return describe(tab, save(tab), true)
+	end)
+
+	-- args: item (a crafted cluster jewel), skill? (the skill dropdown), nodes? (Added Passives slider, in its range),
+	-- notables? ([text]: affix boxes 1 to n, as `craft` picks them). A change of skill resets the affix boxes, so it comes first.
+	ops.cluster_jewel = W.mutation(function(args, b)
+		local tab = b.itemsTab
+		local item = open(tab, args.item)
+		local c = tab.controls
+		if not (item.crafted and item.clusterJewel) then W.fail("invalid_input", "this is not a crafted cluster jewel (craft one from a cluster jewel base)") end
+		if args.skill ~= nil then
+			local drop = c.displayItemClusterJewelSkill
+			drop:SetSel(choose(drop.list, args.skill, "cluster jewel skill"))
+		end
+		if args.nodes ~= nil then
+			local lo, hi = item.clusterJewel.minNodes, item.clusterJewel.maxNodes
+			if args.nodes < lo or args.nodes > hi then W.fail("invalid_input", "this jewel adds " .. lo .. " to " .. hi .. " passives") end
+			c.displayItemClusterJewelNodeCount:SetVal((args.nodes - lo) / (hi - lo))
+		end
+		for i, text in ipairs(args.notables or {}) do setAffix(tab, i, text) end
+		return describe(tab, save(tab), true)
 	end)
 
 	-- args: item, slot. A slot dropdown's choice.

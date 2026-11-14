@@ -138,17 +138,17 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `items.sockets` | S | done | `items.modify` (only adds sockets); items.test.ts |
 | `items.quality` | S | done | `items.modify`; items.test.ts |
 | `items.catalyst` | S | done | `items.modify`; items.test.ts |
-| `items.influence` | S | open | No route |
+| `items.influence` | S | done | `items.influence`; items2.test.ts |
 | `items.craft_new` | S | done | `items.craft`; items.test.ts |
 | `items.affixes.options` | S | open | No listing of affix choices; `items.craft` matches a mod by its text |
 | `items.affixes.set` | S | done | `items.craft` (new items); an existing item changes through `items.edit`; items.test.ts |
-| `items.custom_mod` | S | open | No route |
-| `items.crucible_mod` | S | open | No route |
+| `items.custom_mod` | S | done | `items.custom_mod`; items2.test.ts |
+| `items.crucible_mod` | S | done | `items.crucible_mod`; items2.test.ts |
 | `items.enchant` | S | done | `items.enchant`; items.test.ts |
 | `items.anoint` | H | done | `items.anoint`; items.test.ts |
-| `items.corrupt` | S | open | No route |
-| `items.add_implicit` | S | open | No route |
-| `items.cluster_jewel` | S | open | No route |
+| `items.corrupt` | S | done | `items.corrupt`; items2.test.ts |
+| `items.add_implicit` | S | done | `items.add_implicit`; items2.test.ts |
+| `items.cluster_jewel` | S | done | `items.cluster_jewel`; items2.test.ts |
 | `items.range_lines` | S | done | `items.modify` (`ranges`), `items.get`; items.test.ts |
 | `items.tooltip` (+ diff) | S | done | `items.get` (text, mods); differences: `evaluate.compare_item`; evaluate.test.ts |
 | `items.mod_diff_tooltip` | S | open | No route |
@@ -265,14 +265,14 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
 | tree | 27 | 18 | 0 | 0 | 0 | 2 | 7 |
 | skills | 17 | 14 | 0 | 0 | 0 | 1 | 2 |
-| items and crafting | 30 | 20 | 0 | 0 | 0 | 0 | 10 |
+| items and crafting | 30 | 26 | 0 | 0 | 0 | 0 | 4 |
 | config | 6 | 5 | 0 | 0 | 0 | 0 | 1 |
 | calcs | 13 | 12 | 0 | 0 | 0 | 0 | 1 |
 | compare and power | 12 | 4 | 0 | 0 | 4 | 1 | 3 |
 | trade | 11 | 0 | 0 | 0 | 0 | 11 | 0 |
 | notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 107 | 1 | 9 | 8 | 28 | 34 |
+| **Total** | 187 | 113 | 1 | 9 | 8 | 28 | 28 |
 
 ## MCP tools
 

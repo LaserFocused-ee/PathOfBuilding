@@ -16,7 +16,7 @@ GET inputs go in the query string (lists comma-separated); POST inputs are a JSO
 | `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `versions` |
 | `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `export_url`, `import_url`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `convert` |
 | `pob_skills` | no | `get`, `group_text`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_skill_options`, `set_spectres`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
-| `pob_items` | no | `list`, `get`, `add`, `add_unique`, `add_rare`, `modify`, `edit`, `anoint`, `enchant`, `craft`, `equip`, `unequip`, `set_active`, `delete`, `weapon_set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
+| `pob_items` | no | `list`, `get`, `add`, `add_unique`, `add_rare`, `modify`, `edit`, `anoint`, `enchant`, `craft`, `influence`, `corrupt`, `add_implicit`, `custom_mod`, `crucible_mod`, `cluster_jewel`, `equip`, `unequip`, `set_active`, `delete`, `weapon_set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `notes`, `set_notes`, `party_get`, `party_import`, `party_clear`, `party_set`, `party_effects` |
 | `pob_evaluate` | yes | `what_if`, `passives`, `node_power`, `compare_item`, `gem_rank`, `anoint_rank`, `unique_rank`, `compare_specs`, `compare_item_sets`, `compare_builds` |
 | `pob_lookup` | yes | `gems`, `uniques`, `bases`, `nodes`, `node`, `config` |
@@ -761,6 +761,60 @@ Craft a new item from a base (the Craft item... popup), pick crafting bench mods
 - Name: `items.craft` (MCP `pob_items` action `craft`)
 - Read-only: no; worker: `items.craft`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"base":{"type":"string","minLength":1,"maxLength":200,"description":"Base type name, e.g. Astral Plate"},"rarity":{"description":"Default RARE","type":"string","enum":["NORMAL","MAGIC","RARE"]},"title":{"type":"string","minLength":1,"maxLength":100},"affixes":{"maxItems":6,"type":"array","items":{"type":"object","properties":{"slot":{"type":"integer","minimum":1,"maximum":6,"description":"Affix box, from 1 (prefixes first)"},"mod":{"type":"string","minLength":1,"maxLength":300},"roll":{"description":"0 to 1 across the mod's tiers and range; default 1","type":"number","minimum":0,"maximum":1}},"required":["slot","mod"]}},"equip":{"description":"Where a new item goes: `auto` (default; its own slot, if empty), `none`, or a slot name","type":"string","minLength":1,"maxLength":60},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["base","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/influence`
+
+Set an item's influences from its Influence dropdowns (Shaper, Elder, Warlord, Hunter, Crusader, Redeemer; helmets, gloves, boots and body armour also Searing Exarch and Eater of Worlds). An empty list removes them. Items without Influence dropdowns (flasks, jewels) and unknown names fail.
+
+- Name: `items.influence` (MCP `pob_items` action `influence`)
+- Read-only: no; worker: `items.influence`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"influences":{"maxItems":2,"type":"array","items":{"type":"string","minLength":1,"maxLength":50},"description":"Up to two influence names, as the dropdowns list them"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["item","influences","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/corrupt`
+
+Corrupt an item with the Corrupt... popup (Corrupted source), choosing up to two implicits from its lists; an empty list corrupts with no new implicit. An implicit is matched by its text, exactly or by one unique part. Items that cannot be corrupted and implicits the lists do not offer fail.
+
+- Name: `items.corrupt` (MCP `pob_items` action `corrupt`)
+- Read-only: no; worker: `items.corrupt`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"implicits":{"maxItems":2,"type":"array","items":{"type":"string","minLength":1,"maxLength":300},"description":"Text of each implicit, one per Implicit box"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["item","implicits","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/add-implicit`
+
+Add an implicit with the Add Implicit... popup. Sources: Custom (give `text`), and where the item allows them Vestigial, Searing Exarch and Eater of Worlds (give `mod`: the text of a choice, exactly or by one unique part). Items that take no added implicit and unknown or ambiguous choices fail.
+
+- Name: `items.add_implicit` (MCP `pob_items` action `add_implicit`)
+- Read-only: no; worker: `items.add_implicit`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"source":{"description":"Source in the popup; Custom when `text` is given, else the first listed","type":"string","minLength":1,"maxLength":50},"mod":{"description":"Text of the choice, for the listed sources","type":"string","minLength":1,"maxLength":300},"text":{"description":"The implicit line, for the Custom source","type":"string","minLength":1,"maxLength":300},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["item","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/custom-mod`
+
+Add a modifier to a magic or rare item with the Add modifier... popup: pick a source (Crafting Bench, Essence, Veiled, Beastcraft, Necropolis, Fossil, drop-restricted, Prefix, Suffix; only those the item has) and the choice by text, or Custom with `text`. Unknown sources and choices fail.
+
+- Name: `items.custom_mod` (MCP `pob_items` action `custom_mod`)
+- Read-only: no; worker: `items.custom_mod`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"source":{"type":"string","minLength":1,"maxLength":50,"description":"Source in the popup, e.g. Crafting Bench or Custom"},"mod":{"description":"Text of the choice, exact or one unique part","type":"string","minLength":1,"maxLength":300},"text":{"description":"The modifier line, for the Custom source","type":"string","minLength":1,"maxLength":300},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["item","source","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/crucible-mod`
+
+Set the crucible modifiers of a weapon or shield with the Add Crucible mod... popup: each entry names a node box and the text of its choice (None empties the box); boxes not named keep their choice. Items without a crucible tree and unknown choices fail.
+
+- Name: `items.crucible_mod` (MCP `pob_items` action `crucible_mod`)
+- Read-only: no; worker: `items.crucible_mod`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"mods":{"minItems":1,"maxItems":5,"type":"array","items":{"type":"object","properties":{"node":{"type":"integer","minimum":1,"maximum":5,"description":"Node box, 1 to 5"},"mod":{"type":"string","minLength":1,"maxLength":300,"description":"Text of the choice, or None"}},"required":["node","mod"]}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["item","mods","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/items/:id/cluster-jewel`
+
+Change a crafted cluster jewel with its own controls: the skill, the added passive count (within the jewel's range) and notables, one per affix box in order (as `craft` picks affixes). Only jewels made with `craft` from a cluster jewel base have them.
+
+- Name: `items.cluster_jewel` (MCP `pob_items` action `cluster_jewel`)
+- Read-only: no; worker: `items.cluster_jewel`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"item":{"type":"integer","minimum":1,"maximum":1000000,"description":"Item id from `items list`"},"skill":{"description":"Jewel skill, e.g. Fire Damage","type":"string","minLength":1,"maxLength":100},"nodes":{"description":"Added passive skills","type":"integer","minimum":1,"maximum":12},"notables":{"description":"Text of the notable in affix box 1, 2, ...","maxItems":4,"type":"array","items":{"type":"string","minLength":1,"maxLength":300}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["item","id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
 
 ### `POST /v1/items/:id/equip`
