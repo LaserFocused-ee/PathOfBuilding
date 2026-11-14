@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import { SESSION_SECONDS, Sessions } from "../src/web.js";
 import { FIXTURES, startServer, tempDir, TOKEN, type TestServer } from "./helpers.js";
 
 let srv: TestServer;
@@ -129,4 +130,19 @@ void test("PUT /v1/builds/:id/code replaces the content, keeps id and name, move
   assert.equal(hist.body.result.history[0]?.cause, "replace");
   const summary = await srv.call<{ summary: { className: string; ascendancy: string } }>("GET", `/v1/builds/${id}`);
   assert.deepEqual([summary.body.result.summary.className, summary.body.result.summary.ascendancy], ["Witch", "Elementalist"]);
+});
+
+void test("a session ends after 30 days, an hour short of that it still holds, and an expired one makes room", () => {
+  const sessions = new Sessions();
+  const t0 = Date.UTC(2026, 0, 1);
+  const id = sessions.create(t0);
+  assert.equal(SESSION_SECONDS, 30 * 24 * 3600);
+  assert.equal(sessions.valid(id, t0 + 1000), true);
+  assert.equal(sessions.valid(id, t0 + SESSION_SECONDS * 1000 - 3_600_000), true, "an hour before day 30");
+  assert.equal(sessions.valid(id, t0 + SESSION_SECONDS * 1000), false, "at 30 days");
+  assert.equal(sessions.valid(id, t0 + SESSION_SECONDS * 1000 + 1), false, "after 30 days");
+  assert.equal(sessions.valid(undefined, t0), false);
+  assert.equal(sessions.valid("not-a-session", t0), false);
+  sessions.delete(id);
+  assert.equal(sessions.valid(id, t0), false, "a deleted session is gone");
 });

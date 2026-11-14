@@ -11,7 +11,7 @@ import { decodeBuildCode, Fetcher } from "../src/fetch.js";
 import { apiDoc, readmeWithRoutes } from "../src/gen-api-doc.js";
 import { FailureWindow, secretMatches } from "../src/http.js";
 import { toolDefs } from "../src/mcp.js";
-import { parseInput, routes } from "../src/routes.js";
+import { action, parseInput, routes } from "../src/routes.js";
 import { openRuntime, startTime } from "../src/runtime.js";
 import { BuildStore, TRASH_DAYS } from "../src/store.js";
 import { memoryLogger, ROOT, tempDir, testConfig, TOKEN } from "./helpers.js";
@@ -78,6 +78,9 @@ void test("fetch: only https on allowlisted hosts, redirects re-checked, size ca
   await assert.rejects(f.text("https://pobb.in/abc/raw", "t"), (e) => e instanceof ApiError && e.code === "upstream_fetch_failed" && !e.message.includes("gone"));
   next = () => new Response("short");
   assert.equal(await f.text("https://pobb.in/abc/raw", "t"), "short");
+  next = () => new Response(new ReadableStream({ pull: (c) => c.error(new TypeError("socket closed")) }), { headers: { "content-type": "text/plain" } });
+  await assert.rejects(f.text("https://pobb.in/abc/raw", "t"), (e) => e instanceof ApiError && e.code === "upstream_fetch_failed" && e.message.includes("reading the response from pobb.in failed") && !e.message.includes("socket closed"));
+  assert.ok(lines.some((l) => l.event === "fetch.body_failed" && l.host === "pobb.in"));
   assert.ok(lines.some((l) => l.event === "fetch.done" && l.host === "pobb.in" && l.status === 200));
 });
 
@@ -268,6 +271,9 @@ void test("mcp: a parameter shared by several actions accepts what each of them 
   for (const d of toolDefs()) {
     for (const r of d.routes) {
       for (const k of Object.keys(r.input.shape)) assert.ok(k in d.input.shape, `${d.name} lists ${r.name}'s ${k}`);
+      // The tool's own `action` selector must take every action's name (a route parameter called `action` would replace it).
+      const sel = d.input.safeParse({ action: action(r) });
+      assert.ok(sel.success || !sel.error.issues.some((i) => i.path[0] === "action"), `${d.name} cannot select ${action(r)}`);
     }
   }
 });
@@ -299,6 +305,26 @@ void test("data directory lock: stale when it names this process, a reused pid o
   await rt.close();
   await writeFile(lockFile, `${process.ppid} ${await startTime(process.ppid)}`);
   await assert.rejects(openRuntime(cfg, log), /in use by process/);
+});
+
+void test("data directory lock: the old form (a pid alone) is stale for this process, held for a live other one; a reused pid's lock is replaced", async (t) => {
+  const dir = await tempDir("lock-old");
+  t.after(dir.remove);
+  const cfg = testConfig(dir.path, { poolSize: 1 });
+  const { log } = memoryLogger();
+  const lockFile = join(dir.path, "server.lock");
+  const self = async () => `${process.pid} ${await startTime(process.pid)}`;
+  await writeFile(lockFile, String(process.pid)); // no start time, this process: a restart after an unclean stop
+  let rt = await openRuntime(cfg, log);
+  assert.equal(await readFile(lockFile, "utf8"), await self(), "this process's old lock is replaced, not refused");
+  await rt.close();
+  await writeFile(lockFile, String(process.ppid)); // no start time, a live process: it cannot be told apart, so it holds
+  await assert.rejects(openRuntime(cfg, log), new RegExp(`in use by process ${process.ppid}`));
+  assert.equal(await readFile(lockFile, "utf8"), String(process.ppid), "a held lock is left as it was");
+  await writeFile(lockFile, `${process.ppid} 1`); // a live process that started at another time: the pid was reused
+  rt = await openRuntime(cfg, log);
+  assert.equal(await readFile(lockFile, "utf8"), await self(), "a reused pid's lock is replaced");
+  await rt.close();
 });
 
 void test("every error code the Lua worker raises is a registered code", async () => {

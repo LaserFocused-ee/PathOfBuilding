@@ -31,7 +31,7 @@ async function witch(groups: Array<Array<{ name: string }>>): Promise<string> {
 }
 const party = (id: string, action: string, body: Record<string, unknown>) => srv.call<Mutated>("POST", `/v1/party/${id}/${action}`, body);
 const partyGet = async (id: string) => ok(await srv.call<Party>("GET", `/v1/party/${id}/get`));
-const invoke = (id: string, body: Record<string, unknown>) => srv.call<Mutated<{ tab: string; control: string; action: string; text?: string; state?: boolean; selected?: number }>>("POST", `/v1/ui/${id}/invoke`, body);
+const invoke = (id: string, body: Record<string, unknown>) => srv.call<Mutated<{ tab: string; control: string; operation: string; text?: string; state?: boolean; selected?: number }>>("POST", `/v1/ui/${id}/invoke`, body);
 const controls = async (id: string, tab: string, q = "") => ok(await srv.call<UiList>("GET", `/v1/ui/${id}/controls?tab=${tab}${q}`));
 
 before(async () => {
@@ -46,7 +46,7 @@ const haste = "Haste\n100\n24|Skill:Haste|Speed|INC|Cast|-|type=GlobalEffect/eff
 void test("party: import a member's code into a destination, clear it, edit the aura box, switch effects off and on", async () => {
   // The member: three auras/curses, with Export support switched on through the Import/Export tab's own checkbox.
   const member = await witch([[{ name: "Determination" }], [{ name: "Haste" }], [{ name: "Vulnerability" }]]);
-  ok(await invoke(member, { tab: "import", control: "enablePartyExportBuffs", action: "set_state", value: true }));
+  ok(await invoke(member, { tab: "import", control: "enablePartyExportBuffs", operation: "set_state", value: true }));
   const exported = ok(await srv.call<{ code: string }>("GET", `/v1/builds/${member}/code`)).code;
 
   const id = await witch([[{ name: "Fireball" }]]);
@@ -144,31 +144,31 @@ void test("ui_invoke: select, set_state, set_text and click on config, build and
   let rev = await revisionOf(id);
 
   // select by number and by label (build tab, main socket group)
-  const sel = ok(await invoke(id, { tab: "build", control: "mainSocketGroup", action: "select", value: 2, baseRevision: rev }));
+  const sel = ok(await invoke(id, { tab: "build", control: "mainSocketGroup", operation: "select", value: 2, baseRevision: rev }));
   assert.equal(sel.revision, ++rev);
-  assert.deepEqual([sel.result, sel.changed.TotalDPS], [{ tab: "build", control: "mainSocketGroup", action: "select", selected: 2 }, { before: 1608.5666666667, after: 1108.9278846154 }]);
-  const back = ok(await invoke(id, { tab: "build", control: "mainSocketGroup", action: "select", value: "Fireball" }));
+  assert.deepEqual([sel.result, sel.changed.TotalDPS], [{ tab: "build", control: "mainSocketGroup", operation: "select", selected: 2 }, { before: 1608.5666666667, after: 1108.9278846154 }]);
+  const back = ok(await invoke(id, { tab: "build", control: "mainSocketGroup", operation: "select", value: "Fireball" }));
   assert.deepEqual([back.revision, back.result.selected, back.changed.TotalDPS], [++rev, 1, { before: 1108.9278846154, after: 1608.5666666667 }]);
 
   // set_state on a config option's own checkbox
-  const on = ok(await invoke(id, { tab: "config", control: "buffOnslaught", action: "set_state", value: true }));
+  const on = ok(await invoke(id, { tab: "config", control: "buffOnslaught", operation: "set_state", value: true }));
   assert.equal(on.revision, rev + 1);
   assert.deepEqual([on.result.state, on.changed.Speed, on.changed.TotalDPS], [true, { before: 1.3333333333333, after: 1.6 }, { before: 1608.5666666667, after: 1930.28 }]);
   assert.equal((await out("Speed")).Speed, 1.6);
   assert.deepEqual(ok(await srv.call<{ values: Record<string, unknown> }>("GET", `/v1/config/${id}/get`)).values.buffOnslaught, true);
-  ok(await invoke(id, { tab: "config", control: "buffOnslaught", action: "set_state", value: false }));
+  ok(await invoke(id, { tab: "config", control: "buffOnslaught", operation: "set_state", value: false }));
 
   // The Skills tab: the display group's Full DPS box (a group is displayed by the group list; update_group picks one)
   ok(await srv.call("POST", `/v1/skills/${id}/update-group`, { group: 1, label: "Fireball" }));
   rev = await revisionOf(id);
-  const full = ok(await invoke(id, { tab: "skills", control: "includeInFullDPS", action: "set_state", value: true }));
+  const full = ok(await invoke(id, { tab: "skills", control: "includeInFullDPS", operation: "set_state", value: true }));
   assert.deepEqual([full.revision, full.changed.FullDPS], [++rev, { before: null, after: 2848.5965107973 }]);
 
   // set_text and click on the build tab: the level box, then the Auto/Manual button
-  const lvl = ok(await invoke(id, { tab: "build", control: "characterLevel", action: "set_text", value: "80" }));
+  const lvl = ok(await invoke(id, { tab: "build", control: "characterLevel", operation: "set_text", value: "80" }));
   assert.equal(lvl.revision, ++rev);
   assert.deepEqual([lvl.result.text, lvl.changed.Life], ["80", { before: 1125, after: 1005 }]);
-  const auto = ok(await invoke(id, { tab: "build", control: "levelScalingButton", action: "click" }));
+  const auto = ok(await invoke(id, { tab: "build", control: "levelScalingButton", operation: "click" }));
   assert.deepEqual([auto.revision, auto.changed.Life], [++rev, { before: 1005, after: 57 }]);
   assert.equal(ok(await srv.call<{ level: number; autoLevel: boolean }>("GET", `/v1/config/${id}/get`)).autoLevel, true);
 
@@ -184,32 +184,32 @@ void test("ui_invoke refuses unknown, denied, hidden, disabled and wrong-type co
     assert.match(r.body.error?.message ?? "", text, JSON.stringify(body));
     assert.equal(await revisionOf(id), rev, JSON.stringify(body));
   };
-  await refused({ tab: "build", control: "noSuchControl", action: "click" }, /no control noSuchControl on the build tab/);
+  await refused({ tab: "build", control: "noSuchControl", operation: "click" }, /no control noSuchControl on the build tab/);
   // The deny list: file dialogs, the network, leaving the build.
-  await refused({ tab: "build", control: "save", action: "click" }, /saves to a file/);
-  await refused({ tab: "build", control: "saveAs", action: "click" }, /saves to a file/);
-  await refused({ tab: "build", control: "back", action: "click" }, /leaves the build/);
-  await refused({ tab: "import", control: "generateCodeByLink", action: "click" }, /uploads/);
-  await refused({ tab: "import", control: "siteAccountNameGo", action: "click" }, /game site/);
-  await refused({ tab: "import", control: "authenticateButton", action: "click" }, /signs in/);
-  await refused({ tab: "party", control: "importCodeGo", action: "click" }, /link/);
-  await refused({ tab: "items", control: "priceDisplayItem", action: "click" }, /trade site/);
+  await refused({ tab: "build", control: "save", operation: "click" }, /saves to a file/);
+  await refused({ tab: "build", control: "saveAs", operation: "click" }, /saves to a file/);
+  await refused({ tab: "build", control: "back", operation: "click" }, /leaves the build/);
+  await refused({ tab: "import", control: "generateCodeByLink", operation: "click" }, /uploads/);
+  await refused({ tab: "import", control: "siteAccountNameGo", operation: "click" }, /game site/);
+  await refused({ tab: "import", control: "authenticateButton", operation: "click" }, /signs in/);
+  await refused({ tab: "party", control: "importCodeGo", operation: "click" }, /link/);
+  await refused({ tab: "items", control: "priceDisplayItem", operation: "click" }, /trade site/);
   // Hidden, disabled, wrong type, bad value.
-  await refused({ tab: "build", control: "mainSkillStageCount", action: "set_text", value: "3" }, /not shown/);
-  await refused({ tab: "build", control: "mainSkill", action: "select", value: 1 }, /disabled/);
-  await refused({ tab: "config", control: "setSelect", action: "select", value: 1 }, /disabled/);
-  await refused({ tab: "build", control: "mainSocketGroup", action: "click" }, /DropDownControl; it takes select, not click/);
-  await refused({ tab: "build", control: "characterLevel", action: "select", value: 1 }, /EditControl; it takes set_text/);
-  await refused({ tab: "build", control: "buildName", action: "click" }, /no action/);
-  await refused({ tab: "build", control: "modeTree", action: "set_text", value: "x" }, /ButtonControl; it takes click/);
-  await refused({ tab: "config", control: "buffOnslaught", action: "set_state", value: "yes" }, /true or false/);
-  await refused({ tab: "build", control: "characterLevel", action: "set_text" }, /text value/);
-  await refused({ tab: "build", control: "mainSocketGroup", action: "select", value: 9 }, /no choice 9.*Fireball/);
-  await refused({ tab: "build", control: "mainSocketGroup", action: "select", value: "Nothing" }, /no choice Nothing/);
-  await refused({ tab: "build", control: "mainSocketGroup", action: "select" }, /choice number or label/);
+  await refused({ tab: "build", control: "mainSkillStageCount", operation: "set_text", value: "3" }, /not shown/);
+  await refused({ tab: "build", control: "mainSkill", operation: "select", value: 1 }, /disabled/);
+  await refused({ tab: "config", control: "setSelect", operation: "select", value: 1 }, /disabled/);
+  await refused({ tab: "build", control: "mainSocketGroup", operation: "click" }, /DropDownControl; it takes select, not click/);
+  await refused({ tab: "build", control: "characterLevel", operation: "select", value: 1 }, /EditControl; it takes set_text/);
+  await refused({ tab: "build", control: "buildName", operation: "click" }, /no action/);
+  await refused({ tab: "build", control: "modeTree", operation: "set_text", value: "x" }, /ButtonControl; it takes click/);
+  await refused({ tab: "config", control: "buffOnslaught", operation: "set_state", value: "yes" }, /true or false/);
+  await refused({ tab: "build", control: "characterLevel", operation: "set_text" }, /text value/);
+  await refused({ tab: "build", control: "mainSocketGroup", operation: "select", value: 9 }, /no choice 9.*Fireball/);
+  await refused({ tab: "build", control: "mainSocketGroup", operation: "select", value: "Nothing" }, /no choice Nothing/);
+  await refused({ tab: "build", control: "mainSocketGroup", operation: "select" }, /choice number or label/);
   // Schema-level refusals never reach the worker.
-  fails(await invoke(id, { tab: "nowhere", control: "x", action: "click" }), 400, "invalid_input");
-  fails(await invoke(id, { tab: "build", control: "save", action: "double_click" }), 400, "invalid_input");
+  fails(await invoke(id, { tab: "nowhere", control: "x", operation: "click" }), 400, "invalid_input");
+  fails(await invoke(id, { tab: "build", control: "save", operation: "double_click" }), 400, "invalid_input");
   assert.equal(await revisionOf(id), rev);
 });
 

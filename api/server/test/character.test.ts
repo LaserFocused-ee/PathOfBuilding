@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import { callTool, toolDefs } from "../src/mcp.js";
 import { ROOT, startServer, TOKEN, type TestServer } from "./helpers.js";
 
 type Sample = { name: string; realm: string; class: string; league: string; level: number; equipment: unknown[]; jewels: unknown[]; passives: Record<string, unknown> };
@@ -114,11 +115,11 @@ void test("POST /v1/fetch relays the page's imports: allowlisted paths only, its
     assert.deepEqual([seen[1]?.method, seen[1]?.body, seen[1]?.headers["content-type"]], ["POST", "x=1", "application/x-www-form-urlencoded"]);
 
     reply = () => new Response("", { status: 403 });
-    const priv = await call({ url: "https://www.pathofexile.com/account/view-profile/Some-1234/characters" });
+    const priv = await call({ url: "https://www.pathofexile.com/character-window/get-items?accountName=Some%231234&character=a" });
     assert.deepEqual([priv.status, priv.body.result.status], [200, 403], "the site's own status, for Path of Building to read");
 
     const before = seen.length;
-    for (const url of ["https://api.pathofexile.com/profile", "https://www.pathofexile.com/oauth/authorize", "https://www.pathofexile.com/character-window/get-stash-items", "https://www.pathofexile.com/character-window/get-itemsX", "https://www.pathofexile.com/character-window/get-items/../get-stash-items", "https://www.pathofexile.com/account/view-profile", "http://pobb.in/abc", "https://example.com/", "not a url"]) {
+    for (const url of ["https://api.pathofexile.com/profile", "https://www.pathofexile.com/oauth/authorize", "https://www.pathofexile.com/character-window/get-stash-items", "https://www.pathofexile.com/character-window/get-itemsX", "https://www.pathofexile.com/character-window/get-items/../get-stash-items", "https://www.pathofexile.com/account/view-profile", "https://www.pathofexile.com/account/view-profile/Some-1234/characters", "http://pobb.in/abc", "https://example.com/", "not a url"]) {
       const r = await call({ url });
       assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], url);
     }
@@ -128,9 +129,36 @@ void test("POST /v1/fetch relays the page's imports: allowlisted paths only, its
     assert.match(extra.body.error?.message ?? "", /unknown parameter\(s\) method; fetch takes url, headers, body/);
     assert.equal(seen.length, before, "nothing off the allowlist is requested");
 
+    // An encoded separator or dot in the path is refused in any case, before any request.
+    for (const seg of ["%2f", "%2F", "%5c", "%5C", "%2e", "%2E"]) {
+      for (const url of [`https://www.pathofexile.com/character-window/get-items/${seg}${seg}oauth`, `https://pobb.in/abc${seg}raw`, `https://www.pathofexile.com/character-window/get-items${seg}x`]) {
+        const r = await call({ url });
+        assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], url);
+      }
+    }
+    assert.equal(seen.length, before, "no encoded path reached the upstream");
+
+    reply = () => new Response("{}", { headers: { "content-type": "application/json", "cf-mitigated": "challenge" } });
+    const challenged = await call({ url: "https://www.pathofexile.com/character-window/get-items?character=a" });
+    assert.equal(challenged.body.result.headers["cf-mitigated"], "challenge", "the page sees a challenge");
+
     reply = () => new Response(null, { status: 302, headers: { location: "https://www.pathofexile.com/oauth/authorize" } });
+    const redirectFrom = seen.length;
     const off = await call({ url: "https://www.pathofexile.com/character-window/get-items?character=a" });
     assert.deepEqual([off.status, off.body.error?.code], [502, "upstream_fetch_failed"], "a redirect off the allowlist");
+    assert.equal(seen.length - redirectFrom, 1, "refused at the hop, not at the redirect limit");
+    const fromShare = seen.length;
+    const hop = await call({ url: "https://pobb.in/abc" });
+    assert.deepEqual([hop.status, hop.body.error?.code], [502, "upstream_fetch_failed"], "a share host sending the page to a game-site path off its list");
+    assert.equal(seen.length - fromShare, 1, "one upstream request, the game-site hop is never made");
+    assert.match(hop.body.error?.message ?? "", /off the allowlist/);
+    // A share host's fetcher never leaves the share hosts: a 307 (method and body kept) or a 302 to a listed game-site path is refused at the hop.
+    for (const status of [307, 302]) {
+      reply = () => new Response(null, { status, headers: { location: "https://www.pathofexile.com/character-window/get-items?character=a" } });
+      const from = seen.length;
+      const posted = await call({ url: "https://pobb.in/abc", body: "x=1" });
+      assert.deepEqual([posted.status, posted.body.error?.code, seen.length - from], [502, "upstream_fetch_failed", 1], String(status));
+    }
 
     reply = () => new Response("[]", { headers: { "x-rate-limit-rules": "Ip", "x-rate-limit-ip": "5:10:60", "x-rate-limit-ip-state": "5:10:0" } });
     assert.equal((await call({ url: "https://www.pathofexile.com/character-window/get-characters?accountName=Some%231234" })).body.result.status, 200);
@@ -141,9 +169,43 @@ void test("POST /v1/fetch relays the page's imports: allowlisted paths only, its
     assert.equal((await call({ url: "https://pobb.in/abc/raw" })).status, 200, "other hosts are not held");
 
     const logs = relay.lines.filter((l) => l.event === "fetch.done");
-    assert.ok(logs.some((l) => l.purpose === "relay:/account/view-profile/" && l.status === 403));
+    assert.ok(logs.some((l) => l.purpose === "relay:/character-window/get-items" && l.status === 403));
     assert.ok(!JSON.stringify(relay.lines).includes("Some"), "no account name in the logs");
   } finally {
     await relay.close();
+  }
+});
+
+void test("POST /v1/fetch and DELETE /v1/session sit outside the route table and still refuse a request without the bearer token, with no upstream request", async () => {
+  const asked = requested.length;
+  const base = `http://127.0.0.1:${srv.port}`;
+  const relayBody = JSON.stringify({ url: "https://www.pathofexile.com/character-window/get-characters?accountName=Some%231234&realm=pc" });
+  for (const auth of [undefined, `Bearer ${TOKEN}x`, TOKEN]) {
+    const headers: Record<string, string> = auth ? { authorization: auth } : {};
+    const relay = await fetch(`${base}/v1/fetch`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: relayBody });
+    assert.equal(relay.status, 401, `POST /v1/fetch with ${auth ? "a wrong" : "no"} token`);
+    await relay.body?.cancel();
+    const session = await fetch(`${base}/v1/session`, { method: "DELETE", headers });
+    assert.equal(session.status, 401, `DELETE /v1/session with ${auth ? "a wrong" : "no"} token`);
+    assert.equal(session.headers.get("set-cookie"), null, "a refused request clears nothing");
+    await session.body?.cancel();
+  }
+  assert.equal(requested.length, asked, "no upstream request for a refused relay call");
+});
+
+void test("MCP: a failing upstream (a 5xx) comes back as an isError result with its code, never a thrown error", async () => {
+  const down = await startServer({ poolSize: 1 }, { fetch: () => Promise.reject(new TypeError("connection refused")) });
+  try {
+    // Straight into callTool: the pob_build tool's own input schema does not take this call (reported to the owner).
+    const def = toolDefs().find((d) => d.name === "pob_build");
+    assert.ok(def);
+    const res = await callTool(down.runtime.svc, def, { action: "characters", account: "Test#0000", realm: "pc" });
+    assert.equal(res.isError, true);
+    assert.deepEqual(res.structuredContent, { ok: false, error: { code: "upstream_fetch_failed", message: "request to www.pathofexile.com failed: TypeError" } });
+    assert.ok(down.lines.some((l) => l.event === "mcp.tool" && l.action === "characters" && l.ok === false && l.code === "upstream_fetch_failed"));
+    const http = await down.call("GET", "/v1/builds/import/characters?account=Test%230000");
+    assert.equal(http.status, 502, "the same failure over HTTP is a 5xx");
+  } finally {
+    await down.close();
   }
 });

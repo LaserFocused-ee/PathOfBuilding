@@ -214,6 +214,45 @@ void test("every route in the table refuses a request without the bearer token",
   assert.equal((await fetch(`${base}/v1/builds/${fresh}`, { headers: { authorization: `bearer ${TOKEN}` } })).status, 200, "the scheme is case-insensitive");
 });
 
+void test("the path's build id wins over an id in the body or the query: another build never moves", async () => {
+  const freshXml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
+  const mine = ok(await srv.call<Created>("POST", "/v1/builds/import/xml", { xml: freshXml, name: "path-owner" })).build.id;
+  const other = ok(await srv.call<Created>("POST", "/v1/builds/import/xml", { xml: freshXml, name: "other-build" })).build.id;
+  const revisionOf = async () => ok(await srv.call<Created>("GET", `/v1/builds/${other}`)).build.revision;
+  const startRevision = await revisionOf();
+  // Every route that changes a build and names it in the path. A route that needs more than the id
+  // answers 400 and is not exercised here; those that take the id alone are, and the walk finds new ones.
+  const writes = routes.filter((r) => r.path.includes(":id") && r.method !== "GET" && !r.stream);
+  assert.ok(writes.length >= 80, `${writes.length} write routes walked`);
+  const last = ["build.delete", "build.restore"]; // the build itself goes away: after the others
+  const ordered = [...writes.filter((r) => !last.includes(r.name)), ...last.map((n) => writes.find((r) => r.name === n)).filter((r) => r !== undefined)];
+  let accepted = 0;
+  for (const r of ordered) {
+    const path = r.path.replace(":id", mine).replace(":nodeId", "1");
+    for (const how of ["body", "query"]) {
+      const res = how === "body" && r.method !== "DELETE" ? await srv.call(r.method, path, { id: other }) : await srv.call(r.method, `${path}?id=${other}`, r.method === "DELETE" ? undefined : {});
+      if (res.status === 200) accepted++;
+      else assert.ok(res.status === 400 || res.status === 404 || res.status === 409, `${r.name} by ${how}: ${res.status} ${JSON.stringify(res.body.error)}`);
+      assert.equal(await revisionOf(), startRevision, `${r.name} with the other build's id in the ${how} moved that build`);
+    }
+  }
+  assert.ok(accepted >= 20, `${accepted} calls reached the build (the rest were refused for missing parameters)`);
+  assert.equal(ok(await srv.call<Created>("GET", `/v1/builds/${other}`)).build.id, other);
+});
+
+void test("an edit that changes nothing writes no revision and adds no history entry", async () => {
+  const freshXml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
+  const id = ok(await srv.call<Created>("POST", "/v1/builds/import/xml", { xml: freshXml, name: "no-op" })).build.id;
+  const state = async () => ({ revision: ok(await srv.call<Created>("GET", `/v1/builds/${id}`)).build.revision, history: ok(await srv.call<{ history: unknown[] }>("GET", `/v1/builds/${id}/history`)).history.length });
+  const first = ok(await srv.call<{ revision: number }>("POST", `/v1/config/${id}/set-notes`, { text: "a note" }));
+  const afterFirst = await state();
+  assert.equal(first.revision, afterFirst.revision, "a real change is a revision");
+  const again = ok(await srv.call<{ revision: number }>("POST", `/v1/config/${id}/set-notes`, { text: "a note" }));
+  assert.equal(again.revision, afterFirst.revision, "the same notes again answer the current revision");
+  assert.deepEqual(await state(), afterFirst, "revision and history length are unchanged");
+  assert.ok(afterFirst.revision > 1 && afterFirst.history >= 2);
+});
+
 void test("lookups page with offset and limit; the whole config catalogue fits an MCP result in pages", async () => {
   type Page = { total: number; offset: number; gems?: Array<{ name: string }>; options?: Array<{ var: string }> };
   const p1 = ok(await srv.call<Page>("GET", "/v1/lookup/gems?query=Fire&limit=3"));
@@ -318,6 +357,14 @@ void test("MCP over HTTP: list tools, read a loaded build's stats, failures are 
     const fail = await client.callTool({ name: "pob_stats", arguments: { action: "breakdown", id: fresh } });
     assert.equal(fail.isError, true);
     assert.equal((fail.structuredContent as { error: { code: string } }).error.code, "invalid_input");
+    // A stale write carries the build's current revision, as the HTTP error does.
+    const current = ok(await srv.call<Created>("GET", `/v1/builds/${fresh}`)).build.revision;
+    const stale = await client.callTool({ name: "pob_tree", arguments: { action: "deallocate", id: fresh, nodes: [57264], baseRevision: current + 7 } });
+    assert.equal(stale.isError, true);
+    assert.deepEqual((stale.structuredContent as { error: { code: string; details?: unknown } }).error, { code: "stale_revision", message: `build ${fresh} is at revision ${current}, not ${current + 7}`, details: { revision: current } });
+    const http = await srv.call("POST", `/v1/tree/${fresh}/deallocate`, { nodes: [57264], baseRevision: current + 7 });
+    assert.deepEqual([http.status, (http.body.error as { details?: unknown }).details], [409, { revision: current }], "HTTP and MCP carry the same details");
+    assert.equal(ok(await srv.call<Created>("GET", `/v1/builds/${fresh}`)).build.revision, current, "the stale write stored nothing");
   } finally {
     await client.close();
   }

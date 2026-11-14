@@ -18,7 +18,7 @@ export const GAME_HOST = "www.pathofexile.com";
  * builds; the game site is read only).
  */
 export const RELAY_PATHS: Readonly<Record<string, { paths: readonly string[]; post: boolean }>> = {
-  [GAME_HOST]: { paths: ["/character-window/get-characters", "/character-window/get-passive-skills", "/character-window/get-items", "/account/view-profile/"], post: false },
+  [GAME_HOST]: { paths: ["/character-window/get-characters", "/character-window/get-passive-skills", "/character-window/get-items"], post: false },
   ...Object.fromEntries(SHARE_HOSTS.map((h) => [h, { paths: ["/"], post: true }])),
 };
 
@@ -26,7 +26,7 @@ const relayEntry = (url: URL): string | undefined =>
   RELAY_PATHS[url.hostname]?.paths.find((p) => (p.endsWith("/") ? url.pathname.startsWith(p) : url.pathname === p || url.pathname.startsWith(`${p}/`)));
 
 /** Response headers handed back to the page from a relayed request. */
-const RELAY_HEADERS = /^(content-type|retry-after|x-rate-limit-[a-z0-9-]+)$/;
+const RELAY_HEADERS = /^(content-type|retry-after|cf-mitigated|x-rate-limit-[a-z0-9-]+)$/;
 
 export interface Relayed {
   status: number;
@@ -66,6 +66,7 @@ export class Fetcher {
 
   private relayCheck(raw: string): URL {
     const url = this.check(raw);
+    if (/%(2f|5c|2e)/i.test(url.pathname)) throw new ApiError("invalid_input", "an encoded separator or dot is not relayed");
     if (relayEntry(url) === undefined) throw new ApiError("invalid_input", `that path on ${url.hostname} is not on the allowlist`);
     return url;
   }

@@ -85,7 +85,7 @@ export async function callTool(svc: Service, def: ToolDef, args: Record<string, 
     const err = e instanceof ApiError ? e : new ApiError("worker_error", "internal error");
     code = err.code;
     if (err.status >= 500) reportError(svc.log, e, ["mcp", def.name, err.code], { action: act });
-    return reply({ ok: false, error: { code: err.code, message: err.message } }, true);
+    return reply({ ok: false, error: { code: err.code, message: err.message, ...(err.details ? { details: err.details } : {}) } }, true);
   } finally {
     svc.log.info({ event: "mcp.tool", tool: def.name, action: act, ok: code === undefined, code, duration_ms: Date.now() - started });
   }
