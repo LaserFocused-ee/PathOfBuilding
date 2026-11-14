@@ -59,3 +59,37 @@ nothing):
     generated list; the item has no mods, so the export cannot derive the level.
 - Upstream status: not offered. The jewel fix applies to upstream `dev` as is.
 
+
+### Account-name import status line: `src/Classes/ImportTab.lua`
+
+- What: the account-name path keeps the status returned by `ImportPassiveTreeAndJewels` and `ImportItemsAndSkills`
+  (two lines in `DownloadPassiveTree` and `DownloadItems`). The OAuth path's two calls are left as they are: its status
+  line shows the sign-in state and never reads `charImportStatus`.
+- Why: after a successful import the status line stayed on "Retrieving character ..."; the bug is on upstream `dev`
+  too.
+- Test: `spec/System/TestImport_spec.lua`, "shows the import result after an account-name import" (fails without the
+  change).
+- Upstream status: not offered.
+
+### Triple damage chance terms: `src/Modules/CalcOffence.lua`
+
+- What: `Sum(...) or 0 + (enemy term) + (on-crit term)` parsed as `Sum(...) or (0 + ...)`, so the enemy
+  `SelfTripleDamageChance` and the `TripleDamageChanceOnCrit` terms were always dropped. Now written like the double
+  damage line below it.
+- Why: correctness. No item, passive or skill produces either stat today, so no current result changes.
+- Test: `spec/System/TestAttacks_spec.lua`, "adds triple damage chance on crit to triple damage chance" (feeds the stat
+  through a cached custom modifier line; fails without the change).
+- Upstream status: not offered.
+
+### Open upstream pull requests merged ahead of upstream
+
+Each was fetched read-only and merged with its own commit; ModCache regenerated after each; the spec suite passes after
+each merge. Drop each when upstream merges it (the merge then becomes a no-op).
+
+| Pull request | What | Conflicts and how they were resolved |
+|---|---|---|
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10434 | The Living Blade tincture count, Scales of Justice ailment condition | The unique text already read "2 additional Tinctures" from the merged 3.30 export; that version kept |
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10419 | Wickerman equipment slots | none |
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10451 | Wickerman Viscera modifiers | Its Iron Flask effect block duplicates the one from 10443 already merged; applying both doubled Iron Flask effect, so this copy is dropped. Both PRs' new defence tests kept |
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10455 | Wickerman item data, Viscera paste and character import (needs 10419 and 10451) | none |
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10438 | 3.30 patch-note unique values, Steelworm projectile fix | The generated unique lists for five items carried the current 3.30 values without older variants; the PR's versioned lines taken (current values match) |
