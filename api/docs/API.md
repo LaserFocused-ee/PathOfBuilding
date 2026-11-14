@@ -193,7 +193,7 @@ Build warnings (unmet requirements, over-allocated points, and the like).
 
 ### `GET /v1/stats/:id/defences`
 
-Attribute requirements, resistances with overcap, life, mana, energy shield.
+Attribute totals and requirements; resistances with total, overcap and maximum.
 
 - Name: `stats.defences` (MCP `pob_stats` action `defences`)
 - Read-only: yes; worker: `stats.defences`

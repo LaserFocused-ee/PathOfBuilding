@@ -111,7 +111,7 @@ export const routes: Route[] = [
   statRoute("skills", "Per-skill outputs for every socket group and the Full DPS total.", z.object({}), any),
   statRoute("breakdown", "How one output value is built (the Calcs tab breakdown).", z.object({ key: z.string().min(1).max(100).describe("Output key, e.g. Life"), actor: z.enum(["player", "minion"]).optional() }), any, ["key", "actor"]),
   statRoute("warnings", "Build warnings (unmet requirements, over-allocated points, and the like).", z.object({}), z.object({ warnings: z.array(z.string()) })),
-  statRoute("defences", "Attribute requirements, resistances with overcap, life, mana, energy shield.", z.object({}), any),
+  statRoute("defences", "Attribute totals and requirements; resistances with total, overcap and maximum.", z.object({}), any),
   statRoute("points", "Passive and ascendancy points used and available, required level.", z.object({}), any),
   statRoute("versions", "Path of Building version, the build's tree version and the latest tree version.", z.object({}), any),
 

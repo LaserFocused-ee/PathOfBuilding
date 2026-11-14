@@ -16,7 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "node --test --test-timeout=60000 \"dist/test/*.test.js\"",
-    "docs": "node dist/src/gen-api-doc.js ../docs/API.md",
+    "docs": "node dist/src/gen-api-doc.js ..",
     "start": "node dist/src/index.js",
     "mcp": "node dist/src/stdio.js"
   },

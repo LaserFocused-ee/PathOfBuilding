@@ -7,7 +7,7 @@ import { deflateSync } from "node:zlib";
 import { loadConfig } from "../src/config.js";
 import { ApiError } from "../src/errors.js";
 import { decodeBuildCode, Fetcher } from "../src/fetch.js";
-import { apiDoc } from "../src/gen-api-doc.js";
+import { apiDoc, readmeWithRoutes } from "../src/gen-api-doc.js";
 import { secretMatches } from "../src/http.js";
 import { toolDefs } from "../src/mcp.js";
 import { BuildStore } from "../src/store.js";
@@ -109,6 +109,8 @@ void test("mcp: tools come from the route table with accurate read-only hints", 
   assert.ok(!defs.some((d) => d.routes.some((r) => r.stream)), "the event stream is not an MCP action");
 });
 
-void test("docs/API.md is generated from the route table and up to date", async () => {
+void test("docs/API.md and the README route list are generated from the route table and up to date", async () => {
   assert.equal(await readFile(join(ROOT, "api/docs/API.md"), "utf8"), apiDoc(), "run `npm run docs` in api/server");
+  const readme = await readFile(join(ROOT, "api/README.md"), "utf8");
+  assert.equal(readme, readmeWithRoutes(readme), "run `npm run docs` in api/server");
 });
