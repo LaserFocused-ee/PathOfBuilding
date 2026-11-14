@@ -9,12 +9,18 @@ const dist = fromFileUrl(new URL("../dist", import.meta.url));
 const api = Deno.env.get("POB_API_URL") ?? "http://127.0.0.1:8080";
 const token = Deno.env.get("POB_API_TOKEN") ?? "";
 
+/** Same origin only; WebAssembly compilation allowed; inline styles for the page and the driver's overlay. */
+export const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
+  "img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; " +
+  "base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+
 /** The headers every static response needs (cross-origin isolation for SharedArrayBuffer). */
 export function staticHeaders(path: string, headers: Headers): Headers {
   headers.set("cross-origin-opener-policy", "same-origin");
   headers.set("cross-origin-embedder-policy", "require-corp");
   headers.set("cross-origin-resource-policy", "same-origin");
   headers.set("x-content-type-options", "nosniff");
+  headers.set("content-security-policy", CSP);
   if (path.endsWith(".wasm")) headers.set("content-type", "application/wasm");
   const immutable = path.startsWith("/assets/") || path.startsWith("/pob/");
   headers.set("cache-control", immutable ? "public, max-age=31536000, immutable" : "no-cache");

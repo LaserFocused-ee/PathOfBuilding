@@ -5,6 +5,7 @@
 # Output: api/web/dist, a static site to serve at the root of the API server's origin (README.md).
 # Needs git, gcc, cmake, ninja, python3 (emsdk) and deno. No root: everything lands in $B (gitignored).
 set -euo pipefail
+unset NODE_ENV # an inherited NODE_ENV=development makes Vite ship React's development build
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(git -C "$HERE" rev-parse --show-toplevel)"
 B="${B:-$HERE/.build}"
@@ -15,10 +16,12 @@ DIST="${DIST:-$HERE/dist}"
 # come from that commit's tree; emsdk version from its mise.toml.
 POBWEB_REV=aead90ff705e511ca6b20e488cef093211570c27
 EMSDK_VERSION=6.0.6
+EMSDK_REV=708dcbcc9ee23bc7d2dad44fc90db377e38b771c # emsdk main, 2026-11-12
 mkdir -p "$B/bin"
 
 # 1. Toolchain: emsdk.
 [ -d "$B/emsdk/.git" ] || git clone -q https://github.com/emscripten-core/emsdk.git "$B/emsdk"
+git -C "$B/emsdk" checkout -q "$EMSDK_REV"
 if [ ! -f "$B/emsdk/.installed-$EMSDK_VERSION" ]; then
   "$B/emsdk/emsdk" install "$EMSDK_VERSION" >/dev/null
   "$B/emsdk/emsdk" activate "$EMSDK_VERSION" >/dev/null

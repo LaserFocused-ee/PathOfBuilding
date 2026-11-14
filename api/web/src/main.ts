@@ -5,6 +5,17 @@ import { api, ApiError, type BuildMeta, isBuildId } from "./api.ts";
 import { BuildSync, type SyncState } from "./sync.ts";
 
 declare const __POB_ASSETS__: string;
+// Path of Building opens links (Ctrl+click in notes, help links) through window.open with whatever text
+// the build holds. Builds can come from anyone, so only http and https leave the page, without an opener.
+const openWindow = globalThis.open.bind(globalThis);
+globalThis.open = (url?: string | URL, target?: string) => {
+  const href = String(url ?? "");
+  if (!/^https?:\/\//i.test(href)) {
+    console.warn("Refused to open a link that is not http or https");
+    return null;
+  }
+  return openWindow(href, target ?? "_blank", "noopener,noreferrer");
+};
 const POLL_MS = 2000; // ponytail: polls getBuildCode for edits; a save hook in boot.lua if it shows in frame time
 const $ = (sel: string) => document.querySelector(sel) as HTMLElement;
 

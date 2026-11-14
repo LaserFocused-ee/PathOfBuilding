@@ -48,23 +48,36 @@ session cookie applies. GET and HEAD only; `/` serves `index.html`; no directory
 needs these headers, because the driver shares memory between workers (`SharedArrayBuffer`), which browsers allow only
 on a cross-origin isolated page:
 
-| Header                         | Value                                                                                    |
-| ------------------------------ | ---------------------------------------------------------------------------------------- |
-| `Cross-Origin-Opener-Policy`   | `same-origin`                                                                            |
-| `Cross-Origin-Embedder-Policy` | `require-corp`                                                                           |
-| `Cross-Origin-Resource-Policy` | `same-origin`                                                                            |
-| `X-Content-Type-Options`       | `nosniff`                                                                                |
-| `Cache-Control`                | `public, max-age=31536000, immutable` under `/assets/` and `/pob/`; `no-cache` elsewhere |
+| Header                         | Value                                                                                                                                                                                                                                                                  |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Cross-Origin-Opener-Policy`   | `same-origin`                                                                                                                                                                                                                                                          |
+| `Cross-Origin-Embedder-Policy` | `require-corp`                                                                                                                                                                                                                                                         |
+| `Cross-Origin-Resource-Policy` | `same-origin`                                                                                                                                                                                                                                                          |
+| `X-Content-Type-Options`       | `nosniff`                                                                                                                                                                                                                                                              |
+| `Content-Security-Policy`      | `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'` |
+| `Cache-Control`                | `public, max-age=31536000, immutable` under `/assets/` and `/pob/`; `no-cache` elsewhere                                                                                                                                                                               |
 
 Content types by extension: `.html` `text/html; charset=utf-8`, `.js` `text/javascript`, `.css` `text/css`, `.wasm`
 `application/wasm` (required for streaming compilation), `.woff` `font/woff`, `.json` `application/json`, `.zip`
 `application/zip`, `.png` `image/png`, `.jpg` `image/jpeg`, anything else (the `.dds.zst` textures)
 `application/octet-stream`.
 
-The page calls these API routes, all same-origin: `POST /v1/session` (exchanges the API token for a session cookie once,
-when a call answers 401), `GET /v1/builds`, `GET /v1/builds/:id`, `GET /v1/builds/:id/code`, `PUT /v1/builds/:id/code`
-with `{ code, baseRevision }` (409 `stale_revision` when the base is old) and the event stream
-`GET /v1/builds/:id/events` (`hello`, `change` and `deleted` events carrying `revision`).
+The page calls these API routes, all same-origin: `POST /v1/session`, `GET /v1/builds`, `GET /v1/builds/:id`,
+`GET /v1/builds/:id/code`, `PUT /v1/builds/:id/code` with `{ code, baseRevision }` (409 `stale_revision` when the base
+is old) and the event stream `GET /v1/builds/:id/events` (`hello`, `change` and `deleted` events carrying `revision`).
+
+Session: when a call answers 401 the page asks for the API token once and sends it to `POST /v1/session` in an
+`Authorization: Bearer` header; the page never stores it. The server answers 204 with a session cookie and from then on
+accepts the cookie on `/v1` routes (the event stream cannot send headers). The server's public origin comes from its
+configuration: on an `https` origin the cookie is
+`__Host-pob_session=<at least 32 random bytes>; Path=/; Secure;
+HttpOnly; SameSite=Strict`; on a plain `http` origin
+(local use) it is `pob_session` with the same attributes except `Secure`. A cookie-authenticated request that is not GET
+or HEAD must carry an `Origin` equal to the configured origin, else 403. `DELETE /v1/session` ends the session. The
+cookie never authenticates `/mcp`.
+
+Links: Path of Building opens links from build text (for example Ctrl+click in Notes). Builds can come from anyone, so
+the page opens only `http` and `https` links, without an opener.
 
 ## Development
 
