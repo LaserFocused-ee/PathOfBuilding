@@ -274,10 +274,16 @@ return function(stats, scopeName, quality)
 				else
 					return s_format("(%"..v.fmt.."-%"..v.fmt..")", v.min, v.max)
 				end
-			end):gsub("{:%+?d}", function() 
+			end):gsub("{:(%+?)d}", function(fmt)
 				local v = val[1]
 				if v.min == v.max then
-					return s_format("%"..v.fmt, v.min)
+					return s_format("%"..fmt..v.fmt, v.min)
+				elseif fmt == "+" then
+					if v.max < 0 then
+						return s_format("-(%"..v.fmt.."-%"..v.fmt..")", -v.min, -v.max)
+					else
+						return s_format("+(%"..v.fmt.."-%"..v.fmt..")", v.min, v.max)
+					end
 				else
 					return s_format("(%"..v.fmt.."-%"..v.fmt..")", v.min, v.max)
 				end
@@ -287,9 +293,9 @@ return function(stats, scopeName, quality)
 					return s_format("%"..fmt..v.fmt, v.min)
 				elseif fmt == "+" then
 					if v.max < 0 then
-						return s_format("-(%d-%d)", -v.min, -v.max)
+						return s_format("-(%"..v.fmt.."-%"..v.fmt..")", -v.min, -v.max)
 					else
-						return s_format("+(%d-%d)", v.min, v.max)
+						return s_format("+(%"..v.fmt.."-%"..v.fmt..")", v.min, v.max)
 					end
 				else
 					return s_format("(%"..fmt..v.fmt.."-%"..fmt..v.fmt..")", v.min, v.max)

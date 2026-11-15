@@ -1,0 +1,13 @@
+describe("TestStatDescriber", function()
+	it("keeps the sign of {:+d}", function()
+		local lines = data.describeStats({ ["maximum_life_+_per_empty_red_socket"] = 40 }, "stat_descriptions")
+		assert.are.equals("Players have +40 to maximum Life for each Empty Red Socket on any Equipped Item", lines[1])
+	end)
+
+	it("formats a signed range with the value's own format", function()
+		local lines = data.describeStats({ ["additional_base_critical_strike_chance"] = { min = 30, max = 50 } }, "stat_descriptions")
+		assert.are.equals("+(0.3-0.5)% to Critical Strike Chance", lines[1])
+		lines = data.describeStats({ ["additional_base_critical_strike_chance"] = 30 }, "stat_descriptions")
+		assert.are.equals("+0.3% to Critical Strike Chance", lines[1])
+	end)
+end)
