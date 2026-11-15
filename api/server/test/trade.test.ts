@@ -324,7 +324,7 @@ void test("trade.search: a 4xx stops the call; the searches done are answered an
   assert.ok(logged.length > 0 && logged.every((l) => !JSON.stringify(l).includes("first") && !JSON.stringify(l).includes(league)), "the log line carries no query");
 });
 
-void test("trade.search: input limits (8 searches, 30 listings, league text, query size) and the MCP tool", async () => {
+void test("trade.search: input limits (8 searches, 30 listings, league text, query size, no seller filter) and the MCP tool", async () => {
   const bad = async (body: Record<string, unknown>, message: RegExp) => {
     const before = requests.length;
     const r = await srv.call("POST", "/v1/trade/search", body);
@@ -339,6 +339,9 @@ void test("trade.search: input limits (8 searches, 30 listings, league text, que
   await bad({ league: "../../api", searches: [q] }, /league/);
   await bad({ league, searches: [{ query: { filler: "x".repeat(40_000) } }] }, /32 KB/);
   await bad({ league, searches: [q], cookie: "POESESSID=1" }, /unknown parameter cookie/);
+  // No search by seller: the site's own account filter, or any key naming an account or seller at any depth.
+  await bad({ league, searches: [{ query: { ...q.query, filters: { trade_filters: { filters: { account: { input: "Someone#1234" } } } } } }] }, /may not filter by seller account/);
+  await bad({ league, searches: [{ query: { ...q.query, filters: { misc: { filters: { Seller_Name: "x" } } } } }] }, /may not filter by seller account/);
   const tool = toolDefs().find((d) => d.name === "pob_trade");
   assert.deepEqual([tool?.readOnly, tool?.routes.map((r) => r.name)], [true, ["trade.search", "trade.currency_rates", "trade.leagues"]]);
 });
