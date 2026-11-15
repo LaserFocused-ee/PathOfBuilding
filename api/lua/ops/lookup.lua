@@ -18,15 +18,23 @@ return function(W)
 	-- args: query?, tag?, support? (bool), level? (requirements at this gem level), limit?
 	function ops.gems(args)
 		local list = {}
+		-- Gem names carry no " Support" (data.gems), so a query ending in it matches without it, as the gem box does.
+		local query = type(args.query) == "string" and args.query:gsub("%s+[Ss]upport$", "") or args.query
 		for id, gem in pairs(data.gems) do
 			local ge = gem.grantedEffect
 			local isSupport = ge and ge.support or false
-			if has(gem.name, args.query) and (args.tag == nil or (gem.tags and gem.tags[args.tag:lower()]))
+			if has(gem.name, query) and (args.tag == nil or (gem.tags and gem.tags[args.tag:lower()]))
 				and (args.support == nil or args.support == isSupport) then
 				list[#list + 1] = { id = id, gem = gem, support = isSupport }
 			end
 		end
-		table.sort(list, function(a, b) return a.gem.name < b.gem.name end)
+		-- The gem named exactly comes first, then by name.
+		local exact = type(query) == "string" and query:lower() or nil
+		table.sort(list, function(a, b)
+			local ea, eb = a.gem.name:lower() == exact, b.gem.name:lower() == exact
+			if ea ~= eb then return ea end
+			return a.gem.name < b.gem.name
+		end)
 		local out, offset, limit = {}, pageOf(args, 20)
 		for i = offset + 1, math.min(#list, offset + limit) do
 			local g, ge = list[i].gem, list[i].gem.grantedEffect
@@ -38,7 +46,7 @@ return function(W)
 			table.sort(tags)
 			out[#out + 1] = {
 				id = list[i].id, name = g.name, support = list[i].support, tags = tags, tagString = g.tagString,
-				naturalMaxLevel = g.naturalMaxLevel, description = ge and strip(ge.description) or nil,
+				naturalMaxLevel = g.naturalMaxLevel, legacy = ge and ge.legacy == true, description = ge and strip(ge.description) or nil,
 				requirements = reqLevel and {
 					gemLevel = level, level = reqLevel,
 					str = calcLib.getGemStatRequirement(reqLevel, list[i].support, g.reqStr or 0),
@@ -346,8 +354,10 @@ return function(W)
 	function ops.data(args)
 		local source = dataTables[args.table]
 		if not source then W.fail("not_found", "no data table " .. tostring(args.table) .. "; tables: " .. table.concat(sortedKeys(dataTables), ", ")) end
+		if args.slot ~= nil and args.table ~= "enchantments" then W.fail("invalid_input", "slot narrows the enchantments table only") end
 		local list = {}
 		source(function(row, key)
+			if args.slot ~= nil and row.slot ~= args.slot then return end
 			if has(row.name, args.query) then
 				list[#list + 1] = { row = row, key = key }
 				return
@@ -375,6 +385,7 @@ return function(W)
 		if args.type ~= nil and args.type ~= "Prefix" and args.type ~= "Suffix" then W.fail("invalid_input", "type is Prefix or Suffix") end
 		local item = new("Item"):Item("Rarity: RARE\nX\n" .. args.base)
 		if not item.base or not item.affixes then W.fail("not_found", args.base .. " has no mods to roll") end
+		local eldritchType
 		if args.influence ~= nil then
 			-- The Influence dropdowns' entries for this item (ItemsTab.lua:2133).
 			local eldritch = item.canHaveEldritchInfluence or item.type == "Helmet" or item.type == "Body Armour" or item.type == "Gloves" or item.type == "Boots"
@@ -384,11 +395,14 @@ return function(W)
 			end
 			if not item.canBeInfluenced or not key then W.fail("invalid_input", args.base .. " cannot take the influence " .. args.influence) end
 			item[key] = true
+			-- The eldritch influences add no affixes: their mods are the Add Implicit popup's Searing Exarch and Eater of
+			-- Worlds implicits (AddImplicitPopup.lua buildMods), listed here as type Exarch or Eater.
+			eldritchType = ({ cleansing = "Exarch", tangle = "Eater" })[key]
 		end
 		local ilvl = tonumber(args.ilvl) or 100
 		local list = {}
 		for id, mod in pairs(item.affixes) do
-			if (mod.type == "Prefix" or mod.type == "Suffix") and (args.type == nil or mod.type == args.type) and (mod.level or 0) <= ilvl
+			if (mod.type == "Prefix" or mod.type == "Suffix" or mod.type == eldritchType) and (args.type == nil or mod.type == args.type) and (mod.level or 0) <= ilvl
 				and not item:CheckIfModIsDelve(mod) and item:CanHaveMod(mod) then
 				local row = modRow(id, mod)
 				row.weight, row.tags = item:GetModSpawnWeight(mod), nil

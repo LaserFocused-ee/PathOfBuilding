@@ -48,11 +48,17 @@ void test("fixture build (OccVortex, tree 3_13) loads with its real stats", asyn
   assert.deepEqual(out.output, { Life: 6728, FireResist: 75, ChaosResist: 68 });
   const pts = ok(await srv.call<{ used: number; max: number; ascendancyUsed: number; ascendancyMax: number; requiredLevel: number }>("GET", `/v1/stats/${occ}/points`));
   assert.deepEqual([pts.used, pts.max, pts.ascendancyUsed, pts.ascendancyMax, pts.requiredLevel], [122, 123, 8, 8, 99]);
+  const at = ok(await srv.call<{ level: number; maxAtLevel: number }>("GET", `/v1/stats/${occ}/points`));
+  assert.equal(at.maxAtLevel, Math.min(123, at.level - 1 + 23 + 1), `level ${at.level}`);
   const def = ok(await srv.call<{ resistances: Record<string, Record<string, number>> }>("GET", `/v1/stats/${occ}/defences`));
   assert.deepEqual([def.resistances.Fire?.FireResist, def.resistances.Fire?.FireResistOverCap], [75, 9]);
   const bd = ok(await srv.call<{ value: number; breakdown: unknown }>("GET", `/v1/stats/${occ}/breakdown?key=Life`));
   assert.equal(bd.value, 6728);
   assert.ok(JSON.stringify(bd.breakdown).includes("2109 (base)"));
+  // a key with no breakdown names its value and the breakdowns that start with it
+  const regen = await srv.call("GET", `/v1/stats/${occ}/breakdown?key=ManaRegen`);
+  assert.equal(regen.status, 404);
+  assert.match(regen.body.error?.message ?? "", /^no breakdown for ManaRegen \(its value is [\d.]+\); breakdowns that start with it: .*ManaRegenRecovery/);
   const skills = ok(await srv.call<{ mainSocketGroup: number; groups: Array<{ index: number; mainSkill?: string; output?: { TotalDPS?: number } }> }>("GET", `/v1/stats/${occ}/skills`));
   const vortex = skills.groups.find((g) => g.index === skills.mainSocketGroup);
   assert.equal(vortex?.mainSkill, "Vortex");

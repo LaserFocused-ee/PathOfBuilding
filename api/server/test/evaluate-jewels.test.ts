@@ -174,7 +174,7 @@ void test("compare_item in a jewel socket: a pasted jewel against the empty sock
   // A timeless jewel whose seed line names no conqueror Path of Building knows: refused, the worker keeps running (was a 500).
   const pride = (leader: string) => `Rarity: Unique\nLethal Pride\nTimeless Jewel\nLimited to: 1 Historic\nRadius: Large\nCommanded leadership over 10000 warriors under ${leader}\nPassives in radius are Conquered by the Karui\nHistoric`;
   const unknown = await post<unknown>(`/v1/evaluate/${base}/compare-item`, { slot: "Jewel 41263", text: pride("Nobody") });
-  assert.deepEqual([unknown.status, unknown.body.error?.message], [400, "Path of Building reads no conqueror on this timeless jewel (its seed line names none it knows), so it would change nothing"]);
+  assert.deepEqual([unknown.status, unknown.body.error?.message], [400, "Path of Building reads no conqueror on this timeless jewel (its seed line names none it knows), so it would change nothing; Lethal Pride names one of Kaom, Rakiata, Akoya"]);
   assert.equal((await compare(base, { slot: "Jewel 41263", text: jewel, fields: ["CombinedDPS"] }))[0]?.changed.CombinedDPS?.after, 9465.7168820134, "the same worker answers the next compare");
   assert.equal(await state(base), s0, "compare_item changed the build");
 });

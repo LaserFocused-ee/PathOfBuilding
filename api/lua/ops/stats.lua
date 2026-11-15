@@ -138,7 +138,17 @@ return function(W)
 		local b = W.build()
 		local actor = b.calcsTab.calcsEnv and b.calcsTab.calcsEnv[args.actor == "minion" and "minion" or "player"]
 		local bd = actor and actor.breakdown and actor.breakdown[args.key]
-		if bd == nil then W.fail("not_found", "no breakdown for " .. args.key) end
+		if bd == nil then
+			-- Path of Building writes a breakdown only where the Calcs tab draws one, and some only when the figure is more
+			-- than its base (Life); name the value and the breakdowns that start with the key (ManaRegen: ManaRegenRecovery).
+			local value, near = actor and actor.output[args.key], {}
+			for k in pairs(actor and actor.breakdown or {}) do
+				if type(k) == "string" and k ~= args.key and k:sub(1, #args.key) == args.key then near[#near + 1] = k end
+			end
+			table.sort(near)
+			W.fail("not_found", "no breakdown for " .. args.key .. (type(value) == "number" and string.format(" (its value is %s)", value) or "")
+				.. (#near > 0 and ("; breakdowns that start with it: " .. table.concat(near, ", ", 1, math.min(#near, 10))) or ""))
+		end
 		return { key = args.key, value = W.plain(actor.output[args.key]), breakdown = W.plain(bd) }
 	end
 
@@ -237,8 +247,13 @@ return function(W)
 		local used, max, ascUsed, ascMax = strip(b.controls.pointDisplay.str):match("(%d+)%s*/%s*(%d+)%s+(%d+)%s*/%s*(%d+)")
 		local req = strip(b.controls.pointDisplay.req or "")
 		local _, _, secondaryUsed, sockets = b.spec:CountAllocNodes()
+		-- max is Path of Building's level-100 cap (99 + 23 quest points + extra, EstimatePlayerProgress); at the build's level
+		-- the cap is one point a level past 1 plus the same quest and extra points (every campaign quest done).
+		local extra = b.calcsTab.mainOutput and b.calcsTab.mainOutput.ExtraPoints or 0
 		return {
-			used = tonumber(used), max = tonumber(max), ascendancyUsed = tonumber(ascUsed), ascendancyMax = tonumber(ascMax),
+			used = tonumber(used), max = tonumber(max), level = b.characterLevel,
+			maxAtLevel = math.min(tonumber(max) or 0, b.characterLevel - 1 + 23 + extra),
+			ascendancyUsed = tonumber(ascUsed), ascendancyMax = tonumber(ascMax),
 			secondaryAscendancyUsed = secondaryUsed, jewelSockets = sockets,
 			requiredLevel = tonumber(req:match("Required Level: (%d+)")), act = req:match("Act: (%S+)"),
 		}

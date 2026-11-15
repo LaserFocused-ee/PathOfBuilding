@@ -323,16 +323,16 @@ Attribute totals and requirements; resistances with total, overcap and maximum.
 
 ### `GET /v1/stats/:id/points`
 
-Passive and ascendancy points used and available, required level.
+Passive and ascendancy points used and available, required level. `max` is Path of Building's cap at level 100 (99 + 23 quest points + extra points); `maxAtLevel` the cap at the build's `level` (level - 1 + the same quest and extra points: every campaign quest done).
 
 - Name: `stats.points` (MCP `pob_stats` action `points`)
 - Read-only: yes; worker: `stats.points`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"used":{"type":"number"},"max":{"type":"number"},"ascendancyUsed":{"type":"number"},"ascendancyMax":{"type":"number"},"secondaryAscendancyUsed":{"type":"number"},"jewelSockets":{"type":"number"},"requiredLevel":{"type":"number"},"act":{"type":"string"}},"additionalProperties":{}}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"used":{"type":"number"},"max":{"type":"number"},"level":{"type":"number"},"maxAtLevel":{"type":"number"},"ascendancyUsed":{"type":"number"},"ascendancyMax":{"type":"number"},"secondaryAscendancyUsed":{"type":"number"},"jewelSockets":{"type":"number"},"requiredLevel":{"type":"number"},"act":{"type":"string"}},"required":["level","maxAtLevel"],"additionalProperties":{}}`
 
 ### `GET /v1/stats/:id/levers`
 
-The build-quality levers left unpulled, in one read, as Path of Building holds them: allocated jewel sockets with what each holds (`kind` basic or small/medium/large cluster, cluster subgraph sockets included) and how many are empty; unallocated sockets a path reaches within `within` points (default 10), nearest first (`points`, PassiveSpec's pathDist); socketed cluster jewels by size; the five flask slots, filled and active; abyssal sockets on gear; anointable equipped items with their anoints; tattoos; allocated masteries and those with no effect chosen; config options set (as config.get) and those the Configuration tab shows for this build still at default; gems of the player's socket groups below their top natural level or 20 quality; gem sockets of equipped items against the gems their groups hold; open affixes on equipped rares (`known`: Path of Building has the prefix/suffix split; otherwise `open` is 6 less the explicit lines, a lower bound). `unused` names each lever not used in one line. Reads only.
+The build-quality levers left unpulled, in one read, as Path of Building holds them: allocated jewel sockets with what each holds (`kind` basic or small/medium/large cluster, cluster subgraph sockets included) and how many are empty; unallocated sockets a path reaches within `within` points (default 10), nearest first (`points`, PassiveSpec's pathDist); socketed cluster jewels by size; the five flask slots, filled and active (active state belongs to the item set: items.set_active switches a flask on in the active set; set it again in each set you compare); abyssal sockets on gear; anointable equipped items with their anoints; tattoos; allocated masteries and those with no effect chosen; config options set (as config.get) and those the Configuration tab shows for this build still at default; gems of the player's socket groups below their top natural level or 20 quality; gem sockets of equipped items against the gems their groups hold; open affixes on equipped rares (`known`: Path of Building has the prefix/suffix split; otherwise `open` is 6 less the explicit lines, a lower bound). `unused` names each lever not used in one line. Reads only.
 
 - Name: `stats.levers` (MCP `pob_stats` action `levers`)
 - Read-only: yes; worker: `stats.levers`
@@ -701,7 +701,7 @@ Make a socket group the main one, and optionally pick which of its active skills
 
 ### `POST /v1/skills/:id/set-gem`
 
-Change a gem of a group (name, level, quality, enabled, count); a position one past the last gem adds one (name required), at the level the `defaultGemLevel` option picks unless `level` is given.
+Change a gem of a group (name, level, quality, enabled, count); a position one past the last gem adds one (name required), at the level the `defaultGemLevel` option picks unless `level` is given. Names are those the gem box lists with the build's options: a legacy gem (the Awakened supports in 3.30) needs set_options showLegacyGems, and the refusal says so.
 
 - Name: `skills.set_gem` (MCP `pob_skills` action `set_gem`)
 - Read-only: no; worker: `skills.set_gem`
@@ -827,7 +827,7 @@ One item: its text, mods in force for its selected variant, roll ranges, anoints
 
 ### `POST /v1/items/:id/add`
 
-Add an item from its text (copied in game or from Path of Building), as Ctrl+V on the item list does. Text Path of Building cannot read fails.
+Add an item from its text (copied in game or from Path of Building), as Ctrl+V on the item list does. Text Path of Building cannot read fails. A mod line is an explicit unless the text says otherwise: an enchant (a flask's "Used when ..." too) ends in ` (enchant)` as the game copies it, or starts with `{enchant}`; an implicit ends in ` (implicit)`, or sits in the `Implicits: N` lines of Path of Building's own form.
 
 - Name: `items.add` (MCP `pob_items` action `add`)
 - Read-only: no; worker: `items.add`
@@ -998,7 +998,7 @@ Empty a slot (the item stays in the list).
 
 ### `POST /v1/items/:id/set-active`
 
-Switch a flask's or tincture's Active box on or off.
+Switch a flask's or tincture's Active box on or off, as the Items tab does: in the active item set only (each item set keeps its own flask state, so after items.set_activate the other set's flasks are as that set left them).
 
 - Name: `items.set_active` (MCP `pob_items` action `set_active`)
 - Read-only: no; worker: `items.set_active`
@@ -1385,12 +1385,12 @@ The trade leagues of a realm as Path of Building's Trade tab lists them, asked o
 
 ### `GET /v1/lookup/gems`
 
-Search gems by name and tag, with requirements at a level (`level` defaults to each gem's natural maximum). `requirements` is absent at a `level` the game data has no row for: some gems list levels only up to `naturalMaxLevel` (Convocation stops at 1).
+Search gems by name and tag, with requirements at a level (`level` defaults to each gem's natural maximum). `requirements` is absent at a `level` the game data has no row for: some gems list levels only up to `naturalMaxLevel` (Convocation stops at 1). A query ending in "Support" matches without it and the gem named exactly comes first. `legacy` marks gems Path of Building keeps as legacy (the Awakened supports in 3.30): the gem box, and so skills.set_gem, takes them only with skills.set_options showLegacyGems; skills.add_group takes them as pasted text does.
 
 - Name: `lookup.gems` (MCP `pob_lookup` action `gems`)
 - Read-only: yes; worker: `lookup.gems`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"query":{"type":"string","maxLength":100},"tag":{"type":"string","maxLength":50},"support":{"type":"boolean"},"level":{"type":"integer","minimum":1,"maximum":40},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}}}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"total":{"type":"number"},"offset":{"type":"number"},"gems":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"support":{"type":"boolean"},"tags":{"type":"array","items":{"type":"string"}},"tagString":{"type":"string"},"naturalMaxLevel":{"type":"number"},"description":{"type":"string"},"requirements":{"type":"object","properties":{"gemLevel":{"type":"number"},"level":{"type":"number"},"str":{"type":"number"},"dex":{"type":"number"},"int":{"type":"number"}},"required":["gemLevel","level","str","dex","int"],"additionalProperties":{}}},"required":["id","name","support","tags"],"additionalProperties":{}}}},"required":["total","offset","gems"],"additionalProperties":{}}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"total":{"type":"number"},"offset":{"type":"number"},"gems":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"support":{"type":"boolean"},"tags":{"type":"array","items":{"type":"string"}},"tagString":{"type":"string"},"naturalMaxLevel":{"type":"number"},"legacy":{"type":"boolean"},"description":{"type":"string"},"requirements":{"type":"object","properties":{"gemLevel":{"type":"number"},"level":{"type":"number"},"str":{"type":"number"},"dex":{"type":"number"},"int":{"type":"number"}},"required":["gemLevel","level","str","dex","int"],"additionalProperties":{}}},"required":["id","name","support","tags","legacy"],"additionalProperties":{}}}},"required":["total","offset","gems"],"additionalProperties":{}}`
 
 ### `GET /v1/lookup/uniques`
 
@@ -1439,16 +1439,16 @@ The configuration option catalogue: type, section, allowed values, current value
 
 ### `GET /v1/lookup/data/:table`
 
-Page through one of Path of Building's own game-data tables: rare_templates, bench_crafts, essences, veiled, necropolis, beastcraft, delve, incursion, fossil (the crafting lists of the Items tab), enchantments, cluster_notables, anoint_recipes, keystones, pantheons, map_mods, minions, spectres, bosses, timeless (one row per timeless jewel type: seed range as written on the item, conquerors, the keystone each names, radius). Rows are flat and sorted by name; `query` matches a row's name or any of its text lines (case-insensitive). Tree tables (anoint_recipes, keystones) read the tree of `buildId`, else the latest.
+Page through one of Path of Building's own game-data tables: rare_templates, bench_crafts, essences, veiled, necropolis, beastcraft, delve, incursion, fossil (the crafting lists of the Items tab), enchantments, cluster_notables, anoint_recipes, keystones, pantheons, map_mods, minions, spectres, bosses, timeless (one row per timeless jewel type: seed range as written on the item, conquerors, the keystone each names, radius). Rows are flat and sorted by name; `query` matches a row's name or any of its text lines (case-insensitive); `slot` narrows enchantments to one item group (UtilityFlask for flasks). Tree tables (anoint_recipes, keystones) read the tree of `buildId`, else the latest.
 
 - Name: `lookup.data` (MCP `pob_lookup` action `data`)
 - Read-only: yes; worker: `lookup.data`
-- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"table":{"type":"string","enum":["rare_templates","bench_crafts","essences","veiled","necropolis","beastcraft","delve","incursion","fossil","enchantments","cluster_notables","anoint_recipes","keystones","pantheons","map_mods","minions","spectres","bosses","timeless"]},"query":{"type":"string","maxLength":100},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}},"required":["table"]}`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"table":{"type":"string","enum":["rare_templates","bench_crafts","essences","veiled","necropolis","beastcraft","delve","incursion","fossil","enchantments","cluster_notables","anoint_recipes","keystones","pantheons","map_mods","minions","spectres","bosses","timeless"]},"query":{"type":"string","maxLength":100},"slot":{"description":"enchantments only: the item group a row is for","type":"string","enum":["Belt","Body Armour","Boots","Gloves","Helmet","UtilityFlask","Weapon"]},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}},"required":["table"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"table":{"type":"string"},"total":{"type":"number"},"offset":{"type":"number"},"rows":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":{}}}},"required":["table","total","offset","rows"],"additionalProperties":{}}`
 
 ### `GET /v1/lookup/mods-for-base`
 
-The mods a rare item of a base can roll, as the affix boxes of the Items tab list them: those the base can have with a spawn weight above 0, at most the item level (default 100), sorted by type, group, level. `influence` adds the mods of an influence the base can take (Shaper, Elder, Warlord, Hunter, Crusader, Redeemer, Searing Exarch, Eater of Worlds); `query` matches the mod text.
+The mods a rare item of a base can roll, as the affix boxes of the Items tab list them: those the base can have with a spawn weight above 0, at most the item level (default 100), sorted by type, group, level. `influence` adds the mods of an influence the base can take (Shaper, Elder, Warlord, Hunter, Crusader, Redeemer, Searing Exarch, Eater of Worlds); Searing Exarch and Eater of Worlds add their eldritch implicits (type Exarch or Eater, as the Add Implicit popup lists them), which `type` Prefix or Suffix leaves out; `query` matches the mod text.
 
 - Name: `lookup.mods_for_base` (MCP `pob_lookup` action `mods_for_base`)
 - Read-only: yes; worker: `lookup.mods_for_base`

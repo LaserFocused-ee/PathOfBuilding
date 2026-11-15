@@ -124,6 +124,12 @@ void test("set_gem: level, quality, enabled, a gem past the end; unknown names c
   fails(await post(id, "set-gem", { group: 1, gem: 1, quality: 24 }), 400, "invalid_input");
   assert.equal(await revisionOf(id), rev);
   assert.equal((await skills(id)).groups[0]?.gems[1]?.name, "Fire Penetration", "the failed rename left the gem alone");
+
+  // A legacy gem the gem box hides is named with the option that lists it, then taken once the option is on.
+  const hidden = await post(id, "set-gem", { group: 1, gem: 4, name: "Awakened Spell Echo" });
+  assert.deepEqual([hidden.status, hidden.body.error?.message], [400, "Awakened Spell Echo is a legacy gem the gem box hides with this build's options (Show legacy gems, Show support gems): skills.set_options showLegacyGems true and showSupportGemTypes ALL list it"]);
+  ok(await post(id, "set-options", { showLegacyGems: true }));
+  assert.equal(ok(await post(id, "set-gem", { group: 1, gem: 4, name: "Awakened Spell Echo Support" })).result.name, "Awakened Spell Echo");
 });
 
 void test("update_group, move_group, delete_gem, delete_group", async () => {

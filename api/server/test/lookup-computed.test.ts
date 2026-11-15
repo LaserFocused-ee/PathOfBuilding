@@ -59,6 +59,12 @@ void test("mods_for_base: the prefixes Vaal Regalia rolls at item level 86, page
   const second = await mods("&ilvl=86&type=Prefix&limit=1&offset=1");
   assert.deepEqual([second.offset, second.mods.map((m) => m.id)], [1, ["AttackerTakesDamage2"]]);
   assert.equal((await mods("&ilvl=86&type=Prefix&influence=Shaper")).total, 73);
+  // The eldritch influences add no affixes but their implicits, as the Add Implicit popup lists them.
+  const exarch = await mods("&ilvl=86&influence=Searing%20Exarch&limit=200");
+  assert.deepEqual([exarch.total, exarch.mods[0]?.type, exarch.mods[0]?.id], [519, "Exarch", "ArcticArmourBuffEffectEldritchImplicit1"]);
+  const eater = await mods("&ilvl=86&influence=Eater%20of%20Worlds&query=all%20Elemental%20Resistances");
+  assert.ok(eater.mods.some((m) => m.type === "Eater" && m.id === "AllResistancesEldritchImplicit1"));
+  assert.equal((await mods("&ilvl=86&type=Prefix&influence=Searing%20Exarch")).total, 62);
   fails(await srv.call("GET", "/v1/lookup/mods-for-base?base=Vaal%20Regalia&influence=Nope"), 400, "invalid_input");
 });
 

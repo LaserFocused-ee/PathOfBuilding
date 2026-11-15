@@ -366,6 +366,10 @@ void test("a query narrows a table to the rows whose name or text line holds it,
   const byLine = await page("pantheons", "?query=burning%20GROUND");
   assert.ok(byLine.total >= 1 && byLine.rows.some((r) => r.name === "Abberath"));
   assert.equal((await page("bosses", "?query=zzz-no-such-row")).total, 0);
+  // slot narrows enchantments to one item group; other tables refuse it
+  const flask = await page("enchantments", "?slot=UtilityFlask&limit=100");
+  assert.ok(flask.total === 21 && flask.rows.every((r) => r.slot === "UtilityFlask" && typeof r.text === "string"), `total ${flask.total}`);
+  fails(await srv.call("GET", "/v1/lookup/data/keystones?slot=Helmet"), 400, "invalid_input");
 });
 
 void test("paging: offset and limit take the same rows as the whole list", async () => {

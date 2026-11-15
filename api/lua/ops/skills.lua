@@ -322,11 +322,22 @@ return function(W)
 	local function pickGem(ctrl, name)
 		local want = tostring(name):lower():gsub(" support$", "")
 		local found
+		-- The list for the tab's current options, as opening the dropdown rebuilds it (GemSelectControl:UpdateSortCache).
+		ctrl:PopulateGemList()
 		for gemId, gem in pairs(ctrl.gems) do
 			local n = gem.name:lower()
 			if n == want or n:gsub(" support$", "") == want then found = gemId end
 		end
-		if not found then W.fail("invalid_input", "unknown gem " .. tostring(name)) end
+		if not found then
+			-- A gem the box hides (legacy, e.g. the Awakened supports in 3.30, or a support type the Show support gems box leaves out).
+			for _, gem in pairs(ctrl.skillsTab.build.data.gems) do
+				local n = gem.name:lower()
+				if n == want or n:gsub(" support$", "") == want then
+					W.fail("invalid_input", gem.name .. (gem.grantedEffect.legacy and " is a legacy gem" or " is a gem") .. " the gem box hides with this build's options (Show legacy gems, Show support gems): skills.set_options showLegacyGems true and showSupportGemTypes ALL list it")
+				end
+			end
+			W.fail("invalid_input", "unknown gem " .. tostring(name))
+		end
 		ctrl:SetText(ctrl.gems[found].name)
 		ctrl.list = { found }
 		ctrl.selIndex = 1

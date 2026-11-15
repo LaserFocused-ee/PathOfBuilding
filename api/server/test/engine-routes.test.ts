@@ -56,6 +56,10 @@ void test("lookups page with offset and limit; the whole config catalogue fits a
   const all = ok(await srv.call<Page>("GET", "/v1/lookup/gems?query=Fire&limit=6"));
   assert.equal(p2.offset, 3);
   assert.deepEqual([...(p1.gems ?? []), ...(p2.gems ?? [])].map((g) => g.name), (all.gems ?? []).map((g) => g.name));
+  // "Support" in the query is the gem box's: the gem named exactly comes first, the Awakened one after it, marked legacy.
+  type Gem = { name: string; legacy: boolean; requirements?: { gemLevel: number } };
+  const swift = ok(await srv.call<{ gems: Gem[] }>("GET", "/v1/lookup/gems?query=Swift%20Affliction%20Support&level=21")).gems;
+  assert.deepEqual(swift.map((g) => [g.name, g.legacy, g.requirements?.gemLevel ?? null]), [["Swift Affliction", false, 21], ["Awakened Swift Affliction", true, null]]);
   const c1 = ok(await srv.call<Page>("GET", "/v1/lookup/config"));
   assert.ok(c1.total > 100 && c1.options?.length === 100, `total ${c1.total}`);
   assert.ok(JSON.stringify(c1).length < srv.runtime.svc.cfg.mcpMaxResultChars, "a default page fits one MCP result");

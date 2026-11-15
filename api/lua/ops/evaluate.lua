@@ -121,6 +121,14 @@ return function(W)
 		return not slot.inactive and (not slot.weaponSet or slot.weaponSet == (tab.activeItemSet.useSecondWeaponSet and 2 or 1)) and slot.shown()
 	end
 
+	-- ponytail: the conquerors the Tree tab's timeless search offers per jewel (TreeTab.lua conquerorTypes), copied
+	-- because that table is local to the tab; ModParser's conquerorList also reads the retired fourth of each.
+	local timelessConquerors = {
+		["Glorious Vanity"] = "Doryani, Xibaqua, Ahuana", ["Lethal Pride"] = "Kaom, Rakiata, Akoya",
+		["Brutal Restraint"] = "Asenath, Nasima, Balbala", ["Militant Faith"] = "Avarius, Dominus, Maxarius",
+		["Elegant Hubris"] = "Cadiro, Victario, Caspiro", ["Heroic Tragedy"] = "Vorana, Uhtred, Medved",
+	}
+
 	-- An item by id (item list) or from its text, as Add from the Items tab reads it.
 	local function itemOf(tab, args)
 		if args.text ~= nil then
@@ -130,7 +138,9 @@ return function(W)
 			item:NormaliseQuality()
 			item:BuildModList()
 			if item.base.subType == "Timeless" and not (item.jewelData and item.jewelData.conqueredBy) then
-				bad("Path of Building reads no conqueror on this timeless jewel (its seed line names none it knows), so it would change nothing")
+				local names = timelessConquerors[item.title]
+				bad("Path of Building reads no conqueror on this timeless jewel (its seed line names none it knows), so it would change nothing"
+					.. (names and ("; " .. item.title .. " names one of " .. names) or ""))
 			end
 			return item
 		end
