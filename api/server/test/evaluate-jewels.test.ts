@@ -179,6 +179,18 @@ void test("compare_item in a jewel socket: a pasted jewel against the empty sock
   assert.equal(await state(base), s0, "compare_item changed the build");
 });
 
+void test("unique_rank for jewels: one socket measured, the first allocated empty one or the one named", async () => {
+  type Rank = { total: number; socket: string | null; uniques: Array<{ name: string; power: number }> };
+  const now = ok(await srv.call<{ output: Record<string, number> }>("GET", `/v1/stats/${base}/output?fields=CombinedDPS`)).output.CombinedDPS ?? 0;
+  const r = ok(await post<Rank>(`/v1/evaluate/${base}/unique-rank`, { slot: "Jewel", stat: "CombinedDPS", limit: 200 }));
+  assert.equal(r.socket, "Jewel 41263");
+  assert.ok((r.uniques[0]?.power ?? 0) > now, "the best jewel adds to the build in the empty socket");
+  assert.ok(new Set(r.uniques.map((u) => u.power)).size > 10, "jewels are told apart");
+  assert.equal(ok(await post<Rank>(`/v1/evaluate/${base}/unique-rank`, { slot: "Jewel", stat: "CombinedDPS", limit: 1, socket: 41263 })).socket, "Jewel 41263");
+  const off = await post<unknown>(`/v1/evaluate/${base}/unique-rank`, { slot: "Helmet", stat: "CombinedDPS", socket: 41263 });
+  assert.deepEqual([off.status, off.body.error?.message], [400, "socket is for slot Jewel"]);
+});
+
 void test("jewel_mods refusals", async () => {
   await fail({ family: "cluster", size: "Large" }, /enchant is one of the Large cluster's: Attack Damage, /);
   await fail({ family: "cluster", enchant: "Fire Damage" }, /size/);

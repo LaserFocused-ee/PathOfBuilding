@@ -88,6 +88,12 @@ void test("node_power: allocated nodes show their removal, masteries one entry p
   assert.deepEqual(od.nodes.map((n) => [n.id, n.power, n.defence, n.pathPower]), [[44983, 0.085068750229975, 0, undefined], [57264, 0.078416262226976, 0, undefined]]);
   const full = await ev<{ nodes: NodePower[] }>(base, "node-power", { stat: "FullDPS", depth: 5, limit: 2 });
   assert.deepEqual(full.nodes.map((n) => [n.name, n.pathDist, n.power]), [["Elemental Overload", 5, 2450.8169864801], ["Trickery", 5, 1109.8215415379]]);
+  // Any number of the output: TotalDotDPS, which the power stat list does not carry; above 200 results.
+  const dot = await ev<{ stat: string; total: number; nodes: NodePower[] }>(base, "node-power", { stat: "TotalDotDPS", depth: 10, limit: 1000 });
+  assert.deepEqual([dot.stat, dot.total, dot.nodes.length], ["TotalDotDPS", 1122, 1000]);
+  assert.ok(dot.nodes.some((n) => n.power !== 0), "damage over time moves with some node");
+  const unknown = await evaluate(base, "node-power", { stat: "NoSuchOutput" });
+  assert.deepEqual([unknown.status, unknown.body.error?.message], [400, "unknown stat NoSuchOutput; use a stat of the power stat list, e.g. CombinedDPS, FullDPS, TotalEHP, Life, or a number of the build's output (e.g. TotalDotDPS)"]);
 });
 
 type Candidate = { id: number; name: string; type: string; points: number; gain?: number; changed: Changed };

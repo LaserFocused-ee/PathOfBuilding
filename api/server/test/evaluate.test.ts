@@ -106,7 +106,7 @@ void test("bad requests are 400 invalid_input (404 for a build that is not there
   fails(await evaluate(base, "what-if", { slot: "Amulet", text: helmet }), 400, "invalid_input");
   fails(await evaluate(base, "what-if", { toggleFlask: "Flask 2" }), 400, "invalid_input");
   fails(await evaluate(base, "node-power", { stat: "NoSuchStat" }), 400, "invalid_input");
-  fails(await evaluate(base, "node-power", { stat: "CombinedDPS", limit: 500 }), 400, "invalid_input");
+  fails(await evaluate(base, "node-power", { stat: "CombinedDPS", limit: 2001 }), 400, "invalid_input");
   fails(await evaluate(base, "compare-item", { text: helmet, slot: "Amulet" }), 400, "invalid_input");
   fails(await evaluate(base, "compare-item", {}), 400, "invalid_input");
   fails(await evaluate(base, "gem-rank", { group: 9, stat: "CombinedDPS" }), 400, "invalid_input");

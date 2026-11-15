@@ -20,11 +20,19 @@ return function(W)
 	end
 
 	-- A power stat by its `stat` name in data.powerStatList ("OffenceDefence" is the combined entry).
-	local function powerStat(name)
+	-- `anyOutput`: also any numeric key of the build's output (Minion<key> for the minion's), measured as the list's own entries are
+	-- (data.powerStatList.GetFromOutput reads output[stat]), e.g. TotalDotDPS, which the list does not carry.
+	local function powerStat(name, anyOutput)
 		for _, entry in ipairs(data.powerStatList) do
 			if (name == "OffenceDefence" and entry.combinedOffDef) or (entry.stat and entry.stat == name) then return entry end
 		end
-		bad("unknown stat " .. tostring(name) .. "; use a stat of the power stat list, e.g. CombinedDPS, FullDPS, TotalEHP, Life")
+		if anyOutput and type(name) == "string" then
+			local out = main.modes.BUILD.calcsTab.mainOutput or {}
+			local minion = name:match("^Minion(.+)")
+			local v = minion and out.Minion and out.Minion[minion] or out[name]
+			if type(v) == "number" then return { stat = name, label = name } end
+		end
+		bad("unknown stat " .. tostring(name) .. "; use a stat of the power stat list, e.g. CombinedDPS, FullDPS, TotalEHP, Life" .. (anyOutput and ", or a number of the build's output (e.g. TotalDotDPS)" or ""))
 	end
 
 	-- The sidebar values (what the mutation ops diff) of an output table: the sidebar is refreshed with the
@@ -176,10 +184,10 @@ return function(W)
 	function ops.node_power(args)
 		local b = W.build()
 		local tab = b.calcsTab
-		local stat = powerStat(args.stat)
+		local stat = powerStat(args.stat, true)
 		local depth = args.depth == nil and 10 or tonumber(args.depth)
 		if not depth or depth < 1 then bad("depth is a path distance of 1 or more") end
-		local limit, offset = math.min(tonumber(args.limit) or 20, 200), math.max(tonumber(args.offset) or 0, 0)
+		local limit, offset = math.min(tonumber(args.limit) or 20, 2000), math.max(tonumber(args.offset) or 0, 0)
 		local savedStat, savedDepth, savedMax, savedInit = tab.powerStat, tab.nodePowerMaxDepth, tab.powerMax, tab.powerBuilderInitialized
 		tab.powerStat, tab.nodePowerMaxDepth = stat, depth
 		local ok, err = pcall(tab.PowerBuilder, tab)
@@ -513,8 +521,32 @@ return function(W)
 		return { stat = args.stat, total = total, notables = out }
 	end
 
-	-- args: slot, stat, limit?. The unique database list filtered to the slot and sorted by the stat the unique gives (its best
-	-- slot; power is the stat's value with the unique equipped).
+	-- A jewel socket: a tree socket (node id or "Jewel <id>") or an item's abyssal socket slot; by default the first allocated tree
+	-- socket that holds no jewel and takes `probe`.
+	local function socketOf(tab, ref, probe)
+		tab:UpdateSockets()
+		local slot
+		if ref ~= nil then
+			slot = tab.slots[tostring(ref)] or tab.slots["Jewel " .. tostring(ref)]
+			if not slot or not (slot.nodeId or slot.slotName:find("Abyssal")) then bad("no jewel socket " .. tostring(ref)) end
+		else
+			for pass = 1, 2 do -- regular sockets before cluster sockets
+				for _, s in ipairs(tab.orderedSlots) do
+					if not slot and s.nodeId and s.selItemId == 0 and slotInUse(tab, s) and tab:IsItemValidForSlot(probe, s.slotName)
+						and (pass == 2 or not tab.build.spec.nodes[s.nodeId].expansionJewel) then slot = s end
+				end
+			end
+			if not slot then bad("the tree has no allocated empty socket this jewel fits; allocate one or name a socket") end
+		end
+		if not slotInUse(tab, slot) then bad(slot.slotName .. " is not in use (socket not allocated or its item has no such socket)") end
+		if not tab:IsItemValidForSlot(probe, slot.slotName) then bad("this jewel does not fit " .. slot.slotName) end
+		return slot
+	end
+
+	-- args: slot, stat, limit?, socket? (slot Jewel). The unique database list filtered to the slot and sorted by the stat the unique
+	-- gives (its best slot; power is the stat's value with the unique equipped). For jewels the list measures every allocated socket,
+	-- so the best slot is often the socket whose jewel matters least and power reads close to the build's own; here only one socket
+	-- is measured: `socket`, else the first allocated empty one (all sockets only when none is empty). `socket` in the answer.
 	function ops.unique_rank(args)
 		local b = W.build()
 		local control = b.itemsTab.controls.uniqueDB
@@ -528,6 +560,19 @@ return function(W)
 		if not filter then bad("the unique list has no slot " .. args.slot .. "; use " .. table.concat(control.slotList, ", ", 2)) end
 		if not stat.stat or stat.ignoreForItems then bad("stat " .. args.stat .. " cannot rank items") end
 		local limit = math.min(tonumber(args.limit) or 20, 200)
+		local tab = b.itemsTab
+		local socket, parked = json.null, {}
+		if args.slot == "Jewel" then
+			local probe = new("Item"):Item("Rarity: RARE\nProbe\nCobalt Jewel")
+			local found, slot = pcall(socketOf, tab, args.socket, probe)
+			if not found and args.socket ~= nil then error(slot, 0) end
+			if found then
+				socket = slot.slotName
+				for _, s in pairs(tab.slots) do
+					if s.nodeId and s ~= slot and not s.inactive then s.inactive = true; parked[#parked + 1] = s end
+				end
+			end
+		elseif args.socket ~= nil then bad("socket is for slot Jewel") end
 		local slotDrop = control.controls.slot
 		local prevSel, prevMode, prevList = slotDrop.selIndex, control.sortMode, control.list
 		slotDrop.selIndex = filter
@@ -542,11 +587,12 @@ return function(W)
 			total, out = #ranked, {}
 			for i = 1, math.min(limit, #ranked) do out[i] = ranked[i] end
 		end)
+		for _, s in ipairs(parked) do s.inactive = false end
 		slotDrop.selIndex = prevSel
 		control:SetSortMode(prevMode)
 		control.list = prevList
 		if not ok then error(err, 0) end
-		return { stat = args.stat, total = total, uniques = out }
+		return { stat = args.stat, total = total, socket = socket, uniques = out }
 	end
 
 	-- args: a? (tree list index; default the active tree), b, fields?. b's tree against a's (the calculator's spec override).
@@ -599,28 +645,6 @@ return function(W)
 	local realms = { pc = true, xbox = true, sony = true }
 	local function indexOf(list, v) for i, x in ipairs(list) do if x == v then return i end end end
 	local tradeHost = "https://www.pathofexile.com/"
-
-	-- A jewel socket: a tree socket (node id or "Jewel <id>") or an item's abyssal socket slot; by default the first allocated tree
-	-- socket that holds no jewel and takes `probe`.
-	local function socketOf(tab, ref, probe)
-		tab:UpdateSockets()
-		local slot
-		if ref ~= nil then
-			slot = tab.slots[tostring(ref)] or tab.slots["Jewel " .. tostring(ref)]
-			if not slot or not (slot.nodeId or slot.slotName:find("Abyssal")) then bad("no jewel socket " .. tostring(ref)) end
-		else
-			for pass = 1, 2 do -- regular sockets before cluster sockets
-				for _, s in ipairs(tab.orderedSlots) do
-					if not slot and s.nodeId and s.selItemId == 0 and slotInUse(tab, s) and tab:IsItemValidForSlot(probe, s.slotName)
-						and (pass == 2 or not tab.build.spec.nodes[s.nodeId].expansionJewel) then slot = s end
-				end
-			end
-			if not slot then bad("the tree has no allocated empty socket this jewel fits; allocate one or name a socket") end
-		end
-		if not slotInUse(tab, slot) then bad(slot.slotName .. " is not in use (socket not allocated or its item has no such socket)") end
-		if not tab:IsItemValidForSlot(probe, slot.slotName) then bad("this jewel does not fit " .. slot.slotName) end
-		return slot
-	end
 
 	-- Trade search link in Path of Building's own form (TradeQuery.lua "Find best" without a session; buildUrl + B64GzipEncode).
 	local function tradeLink(realm, league, query)
