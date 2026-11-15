@@ -256,4 +256,5 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `GET /v1/lookup/nodes` | `pob_lookup` `nodes` | Search passive tree nodes by name or stat text (the tree search box). |
 | `GET /v1/lookup/nodes/:nodeId` | `pob_lookup` `node` | One passive node: stats, links, path length from the current tree, mastery effects. |
 | `GET /v1/lookup/config` | `pob_lookup` `config` | The configuration option catalogue: type, section, allowed values, current value; `var` adds the tooltip. |
+| `GET /v1/lookup/data/:table` | `pob_lookup` `data` | Page through one of Path of Building's own game-data tables: rare_templates, bench_crafts, essences, veiled, necropolis, beastcraft, delve, incursion, fossil (the crafting lists of the Items tab), enchantments, cluster_notables, anoint_recipes, keystones, pantheons, map_mods, minions, spectres, bosses. Rows are flat and sorted by name; `query` matches a row's name or any of its text lines (case-insensitive). Tree tables (anoint_recipes, keystones) read the tree of `buildId`, else the latest. |
 <!-- routes:end -->

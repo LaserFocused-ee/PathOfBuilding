@@ -179,5 +179,180 @@ return function(W)
 		return { total = matched, offset = offset, options = out }
 	end
 
+	-- args: table (one of dataTables), query? (name or any line of a row), offset?, limit?
+	-- Path of Building's own game-data tables, one flat row each: name, plus fields as plain JSON.
+	local function lineList(list)
+		local out = {}
+		for i, line in ipairs(list or {}) do out[i] = strip(line) end
+		return out
+	end
+	local function sortedKeys(set)
+		local out = {}
+		for k in pairs(set or {}) do out[#out + 1] = k end
+		table.sort(out)
+		return out
+	end
+	local function modRow(id, mod)
+		local lines = lineList(mod)
+		return { name = table.concat(lines, "/"), id = id, type = mod.type, affix = mod.affix, level = mod.level, group = mod.group, lines = lines, tags = lineList(mod.modTags) }
+	end
+	local function modsOf(mods, add)
+		for id, mod in pairs(mods) do add(modRow(id, mod), id) end
+	end
+	-- Drop-restricted mods: the data file names each mod and the item types it drops on.
+	local function dropOnly(file, mods, add)
+		for id, entry in pairs(require(file)) do
+			local mod = mods[id]
+			if mod then
+				local row = modRow(id, mod)
+				row.categories = lineList(entry.categories)
+				add(row, id)
+			end
+		end
+	end
+	local function numbers(src, names)
+		local out = {}
+		for _, k in ipairs(names) do out[k] = src[k] end
+		return out
+	end
+	local minionFields = { "life", "energyShield", "armour", "fireResist", "coldResist", "lightningResist", "chaosResist", "damage", "damageSpread", "attackTime", "attackRange", "accuracy" }
+	local function minionRow(id, minion)
+		local row = numbers(minion, minionFields)
+		row.name, row.id, row.limit = minion.name, id, minion.limit
+		row.skills, row.tags = lineList(minion.skillList), lineList(minion.monsterTags)
+		return row
+	end
+	local function treeNodes(add, wanted)
+		local spec = W.build().spec
+		for id, node in pairs(spec.nodes) do
+			if wanted(node) then add({ name = node.dn, id = id, lines = lineList(node.sd), recipe = node.recipe and lineList(node.recipe) or nil }, id) end
+		end
+	end
+
+	local dataTables = {
+		rare_templates = function(add)
+			for name, item in pairs(W.main.rareDB.list) do
+				local lines = {}
+				for _, list in ipairs({ item.implicitModLines, item.explicitModLines }) do
+					for _, modLine in ipairs(list) do lines[#lines + 1] = strip(modLine.line) end
+				end
+				add({ name = name, base = item.baseName, type = item.type, lines = lines }, name)
+			end
+		end,
+		bench_crafts = function(add)
+			for i, craft in ipairs(data.masterMods) do
+				local row = modRow(nil, craft)
+				row.types = sortedKeys(craft.types)
+				add(row, string.format("%08d", i))
+			end
+		end,
+		essences = function(add)
+			for id, essence in pairs(data.essences) do
+				local lines = {}
+				for _, slot in ipairs(sortedKeys(essence.mods)) do
+					local mod = data.itemMods.Item[essence.mods[slot]]
+					lines[#lines + 1] = slot .. ": " .. (mod and table.concat(lineList(mod), "/") or essence.mods[slot])
+				end
+				add({ name = essence.name, id = id, tier = essence.tier, type = essence.type, lines = lines }, id)
+			end
+		end,
+		veiled = function(add) modsOf(data.veiledMods, add) end,
+		necropolis = function(add) modsOf(data.necropolisMods, add) end,
+		beastcraft = function(add) modsOf(data.beastCraft, add) end,
+		delve = function(add) dropOnly("Data.DelveDropOnly", data.itemMods.Delve, add) end,
+		incursion = function(add) dropOnly("Data.IncursionDropOnly", data.itemMods.Explicit, add) end,
+		fossil = function(add)
+			for id, mod in pairs(data.itemMods.Delve) do
+				if mod.affix == "Subterranean" or mod.affix == "of the Underground" then add(modRow(id, mod), id) end
+			end
+		end,
+		enchantments = function(add)
+			-- The seven item groups Data.lua loads; its other keys (Flask, one per weapon type) repeat these.
+			for _, slot in ipairs({ "Belt", "Body Armour", "Boots", "Gloves", "Helmet", "UtilityFlask", "Weapon" }) do
+				local function lines(source, skill, list)
+					for i, entry in ipairs(list) do
+						local text = type(entry) == "table" and table.concat(lineList(entry), "/") or strip(entry)
+						add({ name = text, text = text, slot = slot, source = source, skill = skill, types = type(entry) == "table" and sortedKeys(entry.types) or nil },
+							string.format("%s|%s|%s|%08d", slot, skill or "", source, i))
+					end
+				end
+				for source, list in pairs(data.enchantments[slot]) do
+					if slot == "Helmet" then
+						-- Helmet enchantments: skill, then tier.
+						for tier, tierList in pairs(list) do lines(tier, source, tierList) end
+					else
+						lines(source, nil, list)
+					end
+				end
+			end
+		end,
+		cluster_notables = function(add)
+			for name, info in pairs(data.clusterJewelInfoForNotable) do
+				local skills, seen = {}, {}
+				for size in pairs(info.size) do
+					for _, tag in ipairs(info.jewelTypes) do
+						local skill = data.clusterJewels.jewels[size].skills[tag]
+						if skill and not seen[skill.name] then seen[skill.name] = true; skills[#skills + 1] = skill.name end
+					end
+				end
+				table.sort(skills)
+				add({ name = name, sizes = sortedKeys(info.size), skills = skills }, name)
+			end
+		end,
+		anoint_recipes = function(add) treeNodes(add, function(node) return node.recipe ~= nil end) end,
+		keystones = function(add) treeNodes(add, function(node) return node.type == "Keystone" end) end,
+		pantheons = function(add)
+			for id, god in pairs(data.pantheons) do
+				local lines = {}
+				for _, soul in ipairs(god.souls) do
+					for _, mod in ipairs(soul.mods) do lines[#lines + 1] = strip(soul.name .. ": " .. mod.line) end
+				end
+				add({ name = id, major = god.isMajorGod or false, lines = lines }, id)
+			end
+		end,
+		map_mods = function(add)
+			local kind = {}
+			for _, which in ipairs({ "Prefix", "Suffix" }) do
+				for _, item in ipairs(data.mapMods[which]) do kind[item.val] = which end
+			end
+			for name, affix in pairs(data.mapMods.AffixData) do
+				add({ name = name, kind = kind[name], type = affix.type, label = strip(affix.label), lines = lineList(affix.tooltipLines), values = W.plain(affix.values) }, name)
+			end
+		end,
+		minions = function(add)
+			for id, minion in pairs(data.minions) do
+				if not data.spectres[id] then add(minionRow(id, minion), id) end
+			end
+		end,
+		spectres = function(add)
+			for id, minion in pairs(data.spectres) do add(minionRow(id, minion), id) end
+		end,
+		bosses = function(add)
+			for id, boss in pairs(data.bosses) do add({ name = id, armourMult = boss.armourMult, evasionMult = boss.evasionMult, isUber = boss.isUber or false }, id) end
+		end,
+	}
+
+	function ops.data(args)
+		local source = dataTables[args.table]
+		if not source then W.fail("not_found", "no data table " .. tostring(args.table) .. "; tables: " .. table.concat(sortedKeys(dataTables), ", ")) end
+		local list = {}
+		source(function(row, key)
+			if has(row.name, args.query) then
+				list[#list + 1] = { row = row, key = key }
+				return
+			end
+			for _, line in ipairs(row.lines or {}) do
+				if has(line, args.query) then list[#list + 1] = { row = row, key = key }; return end
+			end
+		end)
+		table.sort(list, function(a, b)
+			if a.row.name ~= b.row.name then return a.row.name < b.row.name end
+			return a.key < b.key
+		end)
+		local out, offset, limit = {}, pageOf(args, 20)
+		for i = offset + 1, math.min(#list, offset + limit) do out[#out + 1] = list[i].row end
+		return { table = args.table, total = #list, offset = offset, rows = out }
+	end
+
 	return ops
 end

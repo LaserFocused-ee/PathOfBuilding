@@ -240,20 +240,20 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | Operation | Tier | State | Route / note |
 | --- | --- | --- | --- |
 | `data.uniques.search` | S | done | `lookup.uniques`; engine.test.ts |
-| `data.rare_templates` | H | F3 | Data lookup, not yet routed (`items.add_rare` takes a template name) |
+| `data.rare_templates` | H | done | `lookup.data` (`table`: `rare_templates`); lookup-data.test.ts |
 | `data.bases` | H | done | `lookup.bases`; engine.test.ts |
 | `data.mods_for_base` | S | F3 | Data lookup, not yet routed |
-| `data.bench_crafts` | H | F3 | Data lookup, not yet routed |
-| `data.essences` / `veiled` / `necropolis` / `beastcraft` / `delve` / `incursion` / `fossil` | H | F3 | Data lookup, not yet routed |
-| `data.enchantments` | H | F3 | Data lookup, not yet routed |
+| `data.bench_crafts` | H | done | `lookup.data` (`table`: `bench_crafts`); lookup-data.test.ts |
+| `data.essences` / `veiled` / `necropolis` / `beastcraft` / `delve` / `incursion` / `fossil` | H | done | `lookup.data` (`table`: `essences`, `veiled`, `necropolis`, `beastcraft`, `delve`, `incursion`, `fossil`); lookup-data.test.ts |
+| `data.enchantments` | H | done | `lookup.data` (`table`: `enchantments`); lookup-data.test.ts |
 | `data.gems` | H | done | `lookup.gems`; engine.test.ts |
 | `data.support_compatible` | H | F3 | Data lookup, not yet routed |
 | `data.tree.search` | S | done | `lookup.nodes`; engine.test.ts |
-| `data.cluster_notables` | H | F3 | Data lookup, not yet routed |
+| `data.cluster_notables` | H | done | `lookup.data` (`table`: `cluster_notables`); lookup-data.test.ts |
 | `data.timeless` | H | F3 | Data lookup, not yet routed |
-| `data.anoint_recipes` | S | F3 | Data lookup, not yet routed |
-| `data.keystones` / `pantheons` / `map_mods` / `minions` / `bosses` | H | F3 | Data lookup, not yet routed |
-| `data.spectres` | H | F3 | Data lookup, not yet routed (`skills.set_spectres` takes a name) |
+| `data.anoint_recipes` | S | done | `lookup.data` (`table`: `anoint_recipes`); lookup-data.test.ts |
+| `data.keystones` / `pantheons` / `map_mods` / `minions` / `bosses` | H | done | `lookup.data` (`table`: `keystones`, `pantheons`, `map_mods`, `minions`, `bosses`); lookup-data.test.ts |
+| `data.spectres` | H | done | `lookup.data` (`table`: `spectres`); lookup-data.test.ts |
 | `data.parse_mod` | H | F3 | Data lookup, not yet routed |
 | `data.describe_stats` | H | F3 | Data lookup, not yet routed |
 
@@ -271,8 +271,8 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | compare and power | 12 | 7 | 0 | 0 | 4 | 1 | 0 |
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 |
-| data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 138 | 1 | 9 | 9 | 24 | 6 |
+| data | 17 | 12 | 0 | 0 | 0 | 5 | 0 |
+| **Total** | 187 | 146 | 1 | 9 | 9 | 16 | 6 |
 
 ## MCP tools
 

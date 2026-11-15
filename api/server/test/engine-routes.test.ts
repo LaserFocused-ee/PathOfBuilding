@@ -78,7 +78,7 @@ void test("every route refuses an unknown parameter, naming the ones it takes", 
 });
 
 // Query values for routes that need them, per build (OccVortex is on tree 3_13, before masteries).
-const readParams = (id: string): Record<string, string> => ({ key: "Life", query: "Life", nodeId: id === fresh ? "16123" : "46842", to: "Arcane Potency", group: "1", gem: "1", item: "1", tab: "config", socket: "41263", node: "37671" });
+const readParams = (id: string): Record<string, string> => ({ key: "Life", query: "Life", nodeId: id === fresh ? "16123" : "46842", to: "Arcane Potency", group: "1", gem: "1", item: "1", tab: "config", socket: "41263", node: "37671", table: "keystones" });
 
 /** Path and query for one read-only GET route on a build. */
 const readUrl = (r: (typeof routes)[number], id: string): string => {
@@ -86,7 +86,7 @@ const readUrl = (r: (typeof routes)[number], id: string): string => {
   const shape = Object.keys(r.input.shape);
   const q = new URLSearchParams(Object.fromEntries(shape.filter((k) => k in p && !r.path.includes(`:${k}`) && (k !== "query" || r.name !== "lookup.config")).map((k) => [k, p[k] ?? ""])));
   if (r.domain === "lookup") q.set("buildId", id);
-  const path = r.path.replace(":id", id).replace(":nodeId", p.nodeId ?? "");
+  const path = r.path.replace(":id", id).replace(":nodeId", p.nodeId ?? "").replace(":table", p.table ?? "");
   return `${path}${q.size ? `?${q}` : ""}`;
 };
 
