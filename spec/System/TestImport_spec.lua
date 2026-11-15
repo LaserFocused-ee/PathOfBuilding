@@ -57,6 +57,7 @@ describe("TestImport", function()
 		build.importTab.lastLeague = importData.league
 
 		local downloadPage = launch.DownloadPage
+		finally(function() launch.DownloadPage = downloadPage end)
 		launch.DownloadPage = function(_, _, callback)
 			callback({ body = dkjson.encode(importData.passives) })
 		end
@@ -84,6 +85,7 @@ describe("TestImport", function()
 		build.importTab.lastLeague = importData.league
 
 		local downloadPage = launch.DownloadPage
+		finally(function() launch.DownloadPage = downloadPage end)
 		launch.DownloadPage = function(_, _, callback)
 			callback({ body = dkjson.encode(importData.passives) })
 		end
@@ -94,7 +96,6 @@ describe("TestImport", function()
 			callback({ body = dkjson.encode({ items = importData.equipment }) })
 		end
 		build.importTab:DownloadItems({ hostName = "", realmCode = "pc" })
-		launch.DownloadPage = downloadPage
 		assert.is_truthy(build.importTab.charImportStatus:find("Items and skills successfully imported.", 1, true))
 	end)
 

@@ -238,16 +238,16 @@ void test("anoint_rank: the Anoint popup's notable power is the change anointing
 
 void test("unique_rank: the unique list's sort for a slot; the top uniques really equipped", async () => {
   const r = await ev<{ stat: string; total: number; uniques: Array<{ name: string; power: number }> }>(base, "unique-rank", { slot: "Helmet", stat: "CombinedDPS", limit: 3 });
-  // The total follows the unique data, so no fixed count: at least the 113 the 3.30 data had before the new
-  // uniques, and no more than the Helmet uniques the lookup lists (the list's own filters drop a few of those).
+  // The total follows the unique data, so it is derived, not fixed: the unique list's default filter for the slot
+  // (ItemDBControl: Helmet, and obtainable, i.e. not "No longer obtainable" and not a Race Events item).
   let helmets = 0;
   for (let offset = 0, total = 1; offset < total; offset += 200) {
-    const page = ok(await srv.call<{ total: number; uniques: Array<{ type?: string }> }>("GET", `/v1/lookup/uniques?limit=200&offset=${offset}`));
+    const page = ok(await srv.call<{ total: number; uniques: Array<{ type?: string; text: string }> }>("GET", `/v1/lookup/uniques?limit=200&offset=${offset}`));
     total = page.total;
-    helmets += page.uniques.filter((u) => u.type === "Helmet").length;
+    helmets += page.uniques.filter((u) => u.type === "Helmet" && !/^Source: No longer obtainable$/m.test(u.text) && !/^League: Race Events$/m.test(u.text)).length;
   }
-  assert.equal(r.stat, "CombinedDPS");
-  assert.ok(r.total >= 113 && r.total <= helmets, `ranked ${r.total} of ${helmets} Helmet uniques`);
+  assert.ok(helmets > 100, `obtainable Helmet uniques: ${helmets}`);
+  assert.deepEqual([r.stat, r.total], ["CombinedDPS", helmets]);
   assert.deepEqual(r.uniques, [
     { name: "Crown of the Tyrant, Magistrate Crown", power: 10031.847796552 },
     { name: "Scold's Bridle, Mind Cage", power: 9756.4434745075 },

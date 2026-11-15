@@ -52,6 +52,25 @@ describe("TestNewUniques", function()
 		assert.is_true(hasSupport(findSkill("Fireball"), "Added Lightning Damage"))
 	end)
 
+	it("socketed supports in another item still apply while Mantle of Dreams is worn", function()
+		build.itemsTab:CreateDisplayItemFromRaw([[Mantle of Dreams
+			Twilight Regalia
+			Sockets: B-B-B
+			Implicits: 0
+			Socketed Support Gems have no effect]])
+		build.itemsTab:AddDisplayItem()
+		build.itemsTab:CreateDisplayItemFromRaw([[Test Helmet
+			Iron Hat
+			Sockets: B-B
+			Implicits: 0]])
+		build.itemsTab:AddDisplayItem()
+		build.skillsTab:PasteSocketGroup("Slot: Helmet\nFireball 20/0  1\nAdded Lightning Damage 20/0  1\n")
+		runCallback("OnFrame")
+
+		assert.are.equals(build.itemsTab.items[build.itemsTab.slots["Helmet"].selItemId].name, "Test Helmet, Iron Hat")
+		assert.is_true(hasSupport(findSkill("Fireball"), "Added Lightning Damage"))
+	end)
+
 	it("Hide of the Vendigo lets claw attacks be used with an empty main hand, with claw and unarmed modifiers", function()
 		build.skillsTab:PasteSocketGroup("Double Strike 20/0  1\n")
 		runCallback("OnFrame")
@@ -76,6 +95,25 @@ describe("TestNewUniques", function()
 		build.configTab:BuildModList()
 		runCallback("OnFrame")
 		assert.is_true(build.calcsTab.mainOutput.Speed > speedBefore)
+	end)
+
+	it("Hide of the Vendigo changes nothing while a main-hand weapon is held", function()
+		build.itemsTab:CreateDisplayItemFromRaw([[Hide of the Vendigo
+			Exquisite Leather
+			Implicits: 0
+			Can Attack as though using a Claw while main hand is empty]])
+		build.itemsTab:AddDisplayItem()
+		build.itemsTab:CreateDisplayItemFromRaw([[Test Club
+			Driftwood Club
+			Implicits: 0]])
+		build.itemsTab:AddDisplayItem()
+		build.skillsTab:PasteSocketGroup("Heavy Strike 20/0  1\n")
+		runCallback("OnFrame")
+
+		local heavyStrike = findSkill("Heavy Strike")
+		assert.is_falsy(heavyStrike.skillFlags.disable)
+		assert.are.equals(ModFlag.Mace, bit.band(heavyStrike.weapon1Flags, ModFlag.Mace))
+		assert.are.equals(0, bit.band(heavyStrike.weapon1Flags, ModFlag.Claw))
 	end)
 
 	it("Putrid Seed loads on its Mycelium Core base", function()

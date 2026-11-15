@@ -9,13 +9,15 @@ entry here: which file, what and why, its upstream status and how to drop it.
 
 - What: the eleven uniques added in 3.30, in Path of Building's unique text format. Mod lines and ranges from the
   item pages on poedb.tw (read 15 Nov 2026), worded as the exported mods in `src/Data/ModItemExclusive.lua` where those
-  exist; implicits as the base items carry them. `ModCache.lua` regenerated the way upstream's check does it
-  (`REGENERATE_MOD_CACHE=1 luajit HeadlessWrapper.lua` in `src/`); a separate commit first regenerates it for the
-  3.30 data already merged, so the uniques' own cache lines stand alone.
+  exist; implicits as the base items carry them. `ModCache.lua` regenerated in upstream's test image (see "Regenerating
+  ModCache" below); a separate commit first regenerates it for the 3.30 data already merged, so the uniques' own cache
+  lines stand alone.
 - Why: no upstream branch or pull request carries these items yet, so they cannot be simulated.
 - Upstream status: not offered. Drop when upstream adds the 3.30 uniques (their lists then win).
 - Wording checked against the game files' unique text (15 Nov 2026); Bane of the Apostate's "+2 to maximum
-  Witchhunter's Pyres" was added from them.
+  Witchhunter's Pyres" was added from them. Bane's last two lines (the Witchhunter's Pyre grant and the +2 maximum
+  Pyres) follow the game text, which words them differently from the item's public page; both are unparsed and
+  unverified in game.
 - Putrid Seed sits on a new jewel base, Mycelium Core (`Metadata/Items/Jewels/JewelBlighted`: tags jewel and
   not_for_sale, no implicit, no attribute requirement), added to the base export list and the generated base file. Its
   effect (grows four random passives when anointed) is not something Path of Building can simulate; the item is there
@@ -38,7 +40,7 @@ nothing):
 | The Sword of Ages (Exquisite Blade) | crit multiplier, Movement gem levels, physical damage, attack speed, damage with Movement skills | Temporal Mirage trigger (no skill data for Temporal Mirage) |
 | Mantle of Dreams (Twilight Regalia) | Energy Shield, level 30 Unleash support, 20% more damage per socketed skill gem (support gems not counted), socketed support gems have no effect | none |
 | Ordered Fate (Walnut Spirit Shield) | spell damage, cast speed, maximum ES | every 2nd / 4th / 6th cast lines and their exclusion line |
-| Corpse Rose (Imbued Wand) | spell damage, cast speed, skills cost Life instead of 50% of Mana | Goreblossom trigger and its Bloom count (no skill data for Goreblossom) |
+| Corpse Rose (Imbued Wand) | spell damage, cast speed, skills cost Life instead of 50% of Mana | Goreblossom trigger and its Bloom count (no skill data for Goreblossom). The trigger line parses to an empty modifier list, so it shows as used but changes nothing |
 | Bane of the Apostate (Judgement Staff) | block, fire damage, area of effect, skill effect duration | Witchhunter's Pyre grant and +2 maximum Pyres (no skill data for Witchhunter's Pyre) |
 | Hide of the Vendigo (Exquisite Leather) | spell suppression, Evasion, cold resistance, added cold damage with unarmed attacks, attack speed after a movement skill (the "used a Movement Skill recently" setting; Path of Building has no separate attack-movement setting), claw-only attack skills usable with an empty main hand, "with Claws" modifiers on those attacks | none |
 | Unwilling Embrace (Bone Ring) | minion resistances, suppression, Dexterity, Evasion, minion damage | minions gain your suppression; minions have no Armour or ES |
@@ -119,13 +121,40 @@ nothing):
 
 ### Open upstream pull requests merged ahead of upstream
 
-Each was fetched read-only and merged with its own commit; ModCache regenerated after each; the spec suite passes after
-each merge. Drop each when upstream merges it (the merge then becomes a no-op).
+Each was fetched read-only (`git fetch upstream pull/<n>/head`) and merged with its own commit, in the order below;
+ModCache regenerated after each; the spec suite passes after each merge. Drop each when upstream merges it (the merge
+then becomes a no-op). The first four were merged into `lf/3.30` (upstream `dev` at 2026-11-10 plus these) before
+`api/` joined; the rest on `lf-src-fixes`.
 
-| Pull request | What | Conflicts and how they were resolved |
-|---|---|---|
-| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10434 | The Living Blade tincture count, Scales of Justice ailment condition | The unique text already read "2 additional Tinctures" from the merged 3.30 export; that version kept |
-| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10419 | Wickerman equipment slots | none |
-| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10451 | Wickerman Viscera modifiers | Its Iron Flask effect block duplicates the one from 10443 already merged; applying both doubled Iron Flask effect, so this copy is dropped. Both PRs' new defence tests kept |
-| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10455 | Wickerman item data, Viscera paste and character import (needs 10419 and 10451) | none |
-| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10438 | 3.30 patch-note unique values, Steelworm projectile fix | The generated unique lists for five items carried the current 3.30 values without older variants; the PR's versioned lines taken (current values match) |
+| Pull request | Head merged | What | Conflicts and how they were resolved |
+|---|---|---|---|
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10437 | e35aab933 | 3.30 data | none |
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10454 | 5b08b6c63 | 3.30 data; granted effect stat descriptions | none |
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10458 | e21ae0cd5 | 3.30 data | none |
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10443 | 1deaeae21 | 3.30 flask modifiers | none |
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10434 | b967f6192 | The Living Blade tincture count, Scales of Justice ailment condition | The unique text already read "2 additional Tinctures" from the merged 3.30 export; that version kept |
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10419 | 26bfa22ac | Wickerman equipment slots | none |
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10451 | 7f47b7f30 | Wickerman Viscera modifiers | Its Iron Flask effect block duplicates the one from 10443 already merged; applying both doubled Iron Flask effect, so this copy is dropped. Both PRs' new defence tests kept |
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10455 | f66bc9eab | Wickerman item data, Viscera paste and character import (needs 10419 and 10451) | none |
+| https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10438 | 855d0f8d2 | 3.30 patch-note unique values, Steelworm projectile fix | The generated unique lists for five items carried the current 3.30 values without older variants; the PR's versioned lines taken (current values match) |
+
+### Root files that differ from upstream
+
+`AGENTS.md` and `.lf/SPEC.md` (the fork's own working notes) and `.gitignore` (adds the fork's local build output). None
+is read by Path of Building.
+
+## Regenerating ModCache
+
+In upstream's test image, on a copy of the tree (the image mounts it read-only), from `src/`:
+
+```sh
+docker run --rm -v "$PWD":/workdir:ro -w /workdir ghcr.io/pathofbuildingcommunity/pathofbuilding-tests:latest sh -c '
+  mkdir /tmp/w && tar --exclude=./api -cf - . | tar -xf - -C /tmp/w && cd /tmp/w/src &&
+  LUA_PATH="../runtime/lua/?.lua;../runtime/lua/?/init.lua;;" REGENERATE_MOD_CACHE=1 luajit HeadlessWrapper.lua >&2 &&
+  cat Data/ModCache.lua' > /tmp/ModCache.lua
+```
+
+Without that `LUA_PATH` the run stops with "module 'xml' not found"; with upstream's CI job settings it exits 0 and
+leaves the file untouched. Proof it ran: the log (stderr) ends with "Rares loaded" and "Startup time"; then compare
+`/tmp/ModCache.lua` with (or copy it over) `src/Data/ModCache.lua`. One cached line ("extra" text of a Flame/Flesh unique) depends on
+table order, so commit the image's output, not a local run's.
