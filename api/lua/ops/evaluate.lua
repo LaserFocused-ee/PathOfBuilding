@@ -273,10 +273,10 @@ return function(W)
 	end
 
 	-- Equips a copy of `item` in the socket for real (a cluster jewel's passives built and all allocated, the path to them too),
-	-- recalculates, and loads the build back from its own XML so it is left as it was.
-	local function inSocket(b, slot, item, fields)
+	-- recalculates, and loads the build back from its own XML so it is left as it was. Answers measure(build, output) and the
+	-- passive points the jewel cost beyond the current tree.
+	local function inSocket(b, slot, item, measure)
 		local xml, name = b:SaveDB("code"), b.buildName
-		local before = values(b, b.calcsTab.mainOutput, fields)
 		local used = b.spec:CountAllocNodes()
 		local ok, res = pcall(function()
 			local tab = b.itemsTab
@@ -298,12 +298,12 @@ return function(W)
 			b.buildFlag = true
 			W.pump()
 			b = W.build()
-			return { changed = diff(before, values(b, b.calcsTab.mainOutput, fields)), points = b.spec:CountAllocNodes() - used }
+			return { measure(b, b.calcsTab.mainOutput), b.spec:CountAllocNodes() - used }
 		end)
 		main:SetMode("BUILD", false, name, xml, true)
 		W.pump()
 		if not ok then error(res, 0) end
-		return res
+		return res[1], res[2]
 	end
 
 	function ops.compare_item(args)
@@ -330,8 +330,9 @@ return function(W)
 		for _, slot in ipairs(slots) do
 			if slot.nodeId and (changesTree(item) or changesTree(slot.selItemId and tab.items[slot.selItemId])) then
 				local equipped = equippedIn(tab, slot)
-				local r = inSocket(b, slot, item, fields)
-				out[#out + 1] = { slot = slot.slotName, equipped = equipped, changed = r.changed, points = r.points }
+				local now = values(b, b.calcsTab.mainOutput, fields)
+				local changed, points = inSocket(b, slot, item, function(nb, output) return diff(now, values(nb, output, fields)) end)
+				out[#out + 1] = { slot = slot.slotName, equipped = equipped, changed = changed, points = points }
 				b = W.build()
 				tab = b.itemsTab
 			else
@@ -949,6 +950,78 @@ return function(W)
 		return { family = family, socket = slot.slotName, category = ctx.itemCategoryQueryStr, quality = quality, weights = weightsOut(statWeights),
 			total = #mods, mods = out, combinations = combos, query = query, search = search, queryError = queryErr or json.null,
 			link = query ~= json.null and tradeLink(realm, args.league, query) or json.null }
+	end
+
+	-- args: entries (trade fetch entries, seller fields already left out by the server), score (a build to score against),
+	-- slot?, weights?, fields?. Each entry becomes item text by Path of Building's own conversion (TradeQueryRequests
+	-- FetchResultBlock); with `score`, each item is put in `slot` (default: the first slot in use it fits, a jewel the first
+	-- empty socket it fits) and weighed as the trade search weighs (TradeQueryGenerator.WeightedRatioOutputs, default Full DPS 1,
+	-- Effective Hit Pool 0.5): `gain` is the weighted change x1000 against what is in that slot now. Tree-changing jewels and
+	-- cluster jewels are equipped for real, as compare_item does.
+	function ops.listings(args)
+		if type(args.entries) ~= "table" then bad("entries is a list") end
+		local statWeights = args.score and statWeightsOf(args) or nil
+		local fields = fieldsOf(args)
+		new("TradeQueryGenerator") -- loads the class; its WeightedRatioOutputs is a plain function of the class table
+		local weigh = common.classes.TradeQueryGenerator.WeightedRatioOutputs
+		local fixed = args.slot ~= nil and args.score and slotOf(W.build().itemsTab, args.slot, true) or nil
+		local requests = new("TradeQueryRequests"):TradeQueryRequests({})
+		local function textOf(entry)
+			local text
+			requests:FetchResultBlock("", function(items) text = items and items[1] and items[1].item_string end)
+			table.remove(requests.requestQueue.fetch, 1).callback(json.encode({ result = { entry } }), nil)
+			return text
+		end
+		local function scoreOf(item)
+			local b = W.build()
+			local tab = b.itemsTab
+			local slot = fixed
+			if slot then
+				if not tab:IsItemValidForSlot(item, slot.slotName) then bad("this item does not fit " .. slot.slotName) end
+				if not slotInUse(tab, slot) then bad(slot.slotName .. " is not in use") end
+			elseif item.type == "Jewel" then
+				slot = socketOf(tab, nil, item)
+			else
+				for _, s in ipairs(tab.orderedSlots) do
+					if not slot and not s.nodeId and tab:IsItemValidForSlot(item, s.slotName) and slotInUse(tab, s) then slot = s end
+				end
+				if not slot then bad("this item fits no slot in use") end
+			end
+			local calcFunc, calcBase = calculator(b)
+			local base = weigh(calcBase, calcBase, statWeights)
+			local before = values(b, calcBase, fields)
+			local function measure(nb, output)
+				return { slot = slot.slotName, gain = rounded((weigh(calcBase, output, statWeights) - base) * 1000), changed = diff(before, values(nb, output, fields)) }
+			end
+			if slot.nodeId and (changesTree(item) or changesTree(slot.selItemId and tab.items[slot.selItemId])) then
+				local score, points = inSocket(b, slot, item, measure)
+				score.points = points
+				return score
+			end
+			return measure(b, calcFunc({ repSlotName = slot.slotName, repItem = item }))
+		end
+		local out = {}
+		for i, entry in ipairs(args.entries) do
+			local row = { id = type(entry) == "table" and entry.id or json.null, text = json.null, score = json.null }
+			local ok, item, text = pcall(function()
+				local t = textOf(entry)
+				return t and new("Item"):Item(t), t
+			end)
+			if ok and item and item.base then
+				row.text = W.strip(text)
+				if statWeights then
+					item:NormaliseQuality()
+					item:BuildModList()
+					local scored, score = pcall(scoreOf, item)
+					if scored then row.score = score
+					else row.error = type(score) == "table" and score.message or "could not score this listing" end
+				end
+			else
+				row.error = "Path of Building could not read this listing"
+			end
+			out[i] = row
+		end
+		return { listings = out, weights = statWeights and weightsOut(statWeights) or json.null }
 	end
 
 	return ops

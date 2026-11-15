@@ -1,4 +1,4 @@
-// The only module that makes outbound requests. Host allowlist, https only, a timeout, a size cap,
+// Outbound requests for build imports and the browser view's relay (trade.ts is the other outbound module). Host allowlist, https only, a timeout, a size cap,
 // a descriptive User-Agent, redirects followed by hand only to allowlisted hosts, and a per-host pause
 // whenever a host signals one (Retry-After, X-Rate-Limit-* state).
 import { unzipSync } from "node:zlib";
@@ -177,7 +177,7 @@ export class Fetcher {
   }
 }
 
-async function readCapped(res: Response, max: number, host: string): Promise<string> {
+export async function readCapped(res: Response, max: number, host: string): Promise<string> {
   const declared = Number(res.headers.get("content-length") ?? 0);
   if (declared > max) throw new ApiError("upstream_fetch_failed", `${host} response is larger than ${max} bytes`);
   const chunks: Uint8Array[] = [];

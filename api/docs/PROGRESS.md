@@ -212,13 +212,13 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `trade.currency_rates` | S | F3 | `pob_trade` |
 | `trade.stat_weights` | S | F3 | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Other slots: `pob_trade` |
 | `trade.query.generate` | S | F3 | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Other slots: `pob_trade` |
-| `trade.search` | S | F3 | `pob_trade` |
+| `trade.search` | S | done | `trade.search` (on request only; limits in its summary); trade.test.ts |
 | `trade.search_url` | S | F3 | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Other slots: `pob_trade` |
-| `trade.evaluate` | S | F3 | `pob_trade` |
+| `trade.evaluate` | S | done | `trade.search` with `buildId` scores each listing in its slot; trade.test.ts |
 | `trade.sort` / `total_price` | S | F3 | `pob_trade` |
 | `trade.price_all_slots` | X | F3 | `pob_trade` |
 | `trade.mod_to_trade_id` | H | F3 | `pob_trade` |
-| `trade.rate_limits` | H | F3 | `pob_trade` |
+| `trade.rate_limits` | H | done | `trade.search` answers the limiter state (remaining, retry-after, the site's windows); trade.test.ts |
 
 ### notes, party, settings
 
@@ -269,14 +269,14 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | config | 6 | 5 | 0 | 0 | 0 | 0 | 1 |
 | calcs | 13 | 12 | 0 | 0 | 0 | 0 | 1 |
 | compare and power | 12 | 4 | 0 | 0 | 4 | 1 | 3 |
-| trade | 11 | 0 | 0 | 0 | 0 | 11 | 0 |
+| trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 113 | 1 | 9 | 8 | 28 | 28 |
+| **Total** | 187 | 116 | 1 | 9 | 8 | 25 | 28 |
 
 ## MCP tools
 
-MCP tools with at least one route today: `pob_build`, `pob_stats`, `pob_tree`, `pob_skills`, `pob_items`, `pob_config`, `pob_evaluate`, `pob_lookup` (8 of 9). `pob_trade` comes in F3, so all 9 tools exist at the end of F3.
+MCP tools with at least one route today: all 9 (`pob_build`, `pob_stats`, `pob_tree`, `pob_skills`, `pob_items`, `pob_config`, `pob_evaluate`, `pob_lookup`, `pob_trade`).
 
 ## Build stages
 
@@ -288,7 +288,7 @@ Features are numbered as in `SPEC.md`. Checks for every entry: `npm run build`, 
 - Worker: `lua/worker.lua` plus `lua/ops/{builds,stats,lookup}.lua`; JSON lines; boots in about 1.8 s.
 - Server: config, logger, `/health`, `/health/deep`, bearer auth, worker pool (one process per open build, LRU recycling, kill on timeout or memory ceiling, reload from the store), file build store with revisions, stale-write refusal, history of the last 50 plus save points, server-sent events, share-link fetch module.
 - Route table (`server/src/routes.ts`) generates the HTTP routes, the MCP tools and `docs/API.md`.
-- MCP: Streamable HTTP at `POST /mcp` (stateless) and stdio (`server/dist/src/stdio.js`). F1 shipped `pob_build`, `pob_stats` and `pob_lookup`; F2 added `pob_tree`, `pob_skills`, `pob_items`, `pob_config` and `pob_evaluate`; `pob_trade` comes with F3.
+- MCP: Streamable HTTP at `POST /mcp` (stateless) and stdio (`server/dist/src/stdio.js`). F1 shipped `pob_build`, `pob_stats` and `pob_lookup`; F2 added `pob_tree`, `pob_skills`, `pob_items`, `pob_config` and `pob_evaluate`; F3 added `pob_trade`.
 - Operations: builds (new, import XML, code, share link, list, get, rename, duplicate, delete, export XML, export code, save point, history), stats (sidebar, output with `fields`, per-skill and Full DPS, breakdown, warnings, defences, points, versions), lookup (gems, uniques, bases, node search, node detail, config catalogue).
 - Tests: OccVortex (tree 3_13) and a Witch/Elementalist fixture made on tree 3_30 with concrete stat values; build-code round trip; two sessions open at once; worker kill recovered from the store; MCP over HTTP and stdio; auth, health, log lines.
 
@@ -302,7 +302,9 @@ Deviations from the spec text, with reasons:
 
 Routes for the tree, skills, items, config, party, evaluate domains, character import from a public profile, the browser view's server side, and the generic control driver are in; the operations still `open` in the tables above remain.
 
-## F3. Import and trade query: not started
+## F3. Import and trade query: in progress
+
+In: character import from a public profile, jewel finding (`evaluate.jewel_mods`, jewels in `evaluate.compare_item`), and trade search from the server (`trade.search`) under the limits in `SPEC.md`. The one live check against the trade site after deploy is the orchestrator's; until then the link form and the site's mod-line shape without an account are unverified (both shapes are read).
 
 ## F4. Web view: separate owner
 

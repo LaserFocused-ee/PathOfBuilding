@@ -228,6 +228,15 @@ const statValue = z.union([z.number(), z.boolean(), z.string()]);
 const changedStats = z.object({ changed: z.record(z.string(), z.object({ before: statValue.nullable(), after: statValue.nullable() })).describe("Only the stats that differ; null = not shown / absent") });
 const evalFields = z.array(z.string().trim().min(1).max(100)).max(100).optional().describe("Output keys to compare (`Minion.<key>` for the minion's) instead of the sidebar stats");
 const powerStatName = z.string().trim().min(1).max(60).describe("A stat of Path of Building's power stat list, e.g. CombinedDPS, FullDPS, TotalDPS, Life, TotalEHP, Armour, MinionLife (`OffenceDefence` where noted)");
+const tradeWeights = z.array(z.object({ stat: powerStatName, weight: z.number().min(0.01).max(1) })).min(1).max(20).optional().describe("Stat weights as the trade popup's list sets them (0.01 to 1 each; default Full DPS 1, Effective Hit Pool 0.5)");
+const tradeLeague = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9 '-]*$/, "a league name is letters, digits, spaces, ' and -").max(64);
+const tradeQuery = z.looseObject({}).refine((q) => JSON.stringify(q).length <= 32_768, "a query is at most 32 KB of JSON");
+const limiterState = z.array(z.object({
+  policy: z.string(),
+  remaining: z.object({ interactive: z.number(), background: z.number() }).describe("Requests a caller of each priority may still send now"),
+  retryAfterSeconds: z.object({ interactive: z.number(), background: z.number() }).describe("Seconds until a caller of each priority may send (0 = now)"),
+  windows: z.array(z.object({ limit: z.number(), periodSeconds: z.number(), used: z.number() })).describe("The windows the trade site states, and requests counted in each"),
+}));
 const evalItemText = z.string().min(1).max(20000).optional().describe("Item text as copied in game or from Path of Building (instead of `item`)");
 const evalItemRef = itemRef.optional().describe("Item id from `items list` (or give `text`)");
 const compareBuildsInput = z.object({ other: buildId.describe("The build to compare with (its stats are the `after`)"), fields: evalFields });
@@ -393,19 +402,19 @@ export const routes: Route[] = [
   evalRoute("compare_item", "What an item would change in each slot it fits (default all equipment slots in use), as the Items tab's comparison shows. A jewel is compared in the socket named by `slot` (Jewel <node id>, or an item's abyssal socket), against the jewel in it now: paste a listing's text to rank it against the current jewel. Radius jewels count what is in their radius. Cluster jewels and jewels that change the tree (timeless, Thread of Hope, Impossible Escape) are equipped for real for the measurement, a cluster with all its passives allocated (`points` is the passive points that costs beyond the current tree), and the build is then loaded back as it was.", z.object({ item: evalItemRef, text: evalItemText, slot: itemSlot.optional(), fields: evalFields }), z.looseObject({ slots: z.array(changedStats.extend({ slot: z.string(), equipped: z.string().nullable(), points: z.number().optional().describe("Passive points spent beyond the current tree (equipped-for-real comparisons)") })) }), ["item", "text", "slot", "fields"]),
   evalRoute(
     "jewel_mods",
-    "Rank the mods a jewel can have for this build, the way Path of Building's trade search weighs them (TradeQueryGenerator): each mod alone on a blank jewel in the socket, weighed by the stat weights (default Full DPS 1, Effective Hit Pool 0.5); `gain` is that weighted change x1000 against the socket empty and `weight` is gain per point of the mod's value, which is what the search sums. Each mod is tested at min + (max - min) x quality over its range across all tiers (Path of Building's Item Affix Quality, default 0.5). Where Path of Building's mod data has more than one entry for a trade stat, the one a base of the family rolls is used (then the widest range), so the answer is the same on every run; mods no base of the family rolls are listed with `rollable: false` and kept out of sets. Families: base and abyss (explicit mods, plus corrupted implicits unless includeCorrupted is false), watchers_eye, and cluster (the notables a cluster of that size and enchant can roll, each added to the tree alone, as the generator weighs Megalomaniac's). Unique jewels: unique_rank with a Jewel slot. `combinations` are the best legal sets (at most two prefixes and two suffixes, distinct mod groups, a base that rolls them all; clusters: up to 1, 2 or 3 notables for small, medium and large), each measured together on one test jewel (`estimate` is the sum of the parts). `query` is the trade search Path of Building builds (weighted sum group with its minimum, league status, mirrored and price filters; for clusters its base, the enchant and item level), `search` the body the trade API takes. `link` (with `league`) is Path of Building's own link form, https://www.pathofexile.com/trade/search/<league>/<gzip+base64url query>: it is made with no request, and it is unverified until someone opens one by hand. Calculation only; nothing is sent anywhere.",
+    "Rank the mods a jewel can have for this build, the way Path of Building's trade search weighs them (TradeQueryGenerator): each mod alone on a blank jewel in the socket, weighed by the stat weights (default Full DPS 1, Effective Hit Pool 0.5); `gain` is that weighted change x1000 against the socket empty and `weight` is gain per point of the mod's value, which is what the search sums. Each mod is tested at min + (max - min) x quality over its range across all tiers (Path of Building's Item Affix Quality, default 0.5). Where Path of Building's mod data has more than one entry for a trade stat, the one a base of the family rolls is used (then the widest range), so the answer is the same on every run; mods no base of the family rolls are listed with `rollable: false` and kept out of sets. Families: base and abyss (explicit mods, plus corrupted implicits unless includeCorrupted is false), watchers_eye, and cluster (the notables a cluster of that size and enchant can roll, each added to the tree alone, as the generator weighs Megalomaniac's). Unique jewels: unique_rank with a Jewel slot. `combinations` are the best legal sets (at most two prefixes and two suffixes, distinct mod groups, a base that rolls them all; clusters: up to 1, 2 or 3 notables for small, medium and large), each measured together on one test jewel (`estimate` is the sum of the parts). `query` is the trade search Path of Building builds (weighted sum group with its minimum, league status, mirrored and price filters; for clusters its base, the enchant and item level), `search` the body the trade API takes. `link` (with `league`) is Path of Building's own link form, https://www.pathofexile.com/trade/search/<league>/<gzip+base64url query>: it is made with no request, and it is unverified until someone opens one by hand. Calculation only; nothing is sent anywhere (`trade.search` runs `search` on request).",
     z.object({
       family: z.enum(["base", "abyss", "watchers_eye", "cluster"]).describe("Jewel family"),
       socket: z.union([z.number().int().positive(), z.string().trim().min(1).max(60)]).optional().describe("Tree socket node id or slot name (Jewel <node id>, or an item's abyssal socket slot); default the first allocated empty tree socket the jewel fits. Not used for cluster"),
       size: z.enum(["Small", "Medium", "Large"]).optional().describe("Cluster size (cluster only)"),
       enchant: z.string().trim().min(1).max(100).optional().describe("Cluster enchant by its name in the Items tab, e.g. Fire Damage, Life (cluster only)"),
-      weights: z.array(z.object({ stat: powerStatName, weight: z.number().min(0.01).max(1) })).min(1).max(20).optional().describe("Stat weights as the popup's list sets them (0.01 to 1 each)"),
+      weights: tradeWeights,
       quality: z.number().min(0).max(1).optional().describe("Where in each mod's range it is tested (default the Item Affix Quality, 0.5)"),
       includeCorrupted: z.boolean().optional().describe("Weigh corrupted implicits too (default true, as the popup)"),
       includeMirrored: z.boolean().optional().describe("Allow mirrored items in the search (default true, as the popup)"),
       limit,
       combinations: z.number().int().min(0).max(20).optional().describe("How many mod sets (default 5)"),
-      league: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9 '-]*$/).max(64).optional().describe("Trade league for the link, e.g. Standard"),
+      league: tradeLeague.optional().describe("Trade league for the link (the league being played)"),
       realm: z.enum(["pc", "xbox", "sony"]).optional().describe("Default pc"),
       tradeType: z.enum(["securable", "available", "onlineleague", "online", "any"]).optional().describe("Listing status, the popup's list: securable = instant buyout (default), available = instant buyout and in person, onlineleague = in person (online in league), online = in person (online), any = includes offline"),
       maxPrice: z.number().positive().max(1e6).optional().describe("Price cap"),
@@ -445,6 +454,52 @@ export const routes: Route[] = [
     workerOp: "stats.sidebar (stats.output with `fields`) on each build, diffed by the server",
     run: (svc, i) => svc.compareBuilds(i.id, i.other, i.fields),
   }), { id: buildId }),
+
+  // trade
+  route({
+    name: "trade.search",
+    domain: "trade",
+    method: "POST",
+    path: "/v1/trade/search",
+    summary: "Run trade searches on the official trade site now and answer their first listings, each read by Path of Building's own trade conversion and, with `buildId`, scored for the build in its slot (`score.gain`: the weighted change x1000 against what is there now, as jewel_mods and the trade search weigh; sorted by it). Takes complete search definitions (the `search` of jewel_mods, or any query the trade site takes). Limits: Path of Building's own request shapes (search, then fetch in blocks of 10) and client string, the host fixed, no account, session or cookie; at most 8 searches per call and 30 listings per search; nothing repeats a search by itself (a caller may call again, reading `limiter`); one limiter for the whole server paces at half of every window the site states, a quarter for `priority: background`, which is refused rather than kept waiting; a 429 or any 4xx stops the call (`stopped`, with the site's Retry-After) and nothing is retried; the same search within 10 minutes is answered from a cache and sends nothing. No seller names or whispers are answered; nothing is sent to a seller. `link` is the search on the trade site (PoB's own link form; unverified until someone opens one by hand).",
+    input: z.object({
+      league: tradeLeague.describe("Trade league, the one being played"),
+      realm,
+      priority: z.enum(["interactive", "background"]).optional().describe("interactive (default): a person asking now, waits for the pace up to 60 s; background: a watched search, refused at once when the budget is short"),
+      searches: z.array(z.object({
+        query: tradeQuery.describe("The trade site's `query` object (status, stats, filters)"),
+        sort: z.record(z.string().min(1).max(60), z.enum(["asc", "desc"])).refine((r) => Object.keys(r).length <= 4, "at most 4 sort keys").optional().describe("Default { price: asc }; jewel_mods' search sorts by its weight group"),
+        engine: z.literal("new").optional().describe("Accepted so jewel_mods' search can be passed as is"),
+        slot: itemSlot.optional().describe("Slot each listing is scored in (default: the first slot in use it fits; a jewel the first empty socket)"),
+        listings: z.number().int().min(1).max(30).optional().describe("Listings to fetch (1-30, default 10)"),
+      })).min(1).max(8),
+      buildId: buildId.optional().describe("Score each listing for this build"),
+      weights: tradeWeights,
+      fields: evalFields,
+    }),
+    output: z.looseObject({
+      searches: z.array(z.looseObject({
+        searchId: z.string(),
+        total: z.number(),
+        cached: z.boolean(),
+        link: z.string(),
+        listings: z.array(z.looseObject({
+          id: z.string().describe("Listing id, stable across searches"),
+          price: z.looseObject({ amount: z.number(), currency: z.string(), type: z.string() }).nullable(),
+          indexed: z.string().nullable().describe("When the listing was posted or last changed"),
+          text: z.string().nullable(),
+          score: changedStats.extend({ slot: z.string(), gain: z.number(), points: z.number().optional() }).nullable(),
+          error: z.string().optional(),
+        })),
+      })),
+      notRun: z.number().describe("Searches not run because the call stopped"),
+      stopped: z.looseObject({ code: z.string(), message: z.string(), status: z.number().optional(), retryAfterSeconds: z.number().optional() }).nullable(),
+      limiter: limiterState,
+    }),
+    readOnly: true,
+    workerOp: "evaluate.listings (after the trade site's search and fetch)",
+    run: (s, i) => s.tradeSearch({ ...i, realm: i.realm ?? "pc", priority: i.priority ?? "interactive", searches: i.searches.map((q) => ({ query: q.query, sort: q.sort, slot: q.slot, listings: q.listings ?? 10 })) }),
+  }),
 
   // lookup
   lookupRoute("gems", "/v1/lookup/gems", "Search gems by name and tag, with requirements at a level (`level` defaults to each gem's natural maximum). `requirements` is absent at a `level` the game data has no row for: some gems list levels only up to `naturalMaxLevel` (Convocation stops at 1).", z.object({ query: z.string().max(100).optional(), tag: z.string().max(50).optional(), support: z.boolean().optional(), level: z.number().int().min(1).max(40).optional(), limit, offset }), pageOf("gems", z.looseObject({ id: z.string(), name: z.string(), support: z.boolean(), tags: strings, tagString: z.string().optional(), naturalMaxLevel: z.number().optional(), description: z.string().optional(), requirements: z.looseObject({ gemLevel: z.number(), level: z.number(), str: z.number(), dex: z.number(), int: z.number() }).optional() })), ["query", "tag", "support", "level", "limit", "offset"]),

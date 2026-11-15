@@ -7,6 +7,7 @@ import { decodeBuildCode, GAME_HOST, type Fetcher, type Relayed } from "./fetch.
 import type { Logger } from "./log.js";
 import { LOOKUP_SESSION, type Pool } from "./pool.js";
 import { type BuildMeta, type BuildSource, type BuildStore, TRASH_DAYS } from "./store.js";
+import { type Priority, type TradeClient, type TradeRealm, type TradeResult, tradeUrl } from "./trade.js";
 import type { WorkerReply } from "./worker.js";
 
 export interface Summary {
@@ -30,6 +31,22 @@ interface Mutation {
 }
 
 export type Realm = "pc" | "xbox" | "sony";
+
+export interface TradeSearchInput {
+  realm: TradeRealm;
+  league: string;
+  priority: Priority;
+  searches: Array<{ query: Record<string, unknown>; sort?: Record<string, "asc" | "desc">; slot?: string; listings: number }>;
+  buildId?: string;
+  weights?: Array<{ stat: string; weight: number }>;
+  fields?: string[];
+}
+
+/** How long an interactive trade call may wait for the pace, in total. */
+const TRADE_CALL_MS = 60_000; // ponytail: one budget per call; per-search budgets if long batches need them
+const listingsReply = z.object({
+  listings: z.array(z.object({ text: z.string().nullable(), score: z.looseObject({ gain: z.number() }).nullable(), error: z.string().optional() })),
+});
 
 type StatValue = number | boolean | string;
 const statValue = z.union([z.number(), z.boolean(), z.string()]);
@@ -68,6 +85,7 @@ export class Service {
     readonly events: Events,
     readonly fetcher: Fetcher,
     readonly game: Fetcher,
+    readonly trade: TradeClient,
     readonly log: Logger,
   ) {}
 
@@ -329,6 +347,47 @@ export class Service {
       if (before !== after) changed[key] = { before: before ?? null, after: after ?? null };
     }
     return { result: { changed }, warnings: [...a.warnings, ...b.warnings] };
+  }
+
+  private pobVersion?: Promise<string>;
+
+  /**
+   * Trade searches, one after another, each with the fetches for its first listings; each listing converted to item text by
+   * the worker and, with a build, scored in its slot. The first stop (limiter refusal, 429, any 4xx, a failed request) ends
+   * the call: the searches done so far are answered with `stopped` saying why and when to try again.
+   */
+  async tradeSearch(i: TradeSearchInput): Promise<Output> {
+    this.pobVersion ??= this.pool.run<{ pobVersion: string }>(LOOKUP_SESSION, "worker.ping").then((r) => r.result.pobVersion);
+    const userAgent = `Path of Building/${await this.pobVersion}`; // Launch.lua's client string
+    const deadline = Date.now() + TRADE_CALL_MS;
+    const searches: unknown[] = [];
+    const warnings: string[] = [];
+    let stopped: Record<string, unknown> | null = null;
+    for (const s of i.searches) {
+      const ask = { realm: i.realm, league: i.league, body: { query: s.query, sort: s.sort ?? { price: "asc" }, engine: "new" }, listings: s.listings };
+      let r: TradeResult | undefined = this.trade.cached(ask);
+      const cached = r !== undefined;
+      if (!r) {
+        try {
+          r = await this.trade.search({ ...ask, priority: i.priority, deadline, userAgent });
+        } catch (e) {
+          if (!(e instanceof ApiError)) throw e;
+          stopped = { code: e.code, message: e.message, ...e.details };
+          break;
+        }
+      }
+      if (r.dropped > 0) warnings.push(`search ${searches.length + 1}: ${r.dropped} fetched entries were not listings and were left out`);
+      const scored = r.entries.length === 0 ? [] : listingsReply.parse((await this.pool.run(i.buildId ?? LOOKUP_SESSION, "evaluate.listings", {
+        entries: r.entries.map((e) => e.entry), score: i.buildId !== undefined, ...(s.slot === undefined ? {} : { slot: s.slot }), ...(i.weights ? { weights: i.weights } : {}), ...(i.fields ? { fields: i.fields } : {}),
+      })).result).listings;
+      const listings = r.entries.map((e, k) => {
+        const row = scored[k];
+        return { id: e.id, price: e.price, indexed: e.indexed, text: row?.text ?? null, score: row?.score ?? null, ...(row?.error ? { error: row.error } : {}) };
+      });
+      if (i.buildId !== undefined) listings.sort((a, b) => (b.score?.gain ?? -Infinity) - (a.score?.gain ?? -Infinity));
+      searches.push({ searchId: r.searchId, total: r.total, cached, link: `${tradeUrl("trade/search", i.realm, i.league)}/${r.searchId}`, listings });
+    }
+    return { result: { searches, notRun: i.searches.length - searches.length, stopped, limiter: this.trade.limiter.state() }, warnings };
   }
 
   /** A read-only worker command on a build's session, or on the lookup session when no build is named. */

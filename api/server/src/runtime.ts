@@ -9,6 +9,7 @@ import type { Logger } from "./log.js";
 import { Pool } from "./pool.js";
 import { Service } from "./service.js";
 import { BuildStore } from "./store.js";
+import { TradeClient } from "./trade.js";
 
 export interface Runtime {
   svc: Service;
@@ -67,7 +68,7 @@ export async function openRuntime(cfg: Config, log: Logger, deps: RuntimeDeps = 
   for (const id of await store.recover()) log.warn({ event: "store.recovered", build_id: id }, "finished a delete or restore a stop interrupted");
   const pool = new Pool(cfg, log, store);
   await pool.init();
-  const svc = new Service(cfg, store, pool, new Events(), new Fetcher(cfg, log, SHARE_HOSTS, deps.fetch), new Fetcher(cfg, log, [GAME_HOST], deps.fetch), log);
+  const svc = new Service(cfg, store, pool, new Events(), new Fetcher(cfg, log, SHARE_HOSTS, deps.fetch), new Fetcher(cfg, log, [GAME_HOST], deps.fetch), new TradeClient(cfg, log, deps.fetch), log);
   await svc.purgeTrash();
   return {
     svc,

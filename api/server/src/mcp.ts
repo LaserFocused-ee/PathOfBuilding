@@ -101,7 +101,7 @@ export function mcpServer(svc: Service): McpServer {
         title: `Path of Building: ${def.domain}`,
         description: def.description,
         inputSchema: def.input,
-        annotations: { readOnlyHint: def.readOnly, destructiveHint: !def.readOnly, openWorldHint: def.domain === "build" },
+        annotations: { readOnlyHint: def.readOnly, destructiveHint: !def.readOnly, openWorldHint: def.domain === "build" || def.domain === "trade" },
       },
       (args) => callTool(svc, def, args),
     );
