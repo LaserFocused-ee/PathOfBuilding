@@ -363,6 +363,17 @@ return function(W)
 		local origGroup, origField = tab.displayGroup, tab.sortGemsByDPSField
 		local held = g.gemList[pos]
 		local heldGem, heldLevel, heldEffect = held and held.gemData, held and held.level, held and held.displayEffect
+		-- Calculating a candidate writes back onto the group's gems (CalcActiveSkill.lua: skillMinion, skillPart and the like
+		-- for the minion, part, stage and mine choices). The box calculates in pairs order, so the last candidate decides what is
+		-- left on the real gems; each gem is put back field by field so the build code is the one it was.
+		local saved = {}
+		for _, group in ipairs(tab.socketGroupList) do
+			for _, gem in pairs(group.gemList) do
+				local copy = {}
+				for k, v in pairs(gem) do copy[k] = v end
+				saved[#saved + 1] = { gem, copy }
+			end
+		end
 		local list, base
 		local ok, err = pcall(function()
 			tab.sortGemsByDPSField = args.stat
@@ -384,6 +395,11 @@ return function(W)
 			held.gemData, held.level, held.displayEffect = heldGem, heldLevel, heldEffect
 		else
 			g.gemList[pos] = nil
+		end
+		for _, entry in ipairs(saved) do
+			local gem, copy = entry[1], entry[2]
+			for k in pairs(gem) do gem[k] = nil end
+			for k, v in pairs(copy) do gem[k] = v end
 		end
 		tab.sortGemsByDPSField = origField
 		tab:SetDisplayGroup(origGroup)

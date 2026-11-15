@@ -264,6 +264,37 @@ void test("ui_invoke: every action every control offers, on every tab, reaches n
   assert.match(finder.body.error?.message ?? "", /asks the trade site for its leagues/);
 });
 
+void test("ui_invoke: the progress rows marked denied are refused by name, or no control offers them", async () => {
+  const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
+  const id = ok(await srv.call<{ build: { id: string } }>("POST", "/v1/builds/import/xml", { xml })).build.id;
+  const refused: Array<[row: string, control: string, reason: RegExp]> = [
+    ["import.oauth.login", "authenticateButton", /signs in to the game site/],
+    ["import.characters.list_oauth", "accountRealmFetchButton", /fetches characters from the game site/],
+    ["import.characters.get_oauth", "charImportItems", /imports from the game site/],
+    ["import.characters.get_oauth", "charImportTree", /imports from the game site/],
+    ["export.share_link", "generateCodeByLink", /uploads the build to a share site/],
+  ];
+  const every = async (tab: string) => {
+    const out: UiControl[] = [];
+    for (let page = await controls(id, tab, "&limit=200"); ; page = await controls(id, tab, `&limit=200&offset=${out.length}`)) {
+      out.push(...page.controls);
+      if (page.controls.length === 0 || out.length >= page.total) return out;
+    }
+  };
+  const imports = await every("import");
+  for (const [row, control, reason] of refused) {
+    assert.deepEqual(imports.find((c) => c.name === control)?.actions, [], `${row}: ${control} offers no action`);
+    const r = await invoke(id, { tab: "import", control, operation: "click" });
+    fails(r, 400, "invalid_input");
+    assert.match(r.body.error?.message ?? "", reason, `${row}: ${control}`);
+  }
+  // Similar Builds and the public Latest/Trending lists are popups and a list screen no tab control opens
+  for (const tab of ["build", "tree", "skills", "items", "calcs", "config", "notes", "party", "import"]) {
+    const offered = (await every(tab)).filter((c) => /similar builds|latest|trending|public|archive/i.test(`${c.name} ${c.label ?? ""}`));
+    assert.deepEqual(offered, [], `${tab}: a control for builds.similar or builds.public_latest_trending`);
+  }
+});
+
 void test("config custom_mods: groups add their supported lines to the calculation while enabled; unsupported lines are marked", async () => {
   const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
   const id = ok(await srv.call<{ build: { id: string } }>("POST", "/v1/builds/import/xml", { xml })).build.id;

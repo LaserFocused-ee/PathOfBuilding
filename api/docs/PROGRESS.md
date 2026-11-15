@@ -12,6 +12,7 @@ This file lists every one of the 187 operations of the Path of Building feature 
 | `not needed` | Has no meaning for a server. The reason is given. |
 | `F3` | Planned for the trade and data stage: `trade.*` operations and data lookups not yet routed. |
 | `open` | Not covered yet. The reason is given. |
+| `denied` | Refused by the server: outbound or account sign-in not offered; the reason is given. |
 
 Tier is the inventory's tier: H (a direct call of Path of Building's own code), S (small glue on top of it), X (new code).
 
@@ -46,8 +47,8 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `builds.spectre_library` | S | done | `skills.set_spectres`; skills2.test.ts |
 | `builds.progress_estimate` | X | done | `stats.points` (points, ascendancy, required level, act); engine.test.ts |
 | `builds.xp_multiplier` | X | done | `stats.xp`; engine.test.ts |
-| `builds.similar` | S | open | Calls a third-party recommendation service; not routed |
-| `builds.public_latest_trending` | S | open | Calls a third-party build archive; not routed |
+| `builds.similar` | S | denied | Outbound or account sign-in not offered by the server: calls a third-party recommendation service; not routed. No tab control opens the popup (settings.test.ts) |
+| `builds.public_latest_trending` | S | denied | Outbound or account sign-in not offered by the server: calls a third-party build archive; not routed. No tab control opens the list (settings.test.ts) |
 | `builds.undo` / `redo` | H | store | `build.history`, `build.revert`; edit.test.ts |
 
 ### import / export
@@ -58,14 +59,14 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `import.from_url` | S | done | `build.import_link`; engine.test.ts tests link resolution and refusal of an unsupported site, not the download |
 | `import.apply` (current, new, comparison) | X | done | New: `build.import_code`, `build.import_xml`. Current: `build.replace_code` (web.test.ts). Comparison: `evaluate.compare_builds` |
 | `import.character_json` | H | done | `build.import_character`; character.test.ts |
-| `import.characters.list_oauth` | S | open | Needs a game-site login the server does not have |
-| `import.characters.get_oauth` | S | open | Same |
+| `import.characters.list_oauth` | S | denied | Outbound or account sign-in not offered by the server: needs a game-site login the server does not have. `import.accountRealmFetchButton` is refused (settings.test.ts) |
+| `import.characters.get_oauth` | S | denied | Same. `import.charImportItems` and `import.charImportTree` are refused (settings.test.ts) |
 | `import.characters.list_by_account` | S | done | `build.characters`; character.test.ts |
 | `import.characters.tree_by_account` | S | done | Part of `build.import_character`; character.test.ts |
 | `import.characters.items_by_account` | S | done | Part of `build.import_character`; character.test.ts |
-| `import.oauth.login` | X | open | Needs the server to hold its own login client |
+| `import.oauth.login` | X | denied | Outbound or account sign-in not offered by the server: needs the server to hold its own login client. `import.authenticateButton` is refused (settings.test.ts) |
 | `export.code` | S | done | `build.export_code`; engine.test.ts |
-| `export.share_link` | S | open | Uploads to a third-party site; not routed |
+| `export.share_link` | S | denied | Outbound or account sign-in not offered by the server: uploads to a third-party site; not routed. `import.generateCodeByLink` is refused (settings.test.ts) |
 | `export.support_buffs_toggle` | H | ui | Import tab, control `enablePartyExportBuffs` (`set_state`); settings.test.ts |
 | `export.reimport_primary` | S | done | `build.reimport`; character.test.ts |
 
@@ -259,20 +260,20 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 
 ### Counts
 
-| Domain | Total | done | ui | store | not needed | F3 | open |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| builds | 30 | 17 | 0 | 9 | 2 | 0 | 2 |
-| import / export | 14 | 9 | 1 | 0 | 0 | 0 | 4 |
-| tree | 27 | 27 | 0 | 0 | 0 | 0 | 0 |
-| skills | 17 | 17 | 0 | 0 | 0 | 0 | 0 |
-| items and crafting | 30 | 29 | 0 | 0 | 1 | 0 | 0 |
-| config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
-| calcs | 13 | 13 | 0 | 0 | 0 | 0 | 0 |
-| compare and power | 12 | 8 | 0 | 0 | 4 | 0 | 0 |
-| trade | 11 | 8 | 0 | 0 | 0 | 3 | 0 |
-| notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 |
-| data | 17 | 17 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | 187 | 159 | 1 | 9 | 9 | 3 | 6 |
+| Domain | Total | done | ui | store | not needed | F3 | open | denied |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| builds | 30 | 17 | 0 | 9 | 2 | 0 | 0 | 2 |
+| import / export | 14 | 9 | 1 | 0 | 0 | 0 | 0 | 4 |
+| tree | 27 | 27 | 0 | 0 | 0 | 0 | 0 | 0 |
+| skills | 17 | 17 | 0 | 0 | 0 | 0 | 0 | 0 |
+| items and crafting | 30 | 29 | 0 | 0 | 1 | 0 | 0 | 0 |
+| config | 6 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
+| calcs | 13 | 13 | 0 | 0 | 0 | 0 | 0 | 0 |
+| compare and power | 12 | 8 | 0 | 0 | 4 | 0 | 0 | 0 |
+| trade | 11 | 8 | 0 | 0 | 0 | 3 | 0 | 0 |
+| notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 | 0 |
+| data | 17 | 17 | 0 | 0 | 0 | 0 | 0 | 0 |
+| **Total** | 187 | 159 | 1 | 9 | 9 | 3 | 0 | 6 |
 
 ## MCP tools
 
@@ -300,7 +301,7 @@ Deviations from the spec text, with reasons:
 
 ## F2. Tree, skills, items, config, notes, evaluate: in progress
 
-Routes for the tree, skills, items, config, party, evaluate domains, character import from a public profile, the browser view's server side, and the generic control driver are in; the operations still `open` in the tables above remain.
+Routes for the tree, skills, items, config, party, evaluate domains, character import from a public profile, the browser view's server side, and the generic control driver are in; the operations marked `denied` in the tables above are refused by the server and none is `open`.
 
 ## F3. Import and trade query: in progress
 
