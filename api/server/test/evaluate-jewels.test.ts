@@ -109,17 +109,19 @@ void test("jewel_mods with a jewel in the socket: the search minimum is half tha
   assert.equal((await jewels(id, { family: "base", socket: 41263, limit: 1, combinations: 0 })).socket, "Jewel 41263", "a node id names the socket too");
 });
 
-void test("jewel_mods abyss: mods no abyss base rolls are flagged and kept out of sets; every set is legal", async () => {
+void test("jewel_mods abyss: only mods an abyss base rolls; every set is legal", async () => {
   const r = await jewels(base, { family: "abyss", limit: 200, combinations: 5 });
-  assert.deepEqual([r.socket, r.category, r.total], ["Jewel 41263", "jewel.abyss", 58]);
+  assert.deepEqual([r.socket, r.category, r.total], ["Jewel 41263", "jewel.abyss", 36]);
   assert.deepEqual(r.mods.slice(0, 3).map((m) => [m.text, m.gain, m.affix, m.rollable]), [
-    ["70% increased Elemental Damage", 467.493, "Either", false], // a weapon delve mod in the abyss list (weight 0 on every abyss base)
-    ["25% increased Fire Damage", 132.878, "Prefix", false],
-    ["Damage Penetrates 8% Fire Resistance", 87.874, "Prefix", true],
+    ["Adds 23 to 23 Fire Damage to Spells", 36.06, "Suffix", true],
+    ["5% increased Damage", 33.32, null, undefined], // a corrupted implicit: no affix, rolled by corruption
+    ["18% increased Damage with Ailments", 31.934, "Suffix", true],
   ]);
+  // The abyss list holds only mods an abyss base rolls since lf-src-fixes-3 (weapon delve mods with weight 0 on every abyss base are gone).
+  assert.equal(r.mods.filter((m) => m.rollable === false).length, 0);
   assert.deepEqual(r.combinations.slice(0, 2).map((c) => [c.mods, c.gain, c.base]), [
-    [["explicit.stat_2653955271", "explicit.stat_2101383955", "explicit.stat_690707482", "explicit.stat_1133016593"], 227.07, "Assembled Eye Jewel"],
-    [["explicit.stat_2653955271", "explicit.stat_818778753", "explicit.stat_690707482", "explicit.stat_1133016593"], 213.682, "Assembled Eye Jewel"],
+    [["explicit.stat_2101383955", "explicit.stat_3299347043", "explicit.stat_1133016593", "explicit.stat_690707482"], 98.297, "Assembled Eye Jewel"],
+    [["explicit.stat_2101383955", "explicit.stat_3489782002", "explicit.stat_1133016593", "explicit.stat_690707482"], 98.297, "Assembled Eye Jewel"],
   ]);
   const byId = new Map(r.mods.map((m) => [m.id, m]));
   for (const c of r.combinations) {
@@ -129,7 +131,7 @@ void test("jewel_mods abyss: mods no abyss base rolls are flagged and kept out o
     assert.equal(new Set(ms.map((m) => m?.group)).size, ms.length, "distinct mod groups");
   }
   const life = await jewels(base, { family: "abyss", weights: [{ stat: "Life", weight: 1 }], limit: 2, combinations: 0 });
-  assert.deepEqual(life.mods.map((m) => [m.text, m.gain]), [["4% increased maximum Life", 33.886], ["+31 to maximum Life", 27.108]]);
+  assert.deepEqual(life.mods.map((m) => [m.text, m.gain]), [["+31 to maximum Life", 27.108], ["+14 to Strength", 6.024]]);
 });
 
 void test("jewel_mods cluster: the enchant's notables weighed alone, sets of up to three, a search for that base and enchant", async () => {

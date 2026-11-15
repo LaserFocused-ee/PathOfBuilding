@@ -72,12 +72,13 @@ after(async () => {
 
 void test("item_mods Body Armour: the generator's weights for the slot's base, its search and link", async () => {
   const before0 = await state(base);
-  const r = await items(base, { slot: "Body Armour", league: "Standard", limit: 3 });
+  const r = await items(base, { slot: "Body Armour", league: "Standard", limit: 4 });
   assert.equal(await state(base), before0, "item_mods changed the build");
-  assert.deepEqual([r.slot, r.item, r.base, r.category, r.total, r.quality], ["Body Armour", "Test Robe", "Vaal Regalia", "armour.chest", 62, 0.5]);
+  assert.deepEqual([r.slot, r.item, r.base, r.category, r.total, r.quality], ["Body Armour", "Test Robe", "Vaal Regalia", "armour.chest", 63, 0.5]);
   assert.deepEqual(r.weights, [{ stat: "FullDPS", weight: 1 }, { stat: "TotalEHP", weight: 0.5 }]);
   assert.deepEqual(r.mods.map((m) => [m.id, m.weight, m.gain, m.kind, m.text, m.range]), [
     ["implicit.stat_2154246560", 6.479, 291.568, "Corrupted", "45% increased Damage", { min: 40, max: 50 }],
+    ["explicit.effect_3438910899", 275.132, 275.132, "Explicit", "Socketed Gems are Supported by Level 1 Arcane Surge Support", { min: 1, max: 1 }],
     ["implicit.stat_2176571093", 107.122, 214.245, "Corrupted", "+2 to Level of Socketed Projectile Gems", { min: 2, max: 2 }], // a tie in gain and weight: by trade id
     ["implicit.stat_2551600084", 107.122, 214.245, "Corrupted", "+2 to Level of Socketed AoE Gems", { min: 2, max: 2 }],
   ]);
@@ -88,7 +89,7 @@ void test("item_mods Body Armour: the generator's weights for the slot's base, i
   assert.deepEqual(r.query.status, { option: "securable" });
   // the weighted group is the weighed mods best first, each with its weight
   // (the generator's own sort leaves the two equal ones in its order, the answer lists them by trade id)
-  assert.deepEqual(weight?.filters.slice(0, 3).map((f) => f.id).sort(), r.mods.map((m) => m.id), "the search weighs the mods the answer lists first");
+  assert.deepEqual(weight?.filters.slice(0, 4).map((f) => f.id).sort(), r.mods.map((m) => m.id).sort(), "the search weighs the mods the answer lists first");
   assert.equal(weight?.filters[0]?.id, "implicit.stat_2154246560");
   assert.ok(Math.abs((weight?.filters[0]?.value?.weight ?? 0) - 6.479) < 0.001);
   assert.deepEqual([r.search?.query, r.search?.sort, r.search?.engine], [r.query, { "statgroup.0": "desc" }, "new"]);
