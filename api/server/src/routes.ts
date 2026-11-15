@@ -300,6 +300,12 @@ export const routes: Route[] = [
     workerOp: "builds.import_character, builds.export",
     run: (s, i) => s.importCharacter({ account: i.account, realm: i.realm, character: i.character, name: i.name }),
   }),
+  route({
+    name: "build.reimport", domain: "build", method: "POST", path: "/v1/builds/:id/reimport", summary: "Re-import this build from the character it was imported from (the Compare tab's Re-import): tree, jewels, items and skills are replaced; fails for builds not imported from a character.",
+    input: z.object({ id: buildId, baseRevision: revision.optional().describe("Refuse the change unless the build is at this revision"), ignoreWeaponSwap: z.boolean().optional().describe("Skip the character's weapon swap (the Import tab's box)") }),
+    output: z.object({ result: summary, ...mutationBase.shape }), readOnly: false, workerOp: "builds.reimport",
+    run: (s, i) => s.reimport(i.id, { baseRevision: i.baseRevision, ignoreWeaponSwap: i.ignoreWeaponSwap }),
+  }),
   route({ name: "build.trash", domain: "build", method: "GET", path: "/v1/builds/trash", summary: "Deleted builds that can still be restored (kept 7 days after deletion).", input: z.object({}), output: z.object({ builds: z.array(meta.extend({ deletedAt: z.string(), purgeAfter: z.string() })) }), readOnly: true, workerOp: "(store)", run: (s) => s.trash() }),
   route({ name: "build.get", domain: "build", method: "GET", path: "/v1/builds/:id", summary: "A build's metadata and summary (class, ascendancy, level, tree version, main skill).", input: z.object({ id: buildId }), output: created, readOnly: true, workerOp: "builds.summary", run: (s, i) => s.get(i.id) }),
   route({ name: "build.rename", domain: "build", method: "POST", path: "/v1/builds/:id/rename", summary: "Rename a build (a new revision).", input: z.object({ id: buildId, name, baseRevision: revision.optional() }), output: z.object({ build: meta }), readOnly: false, workerOp: "(store)", run: (s, i) => s.rename(i.id, { name: i.name, baseRevision: i.baseRevision }) }),

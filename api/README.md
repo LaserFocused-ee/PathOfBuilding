@@ -113,6 +113,7 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/builds/import/link` | `pob_build` `import_link` | Load a build from a share link on a supported site (pobb.in, pastebin, Maxroll, poe.ninja, pob.codes, rentry, poedb). |
 | `POST /v1/builds/import/characters` | `pob_build` `characters` | Characters on a public Path of Exile profile (name, league, class, level). The profile's Characters tab must be public. POST so the account name travels in the body, not in a URL that proxies log. |
 | `POST /v1/builds/import/character` | `pob_build` `import_character` | A new build from a character on a public profile: passive tree, jewels, items and skills, as the Import tab imports them. |
+| `POST /v1/builds/:id/reimport` | `pob_build` `reimport` | Re-import this build from the character it was imported from (the Compare tab's Re-import): tree, jewels, items and skills are replaced; fails for builds not imported from a character. |
 | `GET /v1/builds/trash` | `pob_build` `trash` | Deleted builds that can still be restored (kept 7 days after deletion). |
 | `GET /v1/builds/:id` | `pob_build` `get` | A build's metadata and summary (class, ascendancy, level, tree version, main skill). |
 | `POST /v1/builds/:id/rename` | `pob_build` `rename` | Rename a build (a new revision). |

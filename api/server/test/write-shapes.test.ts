@@ -191,7 +191,8 @@ void test("build writes: imports, loadouts, settings, history; delete and restor
   await write("build.import_xml", null, { xml: freshXml });
   await write("build.import_code", null, { code });
   await write("build.import_link", null, { url: "https://pobb.in/AbC123xyz" });
-  await write("build.import_character", null, { account: "Test#0000", character: "testCharacter" });
+  const imported = idOf(await write("build.import_character", null, { account: "Test#0000", character: "testCharacter" }));
+  await write("build.reimport", imported);
   await write("build.delete", copy);
   await write("build.restore", copy);
 });
@@ -199,7 +200,7 @@ void test("build writes: imports, loadouts, settings, history; delete and restor
 void test("every write route was called, and none is declared without a result shape", () => {
   const writes = routes.filter((r) => !r.readOnly).map((r) => r.name).sort();
   assert.deepEqual([...called].sort(), writes, "a write route has no call in this file");
-  assert.equal(called.size, 91);
+  assert.equal(called.size, 92);
 });
 
 void test("config.party_export shows what Export Support would export and leaves the build as it was", async () => {

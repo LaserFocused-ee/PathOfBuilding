@@ -67,7 +67,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `export.code` | S | done | `build.export_code`; engine.test.ts |
 | `export.share_link` | S | open | Uploads to a third-party site; not routed |
 | `export.support_buffs_toggle` | H | ui | Import tab, control `enablePartyExportBuffs` (`set_state`); settings.test.ts |
-| `export.reimport_primary` | S | open | Compare tab re-import; no route |
+| `export.reimport_primary` | S | done | `build.reimport`; character.test.ts |
 
 ### tree
 
@@ -262,7 +262,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | Domain | Total | done | ui | store | not needed | F3 | open |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | builds | 30 | 17 | 0 | 9 | 2 | 0 | 2 |
-| import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
+| import / export | 14 | 9 | 1 | 0 | 0 | 0 | 4 |
 | tree | 27 | 26 | 0 | 0 | 0 | 1 | 0 |
 | skills | 17 | 16 | 0 | 0 | 0 | 1 | 0 |
 | items and crafting | 30 | 29 | 0 | 0 | 1 | 0 | 0 |
@@ -272,7 +272,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 137 | 1 | 9 | 9 | 24 | 8 |
+| **Total** | 187 | 138 | 1 | 9 | 9 | 24 | 7 |
 
 ## MCP tools
 

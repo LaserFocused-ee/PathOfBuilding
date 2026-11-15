@@ -31,6 +31,7 @@ interface Mutation {
 }
 
 export type Realm = "pc" | "xbox" | "sony";
+const isRealm = (r: string | undefined): r is Realm => r === "pc" || r === "xbox" || r === "sony";
 
 export interface TradeSearchInput {
   realm: TradeRealm;
@@ -137,18 +138,14 @@ export class Service {
     return { result: { characters: list.map((c) => ({ name: c.name, league: c.league, class: c.class, level: c.level })) }, warnings: [] };
   }
 
-  /**
-   * A new build from a character on a public profile: the passive tree and jewels, then items and skills,
-   * through the Import tab's own import functions (ImportTab.lua:814-886).
-   */
-  async importCharacter(input: { account: string; realm?: Realm; character: string; name?: string }): Promise<Output> {
-    const realm = input.realm ?? "pc";
-    const account = accountName(input.account, realm);
+  /** The character's entry on the profile and its two character-window bodies (tree and jewels, items and skills). */
+  private async fetchCharacter(accountInput: string, realm: Realm, character: string): Promise<{ account: string; char: SiteCharacter; passives: string; items: string }> {
+    const account = accountName(accountInput, realm);
     const list = await this.siteCharacters(account, realm);
-    const char = list.find((c) => c.name === input.character) ?? list.find((c) => c.name.toLowerCase() === input.character.toLowerCase());
+    const char = list.find((c) => c.name === character) ?? list.find((c) => c.name.toLowerCase() === character.toLowerCase());
     if (!char) {
       const names = list.map((c) => c.name).slice(0, 50);
-      throw new ApiError("not_found", `no character named ${input.character} on this profile`, { characters: names });
+      throw new ApiError("not_found", `no character named ${character} on this profile`, { characters: names });
     }
     const params = { accountName: account, character: char.name, realm };
     const passives = await this.characterWindow("get-passive-skills", params);
@@ -156,10 +153,36 @@ export class Service {
     for (const body of [passives, items]) {
       if (body.trim() === "false") throw new ApiError("not_found", "the site returned no data for this character; the account name is case-sensitive here (as on the profile page)");
     }
+    return { account, char, passives, items };
+  }
+
+  /**
+   * A new build from a character on a public profile: the passive tree and jewels, then items and skills,
+   * through the Import tab's own import functions (ImportTab.lua:814-886).
+   */
+  async importCharacter(input: { account: string; realm?: Realm; character: string; name?: string }): Promise<Output> {
+    const realm = input.realm ?? "pc";
+    const { account, char, passives, items } = await this.fetchCharacter(input.account, realm, input.character);
     return this.createFrom(input.name ?? char.name, { kind: "character", account, realm, character: char.name }, {
       op: "builds.import_character",
       args: { character: char, passives, items, name: input.name ?? char.name },
     });
+  }
+
+  /** The Compare tab's Re-import: the stored build's tree, jewels, items and skills replaced from the character it was imported from. */
+  async reimport(id: string, input: { baseRevision?: number; ignoreWeaponSwap?: boolean }): Promise<Output> {
+    const { source, revision } = await this.store.get(id);
+    if (input.baseRevision !== undefined && input.baseRevision !== revision) {
+      // Refused before the site is asked; the mutation re-checks under the build's lock.
+      throw new ApiError("stale_revision", `build ${id} is at revision ${revision}, not ${input.baseRevision}`, { revision });
+    }
+    if (source.kind !== "character" || !source.account || !source.character) {
+      throw new ApiError("invalid_input", "this build was not imported from a character; import one with build.import_character");
+    }
+    const realm = source.realm ?? "pc";
+    if (!isRealm(realm)) throw new ApiError("invalid_input", `this build's stored realm ${realm} is not pc, xbox or sony`);
+    const { char, passives, items } = await this.fetchCharacter(source.account, realm, source.character);
+    return this.mutate(id, "builds.reimport", { character: char, passives, items, ignoreWeaponSwap: input.ignoreWeaponSwap }, input.baseRevision);
   }
 
   /** Loads (or makes) a build in a fresh worker, stores the worker's own export as revision 1. */

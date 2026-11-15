@@ -13,16 +13,18 @@ type Created = { build: { id: string; source: Record<string, string> }; summary:
 
 let srv: TestServer;
 const requested: URL[] = [];
+const bodies: Record<string, string> = {};
+let sample: Sample;
 
 before(async () => {
-  const sample = (JSON.parse(await readFile(join(ROOT, "spec/System/SampleCharacter.json"), "utf8")) as { character: Sample }).character;
+  sample = (JSON.parse(await readFile(join(ROOT, "spec/System/SampleCharacter.json"), "utf8")) as { character: Sample }).character;
   const entry = (c: Sample) => ({ name: c.name, realm: c.realm, class: c.class, league: c.league, level: c.level });
   const characters = [entry(sample), { name: "smallWitch", realm: "pc", class: "Witch", league: "Standard", level: 5 }, { name: "onXbox", realm: "xbox", class: "Duelist", league: "Standard", level: 40 }];
-  const bodies: Record<string, string> = {
+  Object.assign(bodies, {
     "get-characters": JSON.stringify(characters),
     "get-passive-skills": JSON.stringify({ ...sample.passives, items: sample.jewels }),
     "get-items": JSON.stringify({ items: sample.equipment, character: entry(sample) }),
-  };
+  });
   const recorded = (input: string | URL | Request): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : input);
     requested.push(url);
@@ -73,6 +75,43 @@ void test("characters on a public profile: list, then import one with its tree, 
   const side = await srv.call<{ stats: Stat[] }>("GET", `/v1/stats/${build.id}/sidebar`);
   const stat = (k: string) => side.body.result.stats.find((s) => s.stat === k)?.value;
   assert.deepEqual([stat("Life"), stat("EnergyShield"), stat("Mana")], [1, 8385, 8614]);
+});
+
+void test("reimport: the stored build takes the character's current items from the profile; a non-character build and a stale revision change nothing", async () => {
+  const got = await srv.call<Created>("POST", "/v1/builds/import/character", { account: "Test#0000", character: "testCharacter" });
+  const id = got.body.result.build.id;
+  const sidebar = async () => (await srv.call<{ stats: Stat[] }>("GET", `/v1/stats/${id}/sidebar`)).body.result.stats;
+  const base = (await sidebar()).find((s) => s.stat === "Life")?.value;
+  assert.equal(base, 1);
+
+  // The character takes its belt off: the same profile now answers get-items without it.
+  const worn = bodies["get-items"] ?? "";
+  bodies["get-items"] = JSON.stringify({ items: sample.equipment.filter((e) => (e as { inventoryId?: string }).inventoryId !== "Belt"), character: sample });
+  try {
+    const before = requested.length;
+    const stale = await srv.call("POST", `/v1/builds/${id}/reimport`, { baseRevision: 7 });
+    assert.deepEqual([stale.status, stale.body.error?.code, requested.length - before], [409, "stale_revision", 0], "a stale call asks the site nothing");
+    const after = await srv.call<{ revision: number; changed: Record<string, { before: number | null; after: number | null }> }>("POST", `/v1/builds/${id}/reimport`, { baseRevision: 1 });
+    assert.equal(after.status, 200, JSON.stringify(after.body.error));
+    assert.equal(after.body.result.revision, 2);
+    const { changed } = after.body.result;
+    assert.deepEqual(Object.keys(changed).sort(), ["AverageDamage", "CombinedDPS", "Dex", "Evasion", "ImpaleDPS", "ManaLeechGainRate", "MirageDPS", "ReqDex", "ReqStr", "Str", "TotalDPS"], "the belt's loss moves attributes, requirements and damage");
+    assert.deepEqual([changed.Dex, changed.Str, changed.Evasion, changed.ReqDex, changed.ReqStr], [
+      { before: 175, after: 107 }, { before: 153, after: 93 }, { before: 20, after: 18 }, { before: null, after: 130 }, { before: null, after: 111 },
+    ]);
+    assert.equal(requested.length - before, 3, "get-characters, get-passive-skills and get-items, once each");
+    const history = await srv.call<{ history: Array<{ revision: number }> }>("GET", `/v1/builds/${id}/history`);
+    assert.equal(history.body.result.history.length, 2, "the stale call stored nothing");
+  } finally {
+    bodies["get-items"] = worn;
+  }
+
+  const made = await srv.call<Created>("POST", "/v1/builds", { name: "Scratch" });
+  const asked = requested.length;
+  const plain = await srv.call("POST", `/v1/builds/${made.body.result.build.id}/reimport`, {});
+  assert.deepEqual([plain.status, plain.body.error?.code], [400, "invalid_input"]);
+  assert.match(plain.body.error?.message ?? "", /not imported from a character/);
+  assert.equal(requested.length, asked, "no upstream request for a build that has no character");
 });
 
 void test("character import errors: no discriminator, private profile, unknown account, unknown character, rate limit, wrong case", async () => {
