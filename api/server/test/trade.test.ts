@@ -130,6 +130,15 @@ void test("trade client: Path of Building's request shapes, fetch blocks of 10, 
   assert.deepEqual([r.entries[0]?.indexed, r.entries[0]?.price], ["2026-11-14T20:00:00Z", { type: "~price", amount: 5, currency: "chaos" }]);
 });
 
+void test("trade client: a search with no match (result and total left out or null) answers no listings and fetches nothing", async () => {
+  for (const body of [{ id: "AbC123" }, { id: "AbC123", result: null, total: null }, { id: "AbC123", result: [], total: 0, inexact: true }]) {
+    const { fetch, sent } = site(() => ({ headers: generous, body }));
+    const client = new TradeClient({ fetchTimeoutMs: 1000, fetchMaxBytes: 1_000_000 }, memoryLogger().log, fetch);
+    const r = await client.search(search());
+    assert.deepEqual([r.searchId, r.total, r.entries.length, sent.length], ["AbC123", 0, 0, 1], JSON.stringify(body));
+  }
+});
+
 void test("trade client: a 429, any 4xx, a redirect or a malformed answer stops at once and nothing is retried", async () => {
   const cases: Array<[Reply, string, RegExp, Record<string, unknown>]> = [
     [{ status: 429, headers: { "retry-after": "45" } }, "rate_limited", /limiting/, { status: 429, retryAfterSeconds: 45, headers: { "retry-after": "45" } }],
@@ -138,8 +147,8 @@ void test("trade client: a 429, any 4xx, a redirect or a malformed answer stops 
     [{ status: 403, headers: { "retry-after": "120", "x-rate-limit-rules": "Ip", "x-rate-limit-ip-state": "1:10:0", "set-cookie": "a=b" }, body: { error: { message: "blocked: the client string is not allowed" } } }, "upstream_fetch_failed", /answered 403$/, { status: 403, retryAfterSeconds: 120, headers: { "retry-after": "120", "x-rate-limit-rules": "Ip", "x-rate-limit-ip-state": "1:10:0" } }],
     [{ status: 404 }, "upstream_fetch_failed", /answered 404$/, { status: 404, headers: {} }],
     [{ status: 302, headers: { location: "https://elsewhere.example/" } }, "upstream_fetch_failed", /redirects are not followed/, { status: 302 }],
-    [{ body: { id: "a/b", result: [], total: 0 } }, "upstream_fetch_failed", /expected shape/, {}],
-    [{ body: { id: "ok", result: ["../x"], total: 1 } }, "upstream_fetch_failed", /expected shape/, {}],
+    [{ body: { id: "a/b", result: [], total: 0 } }, "upstream_fetch_failed", /expected shape \(id: invalid_format\)$/, {}],
+    [{ body: { id: "ok", result: ["../x"], total: 1 } }, "upstream_fetch_failed", /expected shape \(result\.0: invalid_format\)$/, {}],
   ];
   for (const [reply, code, message, details] of cases) {
     const { fetch, sent } = site(() => reply);

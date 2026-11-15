@@ -226,7 +226,10 @@ export interface TradeLeagues {
   current: string | null;
 }
 
-const searchReply = z.object({ id: z.string().regex(ID), result: z.array(z.string().regex(ID)), total: z.number().int().min(0) });
+/** A search with no match may leave `result` out or null and `total` out (TradeQueryRequests.lua:245 reads both as none). */
+const searchReply = z.object({ id: z.string().regex(ID), result: z.array(z.string().regex(ID)).nullish().transform((r) => r ?? []), total: z.number().int().min(0).nullish().transform((t) => t ?? 0) });
+/** Where an answer left the expected shape: field paths and zod's issue text, never a value of the body. */
+const shapeOf = (e: z.ZodError) => e.issues.slice(0, 3).map((i) => `${i.path.join(".") || "answer"}: ${i.code}`).join("; ");
 const fetchReply = z.object({ result: z.array(z.unknown()) });
 const leaguesReply = z.object({ result: z.array(z.unknown()) });
 const leagueShape = z.object({ id: z.string().max(64).regex(LEAGUE_NAME), realm: z.string() });
@@ -320,14 +323,14 @@ export class TradeClient {
   /** One search and the fetches for its first `listings` results. Throws ApiError on any stop (the caller stops its batch). */
   async search(s: TradeSearch): Promise<TradeResult> {
     const found = searchReply.safeParse(await this.send("search", s, tradeUrl("api/trade/search", s.realm, s.league), "POST", JSON.stringify(s.body)));
-    if (!found.success) throw new ApiError("upstream_fetch_failed", "the trade site's search answer was not in the expected shape");
+    if (!found.success) throw new ApiError("upstream_fetch_failed", `the trade site's search answer was not in the expected shape (${shapeOf(found.error)})`);
     const ids = found.data.result.slice(0, s.listings);
     const entries: TradeEntry[] = [];
     let dropped = 0;
     for (let i = 0; i < ids.length; i += FETCH_BLOCK) {
       const url = `${ORIGIN}api/trade/fetch/${ids.slice(i, i + FETCH_BLOCK).join(",")}?query=${found.data.id}`;
       const block = fetchReply.safeParse(await this.send("fetch", s, url, "GET"));
-      if (!block.success) throw new ApiError("upstream_fetch_failed", "the trade site's fetch answer was not in the expected shape");
+      if (!block.success) throw new ApiError("upstream_fetch_failed", `the trade site's fetch answer was not in the expected shape (${shapeOf(block.error)})`);
       for (const raw of block.data.result) {
         const e = listingShape.safeParse(raw);
         if (!e.success) {
