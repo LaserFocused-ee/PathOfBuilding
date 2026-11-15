@@ -2,7 +2,8 @@
 # Build the browser view: pob-web's driver (Lua VM + SimpleGraphic bridge compiled to WebAssembly)
 # and a pack of this repository's own Path of Building sources at one commit.
 # Usage: api/web/build-web.sh [commit]   (default: HEAD; the server's worker runs the same tree)
-# Env: POB_WEB_BUILD (cache dir, default api/web/.build), POB_WEB_DIST (output, default api/web/dist; emptied by Vite).
+# Env: POB_WEB_BUILD (cache dir, default api/web/.build), POB_WEB_DIST (output, default api/web/dist; emptied by Vite),
+#      POB_WEB_FONTIN=1 keeps the Fontin font files in the output (local builds only; see THIRD-PARTY.md).
 # Output: api/web/dist, a static site to serve at the root of the API server's origin (README.md).
 # Needs git, gcc, cmake, ninja, python3 (emsdk) and deno. No root: everything lands in $B (gitignored).
 set -euo pipefail
@@ -75,8 +76,10 @@ fi
 # getBuildCode answers the sentinel for every build the page did not load (tools/load-build-probe.lua),
 # and the sentinel is the string main.ts compares.
 SENTINEL="$(sed -n 's/^+ *return "\(![a-z-]*\)"$/\1/p' "$HERE/patches/pob-web-load-build.patch")"
-[ -n "$SENTINEL" ] && grep -qF "code === \"$SENTINEL\"" "$HERE/src/main.ts" ||
-  { echo "load-build sentinel '$SENTINEL' from the patch is not the one src/main.ts compares" >&2; exit 1; }
+if [ -z "$SENTINEL" ] || ! grep -qF "code === \"$SENTINEL\"" "$HERE/src/main.ts"; then
+  echo "load-build sentinel '$SENTINEL' from the patch is not the one src/main.ts compares" >&2
+  exit 1
+fi
 RT="${POB_RUNTIME_DIR:-$REPO/api/runtime/rt}"
 [ -x "$RT/bin/luajit" ] || RT="$RT" "$REPO/api/runtime/build-runtime.sh"
 PR="$B/load-build-probe"; mkdir -p "$PR"
@@ -163,6 +166,14 @@ mv "$P/packages/view/view.deno.json" "$P/packages/view/deno.json"
 (cd "$P" && deno check packages/view/main.ts)
 (cd "$P" && POB_VERSION_ID="$VERSION_ID" POB_WEB_OUT="$DIST" POB_WEB_DECODER_DIR="$T2D/out" deno task vite build --config packages/view/vite.config.ts >"$B/view-build.log" 2>&1) ||
   { tail -n 30 "$B/view-build.log"; exit 1; }
+# Fontin's licence does not cover a published image or package holding it: left out unless asked for
+# (patches/pob-web-optional-fontin.patch then draws that text in Liberation Sans).
+# The page credits Fontin (its licence asks for that) only when the files are in the build: <span data-fontin>.
+if [ "${POB_WEB_FONTIN:-0}" != 1 ]; then
+  rm -f "$DIST"/Fontin-*.woff
+  perl -0pi -e 's#<span data-fontin>.*?</span>##gs' "$DIST/index.html"
+  if grep -qi fontin "$DIST/index.html"; then echo "index.html still credits Fontin, which this build leaves out" >&2; exit 1; fi
+fi
 mkdir -p "$DIST/licenses"
 cp "$P/LICENSE" "$DIST/licenses/pob-web-LICENSE"
 cp "$P/NOTICE.md" "$DIST/licenses/pob-web-NOTICE.md"
