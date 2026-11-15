@@ -182,6 +182,99 @@ return function(W)
 		return { nodeId = node.id, effectId = spec.masterySelections[node.id] }
 	end)
 
+	-- The Replace Modifier of Node dialog (TreeTab.lua:846), opened on the nodes a right-click opens it on
+	-- (PassiveTreeView.lua:530-541): a tattooed node, a small attribute, a +30 attribute notable, a keystone, an unallocated
+	-- mastery; never a cluster jewel's passive. `legacy` ticks Show Legacy Tattoos; the dialog's own list is the answer.
+	local function tattooDialog(b, ref, legacy)
+		local node = nodeRef(b.spec, ref)
+		local sd1 = node.sd and node.sd[1] or ""
+		local open = not node.expansionSkill and (node.isTattoo or (node.type == "Normal" and (node.dn == "Strength" or node.dn == "Dexterity" or node.dn == "Intelligence"))
+			or (node.type == "Notable" and (sd1:match("+30 to Dexterity") or sd1:match("+30 to Strength") or sd1:match("+30 to Intelligence")))
+			or node.type == "Keystone" or (node.type == "Mastery" and not node.alloc and node.masteryEffects))
+		if not open then W.fail("invalid_input", ("node %d (%s) takes no tattoo: small attributes, +30 attribute notables, keystones and unallocated masteries do"):format(node.id, node.dn)) end
+		b.treeTab:ModifyNodePopup(node)
+		local c = main.popups[1].controls
+		if legacy ~= nil and c.showLegacyTattoo.state ~= legacy then
+			c.showLegacyTattoo.state = legacy
+			c.showLegacyTattoo.changeFunc(legacy)
+		end
+		return node, c
+	end
+	local function tattooCount(spec)
+		local n = 0
+		for _, t in pairs(spec.hashOverrides) do
+			if t.isTattoo and not t.dn:find("Runegraft") then n = n + 1 end
+		end
+		return n
+	end
+
+	-- args: node, legacy?. The tattoos the node can take, as the dialog's Modifier list shows them.
+	function ops.tattoo_options(args)
+		local b = W.build()
+		local tab, prevLegacy, popups = b.treeTab, b.treeTab.showLegacyTattoo, #main.popups
+		local ok, out = pcall(function()
+			local node, c = tattooDialog(b, args.node, args.legacy)
+			local list = {}
+			for _, g in ipairs(c.modSelect.list) do
+				local t = b.spec.tree.tattoo.nodes[g.id]
+				list[#list + 1] = { id = g.id, name = t.dn, stats = setmetatable(copyTable(g.descriptions), { __jsontype = "array" }), legacy = t.legacy == true }
+			end
+			local current = b.spec.hashOverrides[node.id]
+			return { node = brief(b.spec, node), current = current and current.dn or W.json.null, tattoos = tattooCount(b.spec), limit = 50,
+				options = setmetatable(list, { __jsontype = "array" }) }
+		end)
+		while #main.popups > popups do main:ClosePopup() end
+		tab.showLegacyTattoo = prevLegacy
+		if not ok then error(out, 0) end
+		return out
+	end
+
+	-- args: node, tattoo (its name or id, exact or one unique part), legacy?. The dialog's Add button.
+	ops.tattoo = W.mutation(function(args, b)
+		local popups = #main.popups
+		local ok, out = pcall(function()
+			local node, c = tattooDialog(b, args.node, args.legacy)
+			local want = type(args.tattoo) == "string" and args.tattoo:lower() or W.fail("invalid_input", "tattoo is a tattoo name or id")
+			local hits, exact = {}, nil
+			for i, g in ipairs(c.modSelect.list) do
+				local name = b.spec.tree.tattoo.nodes[g.id].dn
+				if g.id:lower() == want or name:lower() == want then exact = i end
+				if name:lower():find(want, 1, true) or g.id:lower():find(want, 1, true) then hits[#hits + 1] = i end
+			end
+			local pick = exact or (#hits == 1 and hits[1])
+			if not pick then
+				local names = {}
+				for _, i in ipairs(#hits > 1 and hits or {}) do names[#names + 1] = b.spec.tree.tattoo.nodes[c.modSelect.list[i].id].dn end
+				W.fail("invalid_input", #hits > 1 and ("tattoo %q matches %d: %s"):format(args.tattoo, #hits, table.concat(names, "; "))
+					or ("%s cannot go on %s (tree.tattoo_options lists what can)"):format(args.tattoo, node.dn))
+			end
+			c.modSelect.selIndex = pick
+			c.modSelect.selFunc(pick, c.modSelect.list[pick])
+			c.save:Click()
+			return node.id
+		end)
+		while #main.popups > popups do main:ClosePopup() end
+		if not ok then error(out, 0) end
+		return function(nb)
+			local t = nb.spec.hashOverrides[out]
+			return { nodeId = out, tattoo = t and t.dn or W.json.null, tattoos = tattooCount(nb.spec), limit = 50 }
+		end
+	end)
+
+	-- args: node. The dialog's Reset Node button: the node's own passive back.
+	ops.untattoo = W.mutation(function(args, b)
+		local node = nodeRef(b.spec, args.node)
+		if not b.spec.hashOverrides[node.id] then W.fail("invalid_input", ("node %d (%s) has no tattoo"):format(node.id, node.dn)) end
+		local popups = #main.popups
+		local ok, err = pcall(function()
+			local _, c = tattooDialog(b, node.id)
+			c.reset:Click()
+		end)
+		while #main.popups > popups do main:ClosePopup() end
+		if not ok then error(err, 0) end
+		return function(nb) return { nodeId = node.id, name = nb.spec.nodes[node.id].dn, tattoos = tattooCount(nb.spec), limit = 50 } end
+	end)
+
 	-- The Remove All Tattoos button (TreeTab.lua:143).
 	ops.remove_tattoos = W.mutation(function(_, b)
 		local tab = b.treeTab

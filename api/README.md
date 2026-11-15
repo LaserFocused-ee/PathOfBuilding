@@ -150,6 +150,9 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `GET /v1/tree/:id/mastery-options` | `pob_tree` `mastery_options` | The effects a mastery node offers and which is selected. |
 | `POST /v1/tree/:id/set-mastery` | `pob_tree` `set_mastery` | Choose a mastery effect; allocates the mastery if needed. |
 | `POST /v1/tree/:id/remove-tattoos` | `pob_tree` `remove_tattoos` | Remove every tattoo from the tree. |
+| `GET /v1/tree/:id/tattoo-options` | `pob_tree` `tattoo_options` | The tattoos a node can take, as the Replace Modifier of Node dialog lists them (right-click a small attribute, a +30 attribute notable, a keystone or an unallocated mastery): id, name, stats, legacy; with the node's current tattoo and the tree's tattoo count against the limit of 50. `legacy` shows legacy tattoos too. |
+| `POST /v1/tree/:id/tattoo` | `pob_tree` `tattoo` | Tattoo a node, as the dialog's Add button does: the tattoo by name or id (exact, or one unique part). Over 50 tattoos is allowed, as in the application; `tattoos` says how many there are. |
+| `POST /v1/tree/:id/untattoo` | `pob_tree` `untattoo` | Remove one node's tattoo (the dialog's Reset Node button): the node's own passive comes back. |
 | `GET /v1/tree/:id/export-url` | `pob_tree` `export_url` | The tree as a passive tree link (pathofexile.com). |
 | `POST /v1/tree/:id/import-url` | `pob_tree` `import_url` | Add a tree from a passive tree link as a new tree in the list and make it active. |
 | `GET /v1/tree/:id/radius-nodes` | `pob_tree` `radius_nodes` | The passives within a jewel socket's radius (as radius jewels such as timeless jewels, Thread of Hope and Unnatural Instinct see them): per radius its index, label, inner and outer distance, the nodes and how many are allocated. Default the named radii (Small, Medium, Large, Very Large, Massive); `radius` picks one, including the Variable rings. |

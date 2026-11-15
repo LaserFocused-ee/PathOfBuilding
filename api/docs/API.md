@@ -14,7 +14,7 @@ GET inputs go in the query string (lists comma-separated); POST and PUT inputs a
 | --- | --- | --- |
 | `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `loadout_list`, `loadout_activate`, `loadout_new`, `ui_controls`, `ui_invoke`, `export_xml`, `replace_code`, `export_code`, `save_point`, `history` |
 | `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `versions` |
-| `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `export_url`, `import_url`, `radius_nodes`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `convert` |
+| `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `tattoo_options`, `tattoo`, `untattoo`, `export_url`, `import_url`, `radius_nodes`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `convert` |
 | `pob_skills` | no | `get`, `group_text`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_skill_options`, `set_spectres`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_items` | no | `list`, `get`, `add`, `add_unique`, `add_rare`, `modify`, `edit`, `anoint`, `enchant`, `craft`, `influence`, `corrupt`, `add_implicit`, `custom_mod`, `crucible_mod`, `cluster_jewel`, `equip`, `unequip`, `set_active`, `delete`, `weapon_set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `custom_mods`, `set_custom_mods`, `notes`, `set_notes`, `party_get`, `party_import`, `party_clear`, `party_set`, `party_effects` |
@@ -419,6 +419,33 @@ Remove every tattoo from the tree.
 - Read-only: no; worker: `tree.remove_tattoos`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{"type":"object","properties":{"removed":{"type":"number"}},"required":["removed"],"additionalProperties":{}},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/tree/:id/tattoo-options`
+
+The tattoos a node can take, as the Replace Modifier of Node dialog lists them (right-click a small attribute, a +30 attribute notable, a keystone or an unallocated mastery): id, name, stats, legacy; with the node's current tattoo and the tree's tattoo count against the limit of 50. `legacy` shows legacy tattoos too.
+
+- Name: `tree.tattoo_options` (MCP `pob_tree` action `tattoo_options`)
+- Read-only: yes; worker: `tree.tattoo_options`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"node":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"},"legacy":{"description":"Show Legacy Tattoos","type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["node","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"node":{"type":"object","properties":{"id":{"type":"number"},"name":{"type":"string"}},"required":["id","name"],"additionalProperties":{}},"current":{"type":["string","null"]},"tattoos":{"type":"number"},"limit":{"type":"number"},"options":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"stats":{"type":"array","items":{"type":"string"}},"legacy":{"type":"boolean"}},"required":["id","name","stats","legacy"],"additionalProperties":{}}}},"required":["node","current","tattoos","limit","options"],"additionalProperties":{}}`
+
+### `POST /v1/tree/:id/tattoo`
+
+Tattoo a node, as the dialog's Add button does: the tattoo by name or id (exact, or one unique part). Over 50 tattoos is allowed, as in the application; `tattoos` says how many there are.
+
+- Name: `tree.tattoo` (MCP `pob_tree` action `tattoo`)
+- Read-only: no; worker: `tree.tattoo`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"node":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"},"tattoo":{"type":"string","minLength":1,"maxLength":100},"legacy":{"description":"Allow legacy tattoos","type":"boolean"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["node","tattoo","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{"type":"object","properties":{"nodeId":{"type":"number"},"tattoo":{"type":["string","null"]},"tattoos":{"type":"number"},"limit":{"type":"number"}},"required":["nodeId","tattoo","tattoos","limit"],"additionalProperties":{}},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `POST /v1/tree/:id/untattoo`
+
+Remove one node's tattoo (the dialog's Reset Node button): the node's own passive comes back.
+
+- Name: `tree.untattoo` (MCP `pob_tree` action `untattoo`)
+- Read-only: no; worker: `tree.untattoo`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"node":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Node id, or its exact name"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["node","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{"type":"object","properties":{"nodeId":{"type":"number"},"name":{"type":"string"},"tattoos":{"type":"number"},"limit":{"type":"number"}},"required":["nodeId","name","tattoos","limit"],"additionalProperties":{}},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
 
 ### `GET /v1/tree/:id/export-url`
 

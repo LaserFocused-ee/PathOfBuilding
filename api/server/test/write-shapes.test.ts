@@ -77,6 +77,9 @@ void test("tree writes", async () => {
   await write("tree.spec_activate", id, { index: 2 });
   await write("tree.deallocate", id, { nodes: ["Arcane Potency"] });
   await write("tree.reset", id);
+  await write("tree.allocate", id, { nodes: [37671] });
+  await write("tree.tattoo", id, { node: 37671, tattoo: "Tattoo of the Valako Stormrider" });
+  await write("tree.untattoo", id, { node: 37671 });
   await write("tree.remove_tattoos", id);
   await write("tree.spec_new", id, { title: "Blank" });
   await write("tree.import_url", id, { url, title: "From link" });
@@ -189,5 +192,5 @@ void test("build writes: imports, loadouts, settings, history; delete and restor
 void test("every write route was called, and none is declared without a result shape", () => {
   const writes = routes.filter((r) => !r.readOnly).map((r) => r.name).sort();
   assert.deepEqual([...called].sort(), writes, "a write route has no call in this file");
-  assert.equal(called.size, 84);
+  assert.equal(called.size, 86);
 });

@@ -82,8 +82,8 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `tree.path_to` / `path_between` | H, X | done | `tree.path` (with `from` for a route between two nodes); edit.test.ts |
 | `tree.mastery.options` | H | done | `tree.mastery_options`; edit.test.ts |
 | `tree.mastery.set` | X | done | `tree.set_mastery`; edit.test.ts |
-| `tree.tattoo.options` / `apply` / `remove` | X | open | No route for single tattoos |
-| `tree.tattoo.remove_all` | S | open | Route without a test (`tree.remove_tattoos`) |
+| `tree.tattoo.options` / `apply` / `remove` | X | done | `tree.tattoo_options`, `tree.tattoo`, `tree.untattoo` (the Replace Modifier of Node dialog); edit.test.ts |
+| `tree.tattoo.remove_all` | S | done | `tree.remove_tattoos`; edit.test.ts |
 | `tree.specs.list` / `new` / `copy` / `rename` / `delete` | S | done | `tree.get` (list), `tree.spec_new`, `tree.spec_copy`, `tree.spec_rename`, `tree.spec_delete`; edit.test.ts |
 | `tree.specs.reorder` | S | open | No route |
 | `tree.specs.switch` | H | done | `tree.spec_activate`; edit.test.ts |
@@ -263,7 +263,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | builds | 30 | 15 | 0 | 9 | 2 | 0 | 4 |
 | import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
-| tree | 27 | 21 | 0 | 0 | 0 | 1 | 5 |
+| tree | 27 | 23 | 0 | 0 | 0 | 1 | 3 |
 | skills | 17 | 14 | 0 | 0 | 0 | 1 | 2 |
 | items and crafting | 30 | 26 | 0 | 0 | 0 | 0 | 4 |
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
@@ -272,7 +272,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 120 | 1 | 9 | 8 | 24 | 25 |
+| **Total** | 187 | 122 | 1 | 9 | 8 | 24 | 23 |
 
 ## MCP tools
 
