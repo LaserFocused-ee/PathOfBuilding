@@ -46,6 +46,51 @@ return function(W)
 		return { active = found, sets = active(b) }
 	end)
 
+	-- args: names? (default every loadout), fields? (output keys; default below). Each loadout is picked in the dropdown and
+	-- calculated, then each tab's set is switched back: no revision. fullDpsGroups counts the enabled skill groups
+	-- ticked Include in Full DPS (0: FullDPS reads 0).
+	local defaultFields = { "FullDPS", "CombinedDPS", "Life", "EnergyShield", "Mana", "TotalEHP" }
+	function ops.stats(args)
+		local b = W.build()
+		local list = loadouts(b)
+		local names = type(args.names) == "table" and #args.names > 0 and args.names or list
+		for _, n in ipairs(names) do
+			local known = false
+			for _, v in ipairs(list) do if v == n then known = true end end
+			if not known then W.fail("not_found", "no loadout " .. tostring(n) .. "; loadouts: " .. table.concat(list, ", ")) end
+		end
+		local fields = type(args.fields) == "table" and #args.fields > 0 and args.fields or defaultFields
+		local prev = { b.treeTab.activeSpec, b.itemsTab.activeItemSetId, b.skillsTab.activeSkillSetId, b.configTab.activeConfigSetId }
+		local rows = setmetatable({}, { __jsontype = "array" })
+		local ok, err = pcall(function()
+			for _, n in ipairs(names) do
+				W.choose(b.controls.buildLoadouts, function(v) return v == n end)
+				b.buildFlag = true
+				W.pump()
+				b = W.build()
+				local output, groups = setmetatable({}, { __jsontype = "object" }), 0
+				for _, k in ipairs(fields) do
+					if type(k) == "string" and b.calcsTab.mainOutput[k] ~= nil then output[k] = W.plain(b.calcsTab.mainOutput[k]) end
+				end
+				for _, g in ipairs(b.skillsTab.socketGroupList) do
+					if g.enabled and g.includeInFullDPS then groups = groups + 1 end
+				end
+				rows[#rows + 1] = { name = n, sets = active(b), fullDpsGroups = groups, output = output }
+			end
+		end)
+		-- each tab's own set switch back, as compare_item_sets does (a reload would rewrite the code's defaults)
+		b = W.build()
+		if b.treeTab.activeSpec ~= prev[1] then b.treeTab:SetActiveSpec(prev[1]) end
+		if b.itemsTab.activeItemSetId ~= prev[2] then b.itemsTab:SetActiveItemSet(prev[2]) end
+		if b.skillsTab.activeSkillSetId ~= prev[3] then b.skillsTab:SetActiveSkillSet(prev[3]) end
+		if b.configTab.activeConfigSetId ~= prev[4] then b.configTab:SetActiveConfigSet(prev[4]) end
+		b:SyncLoadouts()
+		b.buildFlag = true
+		W.pump()
+		if not ok then error(err, 0) end
+		return { loadouts = rows }
+	end
+
 	-- The position of the active set in a tab's order list.
 	local function position(order, id)
 		for i, v in ipairs(order) do if v == id then return i end end

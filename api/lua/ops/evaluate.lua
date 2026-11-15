@@ -277,7 +277,7 @@ return function(W)
 		local function add(node, name, p, dist)
 			if p.singleStat == nil then return end
 			list[#list + 1] = { id = node.id, name = W.strip(name), type = node.type, allocated = node.alloc == true, pathDist = dist,
-				power = p.singleStat, pathPower = p.pathPower, defence = combined and p.defence or nil }
+				power = p.singleStat, pathPower = p.pathPower, perPoint = p.pathPower and p.pathPower / dist, defence = combined and p.defence or nil }
 		end
 		for _, node in pairs(b.spec.nodes) do
 			if not node.ascendancyName and node.power then
@@ -593,7 +593,9 @@ return function(W)
 		tab:SetDisplayItem(prevDisplay)
 		tab.anointEnchantSlot = prevSlot
 		if not ok then error(err, 0) end
-		return { stat = args.stat, total = total, notables = out }
+		local current = setmetatable({}, { __jsontype = "array" })
+		for i, name in ipairs(tab:getAnoint(item) or {}) do current[i] = W.strip(name) end
+		return { stat = args.stat, total = total, current = current, notables = out }
 	end
 
 	-- A jewel socket: a tree socket (node id or "Jewel <id>") or an item's abyssal socket slot; by default the first allocated tree
@@ -987,10 +989,10 @@ return function(W)
 		for _, set in ipairs(sets) do largest = math.max(largest, #set) end
 		for _, set in ipairs(sets) do
 			if #set == largest then
-				local nodes, ids, sum = {}, {}, 0
-				for _, m in ipairs(set) do nodes[spec.tree.clusterNodeMap[m.notable]] = true; ids[#ids + 1] = m.id; sum = sum + m.gain end
+				local nodes, ids, lines, sum = {}, {}, {}, 0
+				for _, m in ipairs(set) do nodes[spec.tree.clusterNodeMap[m.notable]] = true; ids[#ids + 1] = m.id; lines[#lines + 1] = m.text; sum = sum + m.gain end
 				local output = calcFunc({ addNodes = nodes })
-				combos[#combos + 1] = { mods = ids, estimate = rounded(sum),
+				combos[#combos + 1] = { mods = ids, text = table.concat(lines, "\n"), estimate = rounded(sum),
 					gain = rounded(gen.WeightedRatioOutputs(baseOutput, output, options.statWeights) * 1000 - gen.calcContext.baseStatValue),
 					changed = diff(before, values(b, output, nil)) }
 			end

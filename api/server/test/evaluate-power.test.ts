@@ -9,7 +9,7 @@ type Value = number | string | boolean | null;
 type Changed = Record<string, { before: Value; after: Value }>;
 type Mutated = { result: Record<string, unknown>; changed: Changed; revision: number };
 type Reply<T> = { status: number; body: { ok: boolean; result: T; error?: { code: string; message: string } } };
-type NodePower = { id: number; name: string; type: string; allocated: boolean; pathDist: number; power: number; pathPower?: number; defence?: number };
+type NodePower = { id: number; name: string; type: string; allocated: boolean; pathDist: number; power: number; pathPower?: number; perPoint?: number; defence?: number };
 
 let srv: TestServer;
 /** The Elementalist fixture (Fireball, Spell Echo, Added Lightning Damage, 15 nodes) with an amulet and a flask equipped, an unequipped helmet, a second tree and a second item set. */
@@ -80,6 +80,12 @@ void test("node_power: allocated nodes show their removal, masteries one entry p
   assert.equal(p.total, 1122);
   const alloc = p.nodes.find((n) => n.id === 2292);
   assert.deepEqual([alloc?.name, alloc?.allocated, alloc?.pathDist, alloc?.power, alloc?.pathPower], ["Mana and Life", true, 8, 0, -2903.9329713618]);
+  assert.equal(alloc?.perPoint, -362.99162142023);
+  // pathPower of an allocated node is what cutting it with everything hanging from it changes.
+  const cut = await dup(base);
+  const before = (await output(cut, "CombinedDPS")).CombinedDPS ?? 0;
+  assert.equal((await mutate("tree", cut, "deallocate", { nodes: [2292], force: true })).result.count, 8);
+  assert.ok(Math.abs(((await output(cut, "CombinedDPS")).CombinedDPS ?? 0) - before + 2903.9329713618) < 1e-6);
   const mastery = p.nodes.find((n) => n.id === 5726);
   assert.deepEqual([mastery?.type, mastery?.name, mastery?.pathDist, mastery?.power, mastery?.pathPower], ["Mastery", "Elemental Mastery: Hits have 15% chance to treat Enemy Monster Elemental Resistance values as inverted", 10, 1750.092175, 2198.22525]);
   assert.deepEqual(p.nodes.find((n) => n.type === "Keystone")?.name, "Elemental Overload");

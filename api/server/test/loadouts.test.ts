@@ -74,3 +74,28 @@ void test("loadout_new empty makes four new sets; loadouts that relied on a tab'
   assert.deepEqual(await list(id), { loadouts: ["Blank"], active: "Blank", sets: made.result.sets });
   assert.equal(await gemLevel(id), undefined); // the new skill set has no groups
 });
+
+void test("loadout_stats: each loadout's figures without switching to it; add_group's includeInFullDPS", async () => {
+  const id = await witch();
+  ok(await post(id, "loadouts/:id/new", { name: "Two" }));
+  ok(await post(id, "skills/:id/set-gem", { group: 1, gem: 1, level: 10 }));
+  const revision = async () => ok(await srv.call<{ build: { revision: number } }>("GET", `/v1/builds/${id}`)).build.revision;
+  const r0 = await revision();
+  type Stats = { loadouts: Array<{ name: string; sets: Sets; fullDpsGroups: number; output: Record<string, number> }> };
+  const s = ok(await srv.call<Stats>("GET", `/v1/loadouts/${id}/stats?fields=TotalDPS,FullDPS`));
+  assert.deepEqual(s.loadouts.map((l) => [l.name, l.sets.skills, l.output.TotalDPS]), [["Default", "Default", 1608.5666666667], ["Two", "Two", await dps(id)]]);
+  assert.deepEqual([await revision(), (await list(id)).active, await gemLevel(id)], [r0, "Two", 10], "the build is as it was");
+  fails(await srv.call("GET", `/v1/loadouts/${id}/stats?names=Nope`), 404, "not_found");
+
+  // A new group is not in Full DPS unless asked; fullDpsGroups shows it.
+  const blank = await witch();
+  ok(await post(blank, "loadouts/:id/new", { name: "Blank", empty: true }));
+  const full = async () => ok(await srv.call<Stats>("GET", `/v1/loadouts/${blank}/stats?names=Blank&fields=FullDPS,TotalDPS`)).loadouts[0];
+  ok(await post(blank, "skills/:id/add-group", { gems: [{ name: "Fireball" }] }));
+  const off = await full();
+  assert.deepEqual([off?.fullDpsGroups, off?.output.FullDPS], [0, 0]);
+  ok(await post(blank, "skills/:id/add-group", { gems: [{ name: "Fireball" }], includeInFullDPS: true }));
+  const on = await full();
+  assert.equal(on?.fullDpsGroups, 1);
+  assert.ok((on?.output.FullDPS ?? 0) > 0, JSON.stringify(on?.output));
+});

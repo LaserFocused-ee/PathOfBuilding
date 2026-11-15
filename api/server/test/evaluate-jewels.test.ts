@@ -147,6 +147,7 @@ void test("jewel_mods cluster: the enchant's notables weighed alone, sets of up 
     [["explicit.stat_2342448236", "explicit.stat_228455793", "explicit.stat_1462135249"], 610.317, 551.616],
     [["explicit.stat_2342448236", "explicit.stat_3206911230", "explicit.stat_1462135249"], 610.317, 551.616],
   ]);
+  assert.match(r.combinations[0]?.text ?? "", /^1 Added Passive Skill is Prismatic Heart\n1 Added Passive Skill is [^\n]+\n1 Added Passive Skill is [^\n]+$/);
   assert.deepEqual([r.query.type, r.query.stats[0]?.value, r.query.stats[0]?.filters.length, r.query.stats[1]?.filters], ["Large Cluster Jewel", { min: 226.94 }, 9, [{ id: "enchant.stat_3948993189|13" }]]);
   assert.deepEqual(r.query.filters.misc_filters?.filters.ilvl, { min: 75 });
   // the body for trade.search: 1 of the 4 heaviest notables and the enchant, base and filters as the query has them

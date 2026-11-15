@@ -152,6 +152,30 @@ return function(W)
 		return { key = args.key, value = W.plain(actor.output[args.key]), breakdown = W.plain(bd) }
 	end
 
+	-- The non-damaging ailments the main skill's hits apply to the enemy set in the config (enemyIsBoss), read from the
+	-- Calcs tab's <Ailment>DPS table: its row at that enemy's ailment threshold (the one Path of Building labels with
+	-- the boss type). PoB does not apply this to the build: it applies the config's conditionShockEffect (and the like).
+	function ops.ailments()
+		local b = W.build()
+		local actor = b.calcsTab.calcsEnv and b.calcsTab.calcsEnv.player
+		local out, bd = actor and actor.output or {}, actor and actor.breakdown or {}
+		local list = setmetatable({}, { __jsontype = "array" })
+		for _, name in ipairs({ "Shock", "Chill", "Scorch", "Brittle", "Sap" }) do
+			local data, rows = data.nonDamagingAilment[name], bd[name .. "DPS"] and bd[name .. "DPS"].rowList
+			for _, row in ipairs(rows or {}) do
+				if type(row.thresh) == "string" and row.thresh:find("%^8%(") then
+					local effect = tonumber(row.effect:match("^([%d%.]+)%%"))
+					local maximum = out["Maximum" .. name] or data.max
+					list[#list + 1] = { ailment = name, effect = math.min(effect, maximum), uncapped = effect, maximum = maximum,
+						minimum = data.min, applies = effect >= data.min, threshold = tonumber(row.thresh:match("^(%d+)")),
+						chanceOnHit = out[name .. "ChanceOnHit"], chanceOnCrit = out[name .. "ChanceOnCrit"], duration = out[name .. "Duration"] }
+				end
+			end
+		end
+		return { enemy = b.configTab.input.enemyIsBoss or "Pinnacle", skill = b.calcsTab.calcsEnv and b.calcsTab.calcsEnv.player.mainSkill
+			and W.strip(b.calcsTab.calcsEnv.player.mainSkill.activeEffect.grantedEffect.name), ailments = list }
+	end
+
 	-- The experience multiplier table of the character level box's hover (Build.lua characterLevel.tooltipFunc).
 	function ops.xp()
 		local b = W.build()

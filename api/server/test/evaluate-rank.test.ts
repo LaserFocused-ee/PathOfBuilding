@@ -71,7 +71,7 @@ void test("gem_rank: the gem box's values; the top support really added, and one
 });
 
 void test("anoint_rank: the Anoint popup's notable power is the change anointing causes", async () => {
-  const r = await ev<{ stat: string; total: number; notables: Array<{ name: string; power: number }> }>(base, "anoint-rank", { slot: "Amulet", stat: "CombinedDPS", limit: 3 });
+  const r = await ev<{ stat: string; total: number; current: string[]; notables: Array<{ name: string; power: number }> }>(base, "anoint-rank", { slot: "Amulet", stat: "CombinedDPS", limit: 3 });
   assert.deepEqual([r.stat, r.total], ["CombinedDPS", 472]);
   assert.deepEqual(r.notables, [
     { name: "Divine Judgement", power: 2562.2236055539 },
@@ -85,6 +85,12 @@ void test("anoint_rank: the Anoint popup's notable power is the change anointing
     assert.ok(Math.abs(await stat(d, "CombinedDPS") - before - n.power) < 1e-6, n.name);
   }
   assert.deepEqual((await ev<{ notables: unknown[] }>(base, "anoint-rank", { item: 1, stat: "Life", limit: 2 })).notables, [{ name: "Discipline and Training", power: 157 }, { name: "Heart of the Warrior", power: 150 }]);
+  // An anointed item: its own anoint is measured against no anoint, so it keeps its full value; current names it.
+  const anointed = await dup(base);
+  await mutate("items", anointed, "anoint", { item: 1, notables: ["Divine Judgement"] });
+  const again = await ev<{ current: string[]; notables: Array<{ name: string; power: number }> }>(anointed, "anoint-rank", { slot: "Amulet", stat: "CombinedDPS", limit: 1 });
+  assert.deepEqual([again.current, again.notables[0]?.name], [["Divine Judgement"], "Divine Judgement"]);
+  assert.deepEqual(r.current, []);
 });
 
 void test("unique_rank: the unique list's sort for a slot; the top uniques really equipped", async () => {

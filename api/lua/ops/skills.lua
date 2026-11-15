@@ -135,7 +135,7 @@ return function(W)
 	end
 
 	-- args: text (the copy format: optional "Label: ..." and "Slot: ..." lines, then "<gem> <level>/<quality> [DISABLED] <count>"
-	-- lines), or gems ({ name, level?, quality?, enabled?, count? }) with label? and slot?. Ctrl+V on the group list.
+	-- lines), or gems ({ name, level?, quality?, enabled?, count? }) with label? and slot?; includeInFullDPS?. Ctrl+V on the group list.
 	ops.add_group = W.mutation(function(args, b)
 		local tab = b.skillsTab
 		local text = args.text
@@ -158,6 +158,7 @@ return function(W)
 		tab:PasteSocketGroup(text)
 		if #tab.socketGroupList ~= before + 1 then W.fail("invalid_input", "no gems found in the text; each gem line reads <name> <level>/<quality>, as Copy on the Skills tab writes it (Fireball 20/20)") end
 		local g = tab.socketGroupList[#tab.socketGroupList]
+		if args.includeInFullDPS ~= nil then g.includeInFullDPS = args.includeInFullDPS == true end
 		tab:ProcessSocketGroup(g)
 		for _, gem in ipairs(g.gemList) do
 			if not gem.gemData then W.fail("invalid_input", "unknown gem " .. tostring(gem.nameSpec)) end

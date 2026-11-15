@@ -217,6 +217,9 @@ void test("config: options by their controls, config sets, notes, level settings
   assert.equal(ok(await srv.call<{ values: Record<string, unknown> }>("GET", `/v1/config/${id}/get`)).values.overrideInspirationCharges, 0);
   ok(await srv.call("POST", `/v1/config/${id}/set`, { reset: ["overrideInspirationCharges"] }));
   assert.equal("overrideInspirationCharges" in ok(await srv.call<{ values: Record<string, unknown> }>("GET", `/v1/config/${id}/get`)).values, false);
+  const nulled = await srv.call("POST", `/v1/config/${id}/set`, { values: { enemyLevel: null } });
+  assert.equal(nulled.status, 400);
+  assert.match(nulled.body.error?.message ?? "", /values\.enemyLevel: a value is true\/false, a number or text; to put an option back to its default, name it in reset/);
   fails(await srv.call("POST", `/v1/config/${id}/set`, { values: { conditionLowLife: 3 } }), 400, "invalid_input");
   fails(await srv.call("POST", `/v1/config/${id}/set`, { values: { enemyIsBoss: "Nonsense" } }), 400, "invalid_input");
   fails(await srv.call("POST", `/v1/config/${id}/set`, { values: { noSuchOption: true } }), 400, "invalid_input");
