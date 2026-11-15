@@ -1,11 +1,12 @@
 // tree.timeless_nodes: what a timeless jewel with a seed and conqueror does around a socket, read without changing the build
 // and checked against the same jewel really socketed (items.add equipped in the socket), on the Elementalist fixture (tree 3_30).
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { routes } from "../src/routes.js";
-import { FIXTURES, startServer, type TestServer } from "./helpers.js";
+import { FIXTURES, ROOT, startServer, type TestServer } from "./helpers.js";
 
 type Reply<T> = { status: number; body: { ok: boolean; result: T; error?: { code: string; message: string } } };
 type Changed = { id: number; type: string; name: string; becomes: string; stats: string[]; allocated: boolean };
@@ -174,4 +175,12 @@ void test("refusals: unknown jewel, another jewel's conqueror, seed out of range
   await fails(timeless(base, "Lethal Pride", 12345, "Kaom", 999999), 404, "not_found", /no passive node 999999/);
   await fails(timeless("0123456789abcdef", "Lethal Pride", 12345, "Kaom", 21984), 404, "not_found", /./);
   await fails(srv.call("GET", `/v1/tree/${base}/timeless-nodes?jewel=Lethal%20Pride&seed=12345&socket=21984`), 400, "invalid_input", /conqueror/);
+});
+
+void test("a preview reaches no sub-script or link, and the seed table's unpacked cache is refused outside the state dir", async () => {
+  const pool = srv.runtime.svc.pool;
+  await pool.run(base, "worker.reach"); // from zero
+  assert.ok((await preview(base, "Lethal Pride", 12345, "Kaom", 21984)).nodes.length > 0);
+  assert.deepEqual(await pool.run(base, "worker.reach").then((x) => x.result), { subScripts: 0, urls: 0, writes: ["./Data/TimelessJewelData/LethalPride.bin"] });
+  assert.equal(existsSync(join(ROOT, "src/Data/TimelessJewelData/LethalPride.bin")), false, "nothing written next to the sources");
 });

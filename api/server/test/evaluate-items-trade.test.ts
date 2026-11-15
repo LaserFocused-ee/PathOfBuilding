@@ -239,11 +239,15 @@ void test("item_mods refuses what it cannot answer: unknown or empty slots, bad 
 void test("item_mods answers the same twice; the build's code and revision are unchanged; flasks answer what the generator has for them", async () => {
   const id = await dup(base);
   const before0 = await state(id);
+  const pool = srv.runtime.svc.pool;
+  await pool.run(id, "worker.reach"); // from zero
   const a = await items(id, { slot: "Body Armour", league: "Standard", limit: 200 });
   const b = await items(id, { slot: "Body Armour", league: "Standard", limit: 200 });
   assert.deepEqual(a, b);
   assert.deepEqual(await items(id, { slot: "Ring 1", limit: 200 }), await items(id, { slot: "Ring 1", limit: 200 }));
   assert.equal(await state(id), before0);
+  // the search is only built: no sub-script, link or file outside the state dir
+  assert.deepEqual(await pool.run(id, "worker.reach").then((x) => x.result), { subScripts: 0, urls: 0, writes: [] });
   // a flask: Path of Building weighs flask mods and finds none that gain here, and says so
   const flask = await items(id, { slot: "Flask 1" });
   assert.deepEqual([flask.category, flask.total, flask.query, flask.search, flask.link], ["flask", 0, null, null, null]);
