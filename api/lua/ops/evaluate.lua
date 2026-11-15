@@ -798,10 +798,36 @@ return function(W)
 		return o
 	end
 
-	-- The trade API's body for a query (the sort the popup's search uses).
-	local function searchOf(query)
-		return query ~= json.null and { query = query, sort = { ["statgroup.0"] = "desc" }, engine = "new" } or json.null
+	-- The trade API's body for a generator query, in a shape the site takes from a search without login. The site refuses Path of
+	-- Building's weighted sum group without login ("Query is too complex. Please reduce the amount of filters used.Logging in will
+	-- increase this limit.": 32, 8 and 3 stats, Covens, 15 Nov 2026); TradeQueryGenerator budgets 200 with that group at 54, a
+	-- logged-in limit. So the weight group becomes a count group: at least `need` of the GUEST_STATS heaviest stats (the generator's
+	-- order, one stat once across explicit and implicit, stats that count against the build left out), cheapest first; trade.search
+	-- with buildId ranks the listings by the full weights. Groups left empty are dropped.
+	-- ponytail: 4 is the count group seen to pass (with a category and a price cap); widen it when answered searches' `complexity` shows room.
+	local GUEST_STATS = 4
+	local function guestSearch(query, need)
+		if query == json.null then return json.null end
+		local stats, picked, seen = {}, {}, {}
+		for _, g in ipairs(query.stats) do
+			if g.type == "weight" then
+				for _, f in ipairs(g.filters) do
+					local key = f.id:match("^%a+%.(.+)$") or f.id
+					if #picked < GUEST_STATS and not seen[key] and (f.value.weight or 0) > 0 then
+						seen[key] = true
+						picked[#picked + 1] = { id = f.id }
+					end
+				end
+			elseif #g.filters > 0 then
+				stats[#stats + 1] = g
+			end
+		end
+		if #picked > 0 then table.insert(stats, 1, { type = "count", value = { min = math.min(need, #picked) }, filters = picked }) end
+		local q = copyTable(query)
+		q.stats = stats
+		return { query = q, sort = { price = "asc" } }
 	end
+	local function searchOf(query) return guestSearch(query, 2) end
 
 	-- The generator run as its Execute button runs it: StartQuery against `slot`, every mod weighed (ExecuteQuery, to the end),
 	-- FinishQuery's search, then the weighed mods best first with where the generator found each (text at `quality`, range, kind).
@@ -984,7 +1010,7 @@ return function(W)
 		for i = 1, math.min(limit, #mods) do out[i] = mods[i] end
 		return { family = "cluster", size = size, enchant = skill.name, enchantId = enchantId or json.null, notableSlots = cap,
 			category = "jewel.cluster", weights = weightsOut(options.statWeights), total = #mods, mods = out, combinations = combos, query = query,
-			search = query ~= json.null and { query = query, sort = { ["statgroup.0"] = "desc" }, engine = "new" } or json.null,
+			search = guestSearch(query, 1),
 			queryError = query == json.null and "no notable of this enchant gains anything for this build" or json.null,
 			link = query ~= json.null and tradeLink(realm, args.league, query) or json.null }
 	end

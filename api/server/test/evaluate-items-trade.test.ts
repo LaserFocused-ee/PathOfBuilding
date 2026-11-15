@@ -15,7 +15,7 @@ type Items = {
   slot: string; item: string; base: string; category: string; quality: number; total: number; mods: Mod[]; link: string | null; queryError: string | null;
   weights: Array<{ stat: string; weight: number }>; options: Record<string, unknown>;
   query: { stats: Group[]; filters: Filters; status: { option: string } } | null;
-  search: { query: unknown; sort: unknown; engine: string } | null;
+  search: { query: { stats: unknown; filters: unknown; status: unknown }; sort: unknown; engine?: string } | null;
 };
 
 let srv: TestServer;
@@ -92,7 +92,9 @@ void test("item_mods Body Armour: the generator's weights for the slot's base, i
   assert.deepEqual(weight?.filters.slice(0, 4).map((f) => f.id).sort(), r.mods.map((m) => m.id).sort(), "the search weighs the mods the answer lists first");
   assert.equal(weight?.filters[0]?.id, "implicit.stat_2154246560");
   assert.ok(Math.abs((weight?.filters[0]?.value?.weight ?? 0) - 6.479) < 0.001);
-  assert.deepEqual([r.search?.query, r.search?.sort, r.search?.engine], [r.query, { "statgroup.0": "desc" }, "new"]);
+  // the body for trade.search: a count group of the 4 heaviest stats (the site refuses the weighted group without login), same filters, cheapest first
+  assert.deepEqual(r.search?.query.stats, [{ type: "count", value: { min: 2 }, filters: ["implicit.stat_2154246560", "explicit.effect_3438910899", "implicit.stat_2176571093", "implicit.stat_2551600084"].map((id) => ({ id })) }]);
+  assert.deepEqual([r.search?.query.filters, r.search?.query.status, r.search?.sort, r.search?.engine], [r.query.filters, r.query.status, { price: "asc" }, undefined]);
   const prefix = "https://www.pathofexile.com/trade/search/Standard/";
   assert.ok(r.link?.startsWith(prefix), r.link ?? "no link");
   const seg = (r.link ?? "").slice(prefix.length);

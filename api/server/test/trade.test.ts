@@ -101,12 +101,13 @@ const generous = rules("100:10:0", "1:10:0");
 void test("trade client: Path of Building's request shapes, fetch blocks of 10, seller fields left out, mod lines as the conversion reads them", async () => {
   const many = ids(35);
   const { fetch, sent } = site((s) => {
-    if (s.method === "POST") return { headers: generous, body: { id: "AbC123", result: many, total: 35 } };
+    if (s.method === "POST") return { headers: generous, body: { id: "AbC123", result: many, total: 35, complexity: 27 } };
     const block = new URL(s.url).pathname.split("/").pop()?.split(",") ?? [];
     return { headers: generous, body: { result: block.map((id, i) => (i === 1 ? null : { ...entry(id), item: { rarity: "Rare", name: "", typeLine: "Cobalt Jewel", explicitMods: ["9% increased Damage"], craftedMods: ["+10 to Intelligence"], fracturedMods: ["15% increased Fire Damage"] } })) } };
   });
   const client = new TradeClient({ fetchTimeoutMs: 1000, fetchMaxBytes: 1_000_000 }, memoryLogger().log, fetch);
   const r = await client.search(search({ realm: "xbox", league: "Hardcore Keepers' Flame", listings: 25 }));
+  assert.equal(r.complexity, 27, "the site's complexity of the query is kept");
   assert.deepEqual(sent.map((s) => [s.method, s.url.replace(/[0-9a-f]{64}/g, "<id>").replace(/(<id>,?)+/g, (m) => `${m.split("<id>").length - 1}ids`)]), [
     ["POST", "https://www.pathofexile.com/api/trade/search/xbox/Hardcore%20Keepers%27%20Flame"],
     ["GET", "https://www.pathofexile.com/api/trade/fetch/10ids?query=AbC123"],
@@ -131,7 +132,7 @@ void test("trade client: Path of Building's request shapes, fetch blocks of 10, 
 });
 
 void test("trade client: a search with no match (result and total left out or null, id empty) answers no listings and fetches nothing", async () => {
-  for (const body of [{ id: "AbC123" }, { id: "AbC123", result: null, total: null }, { id: "AbC123", result: [], total: 0, inexact: true }, { id: "", result: [], total: 0 }, { result: [] }]) {
+  for (const body of [{ id: "AbC123" }, { id: "AbC123", result: null, total: null }, { id: "AbC123", result: [], total: 0, inexact: true, complexity: "high" }, { id: "", result: [], total: 0 }, { result: [] }]) {
     const { fetch, sent } = site(() => ({ headers: generous, body }));
     const client = new TradeClient({ fetchTimeoutMs: 1000, fetchMaxBytes: 1_000_000 }, memoryLogger().log, fetch);
     const r = await client.search(search());
@@ -360,6 +361,11 @@ void test("trade.search: input limits (8 searches, 30 listings, league text, que
   // No search by seller: the site's own account filter, or any key naming an account or seller at any depth.
   await bad({ league, searches: [{ query: { ...q.query, filters: { trade_filters: { filters: { account: { input: "Someone#1234" } } } } } }] }, /may not filter by seller account/);
   await bad({ league, searches: [{ query: { ...q.query, filters: { misc: { filters: { Seller_Name: "x" } } } } }] }, /may not filter by seller account/);
+  // No weighted sum group of 3 or more stats: the site refuses those from a search without login (400 "Query is too complex").
+  const weight = (n: number) => ({ query: { ...q.query, stats: [{ type: "weight", value: { min: 1 }, filters: Array.from({ length: n }, (_, i) => ({ id: `explicit.stat_${i + 1}`, value: { weight: 1 } })) }] } });
+  await bad({ league, searches: [weight(3)] }, /refuses a weighted sum group of 3 or more stats/);
+  await bad({ league, searches: [q, weight(8)] }, /refuses a weighted sum group of 3 or more stats/);
+  assert.ok(routes.find((x) => x.name === "trade.search")?.input.safeParse({ league, searches: [weight(2)] }).success, "a weighted group of 2 stats is not refused");
   const tool = toolDefs().find((d) => d.name === "pob_trade");
   assert.deepEqual([tool?.readOnly, tool?.routes.map((r) => r.name)], [true, ["trade.search", "trade.currency_rates", "trade.leagues"]]);
 });

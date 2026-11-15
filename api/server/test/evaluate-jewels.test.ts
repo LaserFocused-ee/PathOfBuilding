@@ -17,7 +17,7 @@ type Stats = Array<{ type: string; value?: { min: number }; filters: Array<{ id:
 type Jewels = {
   family: string; socket?: string; category: string; total: number; mods: Mod[]; combinations: Combo[]; link: string | null; enchantId?: string;
   query: { stats: Stats; filters: Record<string, { filters: Record<string, unknown> }>; status: { option: string }; type?: string; name?: string };
-  search: { query: unknown; sort: unknown; engine: string };
+  search: { query: { stats: unknown; filters: unknown; status: unknown; type?: string }; sort: unknown; engine?: string };
 };
 
 let srv: TestServer;
@@ -86,7 +86,8 @@ void test("jewel_mods base: mods weighed one at a time in the regular socket, th
   assert.deepEqual(r.query.filters.type_filters?.filters, { category: { option: "jewel.base" }, rarity: { option: "nonunique" } });
   assert.deepEqual(r.query.status, { option: "securable" });
   assert.deepEqual(r.query.stats[0]?.filters[0], { id: "explicit.stat_3962278098", value: { weight: 5.3189885091069 } });
-  assert.deepEqual([r.search.query, r.search.sort, r.search.engine], [r.query, { "statgroup.0": "desc" }, "new"]);
+  assert.deepEqual(r.search.query.stats, [{ type: "count", value: { min: 2 }, filters: ["explicit.stat_3962278098", "explicit.stat_2154246560", "explicit.stat_1839076647", "explicit.stat_2974417149"].map((id) => ({ id })) }]);
+  assert.deepEqual([r.search.query.filters, r.search.query.status, r.search.sort, r.search.engine], [r.query.filters, r.query.status, { price: "asc" }, undefined]);
   const prefix = "https://www.pathofexile.com/trade/search/Covens/";
   assert.ok(r.link?.startsWith(prefix), r.link ?? "no link");
   const seg = (r.link ?? "").slice(prefix.length);
@@ -148,6 +149,9 @@ void test("jewel_mods cluster: the enchant's notables weighed alone, sets of up 
   ]);
   assert.deepEqual([r.query.type, r.query.stats[0]?.value, r.query.stats[0]?.filters.length, r.query.stats[1]?.filters], ["Large Cluster Jewel", { min: 226.94 }, 9, [{ id: "enchant.stat_3948993189|13" }]]);
   assert.deepEqual(r.query.filters.misc_filters?.filters.ilvl, { min: 75 });
+  // the body for trade.search: 1 of the 4 heaviest notables and the enchant, base and filters as the query has them
+  assert.deepEqual(r.search.query.stats, [{ type: "count", value: { min: 1 }, filters: r.query.stats[0]?.filters.slice(0, 4).map((f) => ({ id: f.id })) }, { type: "and", filters: [{ id: "enchant.stat_3948993189|13" }] }]);
+  assert.deepEqual([r.search.query.type, r.search.query.filters, r.search.sort], [r.query.type, r.query.filters, { price: "asc" }]);
   assert.ok(r.link?.startsWith("https://www.pathofexile.com/trade/search/Covens/"));
   const medium = await jewels(base, { family: "cluster", size: "Small", enchant: "Fire Resistance", limit: 1, combinations: 3 });
   assert.ok(medium.combinations.every((c) => c.mods.length === 1), "a small cluster holds one notable");

@@ -195,6 +195,8 @@ export interface TradeEntry {
 export interface TradeResult {
   searchId: string;
   total: number;
+  /** The site's complexity of the query (what its limit counts), null when it gave none. */
+  complexity: number | null;
   entries: TradeEntry[];
   /** Fetched entries the site sent that were not listings (delisted, or not in the shape). */
   dropped: number;
@@ -231,7 +233,7 @@ export interface TradeLeagues {
 
 /** A search with no match may leave `result` out or null, `total` out and `id` empty (TradeQueryRequests.lua:245 reads all as none). */
 const searchReply = z
-  .object({ id: z.string().regex(SEARCH_ID).nullish().transform((i) => i ?? ""), result: z.array(z.string().regex(ID)).nullish().transform((r) => r ?? []), total: z.number().int().min(0).nullish().transform((t) => t ?? 0) })
+  .object({ id: z.string().regex(SEARCH_ID).nullish().transform((i) => i ?? ""), result: z.array(z.string().regex(ID)).nullish().transform((r) => r ?? []), total: z.number().int().min(0).nullish().transform((t) => t ?? 0), complexity: z.number().nullish().catch(null).transform((c) => c ?? null) }) // informational: an odd value is read as none
   .refine((r) => r.id !== "" || r.result.length === 0, { path: ["id"], message: "a search with results has an id" });
 /** Where an answer left the expected shape: field paths and zod's issue text, never a value of the body. */
 const shapeOf = (e: z.ZodError) => e.issues.slice(0, 3).map((i) => `${i.path.join(".") || "answer"}: ${i.code}`).join("; ");
@@ -353,7 +355,7 @@ export class TradeClient {
         entries.push({ id, indexed: listing.indexed ?? null, price: listing.price ?? null, entry: fetchEntry(id, listing, item) });
       }
     }
-    const value = { searchId: found.data.id, total: found.data.total, entries, dropped };
+    const value = { searchId: found.data.id, total: found.data.total, complexity: found.data.complexity, entries, dropped };
     this.cache.set(cacheKey(s), { at: this.now(), value });
     for (const key of this.cache.keys()) {
       if (this.cache.size <= CACHE_ENTRIES) break;
