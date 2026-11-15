@@ -233,8 +233,8 @@ const leagueShape = z.object({ id: z.string().max(64).regex(LEAGUE_NAME), realm:
 /** The trade site's static data: PullCXData reads the first group's entries (short id and name of each bulk item). */
 const staticReply = z.object({ result: z.array(z.object({ id: z.string().max(100), entries: z.array(z.object({ id: z.string().max(100), text: z.string().max(200) })).max(5000) })).min(1).max(200) });
 const cxId = z.string().max(200);
-/** An hour of the exchange, the fields PullCXData reads. */
-const exchangeReply = z.object({ markets: z.array(z.object({ league: z.string().max(100), market_pair: z.tuple([cxId, cxId]), lowest_ratio: z.record(cxId, z.number()), highest_stock: z.record(cxId, z.number()) })).max(100_000) });
+/** An hour of the exchange, the fields PullCXData reads plus `volume_traded`. */
+const exchangeReply = z.object({ markets: z.array(z.object({ league: z.string().max(100), market_pair: z.tuple([cxId, cxId]), volume_traded: z.record(cxId, z.number()), lowest_ratio: z.record(cxId, z.number()), highest_stock: z.record(cxId, z.number()) })).max(100_000) });
 export type StaticData = z.infer<typeof staticReply>;
 export type ExchangeHour = z.infer<typeof exchangeReply>;
 /**
@@ -394,8 +394,11 @@ export class TradeClient {
     const hour = exchangeHour(this.now());
     const reply = exchangeReply.safeParse(await this.send("exchange", ask, exchangeUrl(realm, hour), "GET"));
     if (!reply.success) throw new ApiError("upstream_fetch_failed", "the currency exchange's answer was not in the expected shape");
-    const markets = reply.data.markets.filter((m) => m.league === league);
-    if (markets.length === 0) throw new ApiError("upstream_fetch_failed", `the currency exchange has no markets for ${league} in the hour ${hour} (${realm})`, { league, hour });
+    // PullCXData prices a pair by `lowest_ratio`, one outlying order (chaos read 1 divine, Covens, 15 Nov 2026). The hour's traded
+    // volumes give its average rate, so they stand in for `lowest_ratio`; a pair with nothing traded in the hour is not priced.
+    const traded = (m: ExchangeHour["markets"][number]) => m.market_pair.every((id) => (m.volume_traded[id] ?? 0) > 0);
+    const markets = reply.data.markets.filter((m) => m.league === league && traded(m)).map((m) => ({ ...m, lowest_ratio: m.volume_traded }));
+    if (markets.length === 0) throw new ApiError("upstream_fetch_failed", `the currency exchange has no traded markets for ${league} in the hour ${hour} (${realm})`, { league, hour });
     const value = { hour, rates: await convert(data, { markets }) };
     this.ratesCache.set(key, { at: this.now(), value });
     return { ...value, cached: false };

@@ -26,9 +26,9 @@ function site(answer: (s: Sent) => Reply): { fetch: typeof fetch; sent: Sent[] }
 
 const LEAGUE = "Covens";
 const [DIV, CHAOS, EXALT, MIRROR, ALCH, ALT] = ["CurrencyModValues", "CurrencyRerollRare", "CurrencyAddModToRare", "CurrencyDuplicate", "CurrencyUpgradeToRare", "CurrencyRerollMagic"].map((n) => `Metadata/Items/Currency/${n}`) as [string, string, string, string, string, string];
-/** One exchange market as the hour's answer has it: `lowest_ratio` is how many of each trade for the other. */
+/** One exchange market as the hour's answer has it: `volume_traded` is how many of each changed hands in the hour; the order ratios are one outlying 1:1 order. */
 const market = (league: string, [a, ra, sa]: [string, number, number], [b, rb, sb]: [string, number, number]) => ({
-  league, market_id: `${a}|${b}`, market_pair: [a, b], volume_traded: { [a]: 1, [b]: 1 }, lowest_stock: { [a]: 1, [b]: 1 }, highest_stock: { [a]: sa, [b]: sb }, lowest_ratio: { [a]: ra, [b]: rb }, highest_ratio: { [a]: ra, [b]: rb },
+  league, market_id: `${a}|${b}`, market_pair: [a, b], volume_traded: { [a]: ra * 7, [b]: rb * 7 }, lowest_stock: { [a]: 1, [b]: 1 }, highest_stock: { [a]: sa, [b]: sb }, lowest_ratio: { [a]: 1, [b]: 1 }, highest_ratio: { [a]: ra, [b]: rb },
 });
 const exchange = {
   next_change_id: 1,
@@ -39,6 +39,7 @@ const exchange = {
     market(LEAGUE, [ALCH, 2, 500], [CHAOS, 1, 100]), // 2 alchemy a chaos, the most stock
     market(LEAGUE, [ALCH, 500, 50], [DIV, 1, 3]), // less stock: not used
     market(LEAGUE, [ALT, 4, 900], [CHAOS, 1, 100]), // alteration: not in the static data, so not priced
+    { ...market(LEAGUE, [EXALT, 1, 9000], [DIV, 1, 9000]), volume_traded: { [EXALT]: 0, [DIV]: 0 } }, // the most stock, but nothing traded in the hour: not used
     market("Standard", [DIV, 1, 10], [CHAOS, 150, 100]),
     market("Standard", [EXALT, 1, 10], [CHAOS, 9, 100]),
   ],
@@ -84,7 +85,7 @@ void test("trade client: the two downloads, the league's markets only, an hour's
   // An hour on: both again, for the new hour; the exchange without the league fails naming it, and is not asked again.
   c.t += 61 * 60_000;
   cx = { body: { markets: exchange.markets.filter((m) => m.league === "Standard") } };
-  await assert.rejects(client.currencyRates("xbox", LEAGUE, ask(), convert), (e: ApiError) => e.code === "upstream_fetch_failed" && e.message === "the currency exchange has no markets for Covens in the hour 1794675600 (xbox)");
+  await assert.rejects(client.currencyRates("xbox", LEAGUE, ask(), convert), (e: ApiError) => e.code === "upstream_fetch_failed" && e.message === "the currency exchange has no traded markets for Covens in the hour 1794675600 (xbox)");
   assert.deepEqual(recorded.sent.slice(2).map((s) => s.url), [STATIC_URL, "https://web.poecdn.com/api/currency-exchange/xbox/1794675600"]);
   await assert.rejects(client.currencyRates("xbox", LEAGUE, ask(), convert), (e: ApiError) => e.code === "rate_limited");
   assert.equal(recorded.sent.length, 4, "a failed hour is not asked again");
