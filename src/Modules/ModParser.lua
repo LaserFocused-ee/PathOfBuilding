@@ -2139,6 +2139,12 @@ local dmgTypes = {
 }
 -- List of special modifiers
 ---@type table<string, Mod[]|fun(num: number, ...: string): Mod[]>
+-- Fork only (api/docs/UPSTREAM-PATCHES.md): a timeless jewel line naming no known conqueror stays unsupported
+-- (nil) instead of a conqueredBy with no conqueror, which PassiveSpec indexes and fails on.
+local function conqueredBy(num, name)
+	local conqueror = conquerorList[name:lower()]
+	return conqueror and { mod("JewelData", "LIST", { key = "conqueredBy", value = { id = num, conqueror = conqueror } }) } or nil
+end
 local specialModList = {
 	-- Recognize spell-hit Hinder chance and expose the manual enemy Hindered setting; do not assume proc uptime.
 	["(%d+)%% chance to hinder enemies on hit with spells"] = function(num) return { mod("HinderChance", "BASE", num, nil, ModFlag.Spell), mod("Dummy", "DUMMY", 1, "Select enemy Hindered in Configuration", { type = "ActorCondition", actor = "enemy", var = "Hindered" }) } end,
@@ -5912,29 +5918,21 @@ local specialModList = {
 	["infernal blow debuff deals an additional (%d+)%% of damage per charge"] = function(num) return { mod("DebuffEffect", "BASE", num, { type = "SkillName", skillName = "Infernal Blow", includeTransfigured = true }) } end,
 	-- Legion modifiers
 	["bathed in the blood of (%d+) sacrificed in the name of (.+)"] =  function(num, _, name)
-		return { mod("JewelData", "LIST",
-				{ key = "conqueredBy", value = { id = num, conqueror = conquerorList[name:lower()] } }) } end,
+		return conqueredBy(num, name) end,
 	["carved to glorify (%d+) new faithful converted by high templar (.+)"] =  function(num, _, name)
-		return { mod("JewelData", "LIST",
-				{ key = "conqueredBy", value = { id = num, conqueror = conquerorList[name:lower()] } }) } end,
+		return conqueredBy(num, name) end,
 	["commanded leadership over (%d+) warriors under (.+)"] =  function(num, _, name)
-		return { mod("JewelData", "LIST",
-				{ key = "conqueredBy", value = { id = num, conqueror = conquerorList[name:lower()] } }) } end,
+		return conqueredBy(num, name) end,
 	["commissioned (%d+) coins to commemorate (.+)"] =  function(num, _, name)
-		return { mod("JewelData", "LIST",
-				{ key = "conqueredBy", value = { id = num, conqueror = conquerorList[name:lower()] } }) } end,
+		return conqueredBy(num, name) end,
 	["denoted service of (%d+) dekhara in the akhara of (.+)"] =  function(num, _, name)
-		return { mod("JewelData", "LIST",
-				{ key = "conqueredBy", value = { id = num, conqueror = conquerorList[name:lower()] } }) } end,
+		return conqueredBy(num, name) end,
 	["remembrancing (%d+) songworthy deeds by the line of (.+)"] =  function(num, _, name)
-		return { mod("JewelData", "LIST",
-				{ key = "conqueredBy", value = { id = num, conqueror = conquerorList[name:lower()] } }) } end,
+		return conqueredBy(num, name) end,
 	["subjugating (%d+) souls in the thrall of (.+)"] = function(num, _, name)
-		return { mod("JewelData", "LIST",
-				{ key = "conqueredBy", value = { id = num, conqueror = conquerorList[name:lower()] } }) } end,
+		return conqueredBy(num, name) end,
 	["binding (%d+) souls to phylacteries to sustain (.+)"] = function(num, _, name)
-		return { mod("JewelData", "LIST",
-				{ key = "conqueredBy", value = { id = num, conqueror = conquerorList[name:lower()] } }) } end,
+		return conqueredBy(num, name) end,
 	["passives in radius are conquered by the (%D+)"] = { },
 	["passives affected are conquered by the abyssal"] = { },
 	["historic"] = { },

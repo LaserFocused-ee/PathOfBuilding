@@ -148,10 +148,23 @@ nothing):
   (see "Regenerating QueryMods"). The first regeneration, with the generator otherwise unchanged, also adds the entries
   for data merged since upstream's last one (42988a846): the Wickerman mods of upstream PRs 10419 and 10455.
 - Why: the desktop Trader and the API's weighted searches weighed mods an abyss jewel cannot have and could weigh a
-  different range from one run to the next. The API's evaluate workaround (`oneEach`, its own tie sort) can go once this
-  is merged.
+  different range from one run to the next. The API's evaluate workaround (`oneEach`, its own tie sort) was removed
+  after this merged (9c3bc02cf).
 - Tests: `spec/System/TestTradeQueryGenerator_spec.lua`, "Fork-only weighing fixes": the abyss range (fails on the old
   `QueryMods.lua`), the highest max among twelve shared entries and the tie order (both fail on the old generator).
+- Upstream status: not offered.
+
+### Timeless jewel lines naming an unknown conqueror: `src/Modules/ModParser.lua`
+
+- What: the eight timeless jewel seed lines ("Commanded leadership over N warriors under <name>" and the rest) built
+  `conqueredBy` with `conqueror = conquerorList[name]` even when the name is not in the list. `PassiveSpec`
+  (`BuildAllDependsAndPaths`, line 1139 and seven more) indexes `conqueror.type` and failed, so the tree could not be
+  rebuilt with such a jewel socketed (desktop: script error each frame; API: a 500 from `compare_item`). The lines now
+  go through one `conqueredBy(num, name)` that answers nil for an unknown name, so the line stays unsupported (red),
+  as any other unread line.
+- Why: a mistyped or made-up leader name in pasted jewel text broke the build.
+- Test: `api/server/test/evaluate-jewels.test.ts`, the compare_item jewel socket test: a Lethal Pride "under Nobody" is a
+  400 and the same worker answers the next compare (a worker error without the change).
 - Upstream status: not offered.
 
 ### Open upstream pull requests merged ahead of upstream

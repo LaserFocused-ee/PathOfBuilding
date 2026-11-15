@@ -121,6 +121,9 @@ return function(W)
 			if not item.base then bad("Path of Building could not read this item (unknown base?)") end
 			item:NormaliseQuality()
 			item:BuildModList()
+			if item.base.subType == "Timeless" and not (item.jewelData and item.jewelData.conqueredBy) then
+				bad("Path of Building reads no conqueror on this timeless jewel (its seed line names none it knows), so it would change nothing")
+			end
 			return item
 		end
 		if args.item == nil then bad("an item (id) or its text is required") end
