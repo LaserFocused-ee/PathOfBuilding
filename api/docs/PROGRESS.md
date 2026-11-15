@@ -272,7 +272,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 138 | 1 | 9 | 9 | 24 | 7 |
+| **Total** | 187 | 138 | 1 | 9 | 9 | 24 | 6 |
 
 ## MCP tools
 
