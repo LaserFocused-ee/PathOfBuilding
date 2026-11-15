@@ -119,6 +119,30 @@ nothing):
 - Test: `spec/System/TestStatDescriber_spec.lua` (fails without the change).
 - Upstream status: not offered.
 
+### Trade weights: `src/Classes/TradeQueryGenerator.lua`, `src/Data/QueryMods.lua`
+
+- What, three changes:
+  - Abyss jewel ranges: `ModJewelAbyss.lua` also holds Delve fossil mods (the export keeps any with an `abyss_jewel`
+    spawn tag), and the abyss call passes a category override, which skips the spawn-weight test. So mods with weight 0
+    for `abyss_jewel`, such as the Delve weapon "(40-60)% / (80-120)% increased Elemental Damage", widened the abyss
+    ranges (that one tested at 70%). The abyss list is now filtered by the generator's own spawn test first. Of 721
+    abyss-list mods, 529 can roll on one of the five abyss bases; the 529 are exactly the mod ids poedb.tw's five abyss
+    base pages list (15 Nov 2026) and none of the other 192 appear there. In `QueryMods.lua` this removes 133
+    `AbyssJewel` ranges (7 entries go) and narrows 14; no other category changes.
+  - Shared trade stats: several entries can map to one trade stat. `GenerateModWeights` weighed whichever `pairs()` met
+    first, so the tested value could change between runs. It now weighs the entry with the highest max for the item
+    category (then the first key), skipping Talisman entries when those are off.
+  - Ties: `FinishQuery`'s sort breaks equal stat difference and weight by trade id.
+- Regeneration: `REGENERATE_QUERY_MODS=1` builds `QueryMods.lua` from the committed `TradeSiteStats.lua`, no download
+  (see "Regenerating QueryMods"). The first regeneration, with the generator otherwise unchanged, also adds the entries
+  for data merged since upstream's last one (42988a846): the Wickerman mods of upstream PRs 10419 and 10455.
+- Why: the desktop Trader and the API's weighted searches weighed mods an abyss jewel cannot have and could weigh a
+  different range from one run to the next. The API's evaluate workaround (`oneEach`, its own tie sort) can go once this
+  is merged.
+- Tests: `spec/System/TestTradeQueryGenerator_spec.lua`, "Fork-only weighing fixes": the abyss range (fails on the old
+  `QueryMods.lua`), the highest max among twelve shared entries and the tie order (both fail on the old generator).
+- Upstream status: not offered.
+
 ### Open upstream pull requests merged ahead of upstream
 
 Each was fetched read-only (`git fetch upstream pull/<n>/head`) and merged with its own commit, in the order below;
@@ -158,3 +182,20 @@ Without that `LUA_PATH` the run stops with "module 'xml' not found"; with upstre
 leaves the file untouched. Proof it ran: the log (stderr) ends with "Rares loaded" and "Startup time"; then compare
 `/tmp/ModCache.lua` with (or copy it over) `src/Data/ModCache.lua`. One cached line ("extra" text of a Flame/Flesh unique) depends on
 table order, so commit the image's output, not a local run's.
+
+## Regenerating QueryMods
+
+Same image and copy, with the fork's `REGENERATE_QUERY_MODS=1` (reads `src/Data/TradeSiteStats.lua`; nothing is
+downloaded). A small driver runs the generator once:
+
+```sh
+mkdir -p /tmp/qm && printf '%s\n' 'dofile("HeadlessWrapper.lua")' 'new("TradeQueryGenerator"):TradeQueryGenerator({ itemsTab = {} })' \
+  'io.stderr:write("QueryMods written\n")' > /tmp/qm/regen.lua
+docker run --rm -v "$PWD":/workdir:ro -v /tmp/qm:/qm:ro -w /workdir ghcr.io/pathofbuildingcommunity/pathofbuilding-tests:latest sh -c '
+  mkdir /tmp/w && tar --exclude=./api -cf - . | tar -xf - -C /tmp/w && cd /tmp/w/src && rm Data/QueryMods.lua &&
+  LUA_PATH="../runtime/lua/?.lua;../runtime/lua/?/init.lua;;" REGENERATE_QUERY_MODS=1 luajit /qm/regen.lua >&2 &&
+  cat Data/QueryMods.lua' > /tmp/QueryMods.lua
+```
+
+Proof it ran: the log has "QueryMods written" (and the generator's "Unable to match" lines). Two runs give the same
+bytes. Copy `/tmp/QueryMods.lua` over `src/Data/QueryMods.lua`.

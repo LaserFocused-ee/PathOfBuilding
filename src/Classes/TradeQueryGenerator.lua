@@ -456,7 +456,15 @@ function TradeQueryGeneratorClass:InitMods()
 		self:GenerateModData(data.itemMods[key], tradeQueryStatsParsed, regularItemMask)
 	end
 	self:GenerateModData(data.itemMods.Jewel, tradeQueryStatsParsed, { ["BaseJewel"] = true, ["AnyJewel"] = true })
-	self:GenerateModData(data.itemMods.JewelAbyss, tradeQueryStatsParsed, { ["AbyssJewel"] = true, ["AnyJewel"] = true },
+	-- Fork only (api/docs/UPSTREAM-PATCHES.md): the abyss list also holds Delve fossil mods that no abyss jewel can roll
+	-- (spawn weight 0 for abyss_jewel); the category override below skips the spawn test, so leave those out here.
+	local abyssMods = {}
+	for modId, mod in pairs(data.itemMods.JewelAbyss) do
+		if canModSpawnForItemCategory(mod, "AbyssJewel") then
+			abyssMods[modId] = mod
+		end
+	end
+	self:GenerateModData(abyssMods, tradeQueryStatsParsed, { ["AbyssJewel"] = true, ["AnyJewel"] = true },
 		{ ["AbyssJewel"] = true })
 	self:GenerateModData(data.itemMods.Flask, tradeQueryStatsParsed, { ["Flask"] = true })
 
@@ -570,8 +578,20 @@ end
 
 function TradeQueryGeneratorClass:GenerateModWeights(modsToTest)
 	local start = GetTime()
-	for _, entry in pairs(modsToTest) do
-		if entry[self.calcContext.itemCategory] ~= nil then
+	-- Fork only (api/docs/UPSTREAM-PATCHES.md): entries can share a trade stat; weigh the one with the highest max for
+	-- this category (then the first key), not whichever one pairs() meets first.
+	local chosen = { }
+	for key, entry in pairsSortByKey(modsToTest) do
+		local range = entry[self.calcContext.itemCategory]
+		if range ~= nil and not (self.calcContext.options.includeTalisman == false and range.subType == "Talisman") then
+			local cur = chosen[entry.tradeMod.id]
+			if cur == nil or range.max > modsToTest[cur][self.calcContext.itemCategory].max then
+				chosen[entry.tradeMod.id] = key
+			end
+		end
+	end
+	for key, entry in pairsSortByKey(modsToTest) do
+		if entry[self.calcContext.itemCategory] ~= nil and chosen[entry.tradeMod.id] == key then
 			if self.alreadyWeightedMods[entry.tradeMod.id] ~= nil then -- Don't calculate the same thing twice (can happen with corrupted vs implicit)
 				goto continue
 			elseif self.calcContext.options.includeTalisman == false and entry[self.calcContext.itemCategory].subType == "Talisman" then -- Talisman implicits take up a lot of query slots, so we have an option to skip them
@@ -945,6 +965,9 @@ function TradeQueryGeneratorClass:FinishQuery()
 	-- Sort by mean Stat diff rather than weight to more accurately prioritize stats that can contribute more
 	table.sort(self.modWeights, function(a, b)
 		if a.meanStatDiff == b.meanStatDiff then
+			if math.abs(a.weight) == math.abs(b.weight) then
+				return a.tradeModId < b.tradeModId -- Fork only: a fixed order for ties
+			end
 			return math.abs(a.weight) > math.abs(b.weight)
 		end
 		return a.meanStatDiff > b.meanStatDiff

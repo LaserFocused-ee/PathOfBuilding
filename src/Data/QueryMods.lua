@@ -263,10 +263,6 @@ return {
 			},
 		},
 		["1059_ChaosDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 1.5,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -1008,10 +1004,6 @@ return {
 			},
 		},
 		["1315_ChaosResistance"] = {
-			["AbyssJewel"] = {
-				["max"] = 3,
-				["min"] = 1,
-			},
 			["Amulet"] = {
 				["max"] = 29,
 				["min"] = 19,
@@ -1526,10 +1518,6 @@ return {
 			},
 		},
 		["1546_ReducedChillDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -1540,10 +1528,6 @@ return {
 			},
 		},
 		["1547_ReducedShockDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -1554,10 +1538,6 @@ return {
 			},
 		},
 		["1548_ReducedFreezeDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -1568,10 +1548,6 @@ return {
 			},
 		},
 		["1549_ReducedBurnDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -1971,10 +1947,6 @@ return {
 			},
 		},
 		["1731_ActorSize"] = {
-			["AbyssJewel"] = {
-				["max"] = -1,
-				["min"] = -1,
-			},
 			["inverseKey"] = "reduced",
 			["specialCaseData"] = {
 			},
@@ -2330,10 +2302,6 @@ return {
 			},
 		},
 		["1908_ReducedReservationForJewel"] = {
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3488,10 +3456,6 @@ return {
 			},
 		},
 		["2720_ChargeDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 7,
-				["min"] = 3,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3537,10 +3501,6 @@ return {
 			},
 		},
 		["2789_VaalSkillDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 5,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3551,10 +3511,6 @@ return {
 			},
 		},
 		["2790_DamageWhileDead"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3565,10 +3521,6 @@ return {
 			},
 		},
 		["2793_ChaosDamagePerCorruptedItem"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3579,10 +3531,6 @@ return {
 			},
 		},
 		["2794_LifeLeechRatePerCorruptedItem"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3593,10 +3541,6 @@ return {
 			},
 		},
 		["2796_ManaLeechRatePerCorrupteditem"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3607,10 +3551,6 @@ return {
 			},
 		},
 		["2826_ChanceToTakeCriticalStrike"] = {
-			["AbyssJewel"] = {
-				["max"] = 100,
-				["min"] = 60,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -15576,10 +15516,6 @@ return {
 			},
 		},
 		["1029_FireDamagePercentagePrefix"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -15918,10 +15854,6 @@ return {
 			},
 		},
 		["1031_GlobalAddedFireDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 23,
-			},
 			["Gloves"] = {
 				["max"] = 30,
 				["min"] = 23,
@@ -16518,10 +16450,6 @@ return {
 			},
 		},
 		["1038_ColdDamagePercentagePrefix"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -16846,10 +16774,6 @@ return {
 			},
 		},
 		["1040_GlobalAddedColdDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 23,
-			},
 			["Gloves"] = {
 				["max"] = 30,
 				["min"] = 23,
@@ -17485,10 +17409,6 @@ return {
 			},
 		},
 		["1049_LightningDamagePercentagePrefix"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -17817,10 +17737,6 @@ return {
 			},
 		},
 		["1051_GlobalAddedLightningDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 30.5,
-				["min"] = 24.5,
-			},
 			["Gloves"] = {
 				["max"] = 30.5,
 				["min"] = 24.5,
@@ -18393,10 +18309,6 @@ return {
 			},
 		},
 		["1057_IncreasedChaosDamagePrefix"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -18613,10 +18525,6 @@ return {
 			},
 		},
 		["1058_GlobalAddedChaosDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 25,
-				["min"] = 18,
-			},
 			["Gloves"] = {
 				["max"] = 25,
 				["min"] = 18,
@@ -21019,7 +20927,7 @@ return {
 		["1105_IncreasedAccuracy"] = {
 			["AbyssJewel"] = {
 				["max"] = 300,
-				["min"] = 10,
+				["min"] = 31,
 			},
 			["Amulet"] = {
 				["max"] = 480,
@@ -23381,10 +23289,6 @@ return {
 			},
 		},
 		["1212_LocalPhysicalDamageReductionRatingPercentSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Armour",
@@ -23704,10 +23608,6 @@ return {
 			},
 		},
 		["1220_LocalEvasionRatingIncreasePercentSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Evasion Rating",
@@ -23812,10 +23712,6 @@ return {
 			},
 		},
 		["1222_LocalArmourAndEnergyShieldSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Armour and Energy Shield",
@@ -23920,10 +23816,6 @@ return {
 			},
 		},
 		["1223_LocalArmourAndEvasionSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Armour and Evasion",
@@ -24028,10 +23920,6 @@ return {
 			},
 		},
 		["1224_LocalEvasionAndEnergyShieldSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Evasion and Energy Shield",
@@ -24104,10 +23992,6 @@ return {
 			},
 		},
 		["1225_LocalArmourAndEvasionAndEnergyShieldSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Armour, Evasion and Energy Shield",
@@ -24507,10 +24391,6 @@ return {
 			},
 		},
 		["1230_LocalEnergyShieldPercentSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Energy Shield",
@@ -24965,10 +24845,6 @@ return {
 			},
 		},
 		["1241_LifeAndPercentLife"] = {
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 15,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -25363,10 +25239,6 @@ return {
 			},
 		},
 		["1243_LifeAndPercentLife"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 2,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -26161,10 +26033,6 @@ return {
 			},
 		},
 		["1253_MaximumManaIncreasePercent"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 15,
 				["min"] = 10,
@@ -26268,10 +26136,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 0.8,
 				["min"] = 0.7,
-			},
-			["AbyssJewel"] = {
-				["max"] = 0.5,
-				["min"] = 0.5,
 			},
 			["Dagger"] = {
 				["max"] = 0.4,
@@ -26627,10 +26491,6 @@ return {
 			},
 		},
 		["1259_ManaRecoveryRate"] = {
-			["AbyssJewel"] = {
-				["max"] = 12,
-				["min"] = 8,
-			},
 			["Amulet"] = {
 				["max"] = 12,
 				["min"] = 8,
@@ -27007,10 +26867,6 @@ return {
 			},
 		},
 		["1289_MinionGlobalSkillLevel"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Boots"] = {
 				["max"] = 2,
 				["min"] = 1,
@@ -27791,10 +27647,6 @@ return {
 			},
 		},
 		["1315_ChaosResistancePrefix"] = {
-			["AbyssJewel"] = {
-				["max"] = 35,
-				["min"] = 20,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -28047,10 +27899,6 @@ return {
 			},
 		},
 		["1340_PhysicalDamageLifeLeechPermyriad"] = {
-			["AbyssJewel"] = {
-				["max"] = 0.2,
-				["min"] = 0.2,
-			},
 			["Amulet"] = {
 				["max"] = 0.5,
 				["min"] = 0.3,
@@ -28079,10 +27927,6 @@ return {
 			},
 		},
 		["1344_FireDamageLifeLeechPermyriad"] = {
-			["AbyssJewel"] = {
-				["max"] = 0.2,
-				["min"] = 0.2,
-			},
 			["Amulet"] = {
 				["max"] = 0.5,
 				["min"] = 0.3,
@@ -28139,10 +27983,6 @@ return {
 			},
 		},
 		["1349_ColdDamageLifeLeechPermyriad"] = {
-			["AbyssJewel"] = {
-				["max"] = 0.2,
-				["min"] = 0.2,
-			},
 			["Amulet"] = {
 				["max"] = 0.5,
 				["min"] = 0.3,
@@ -28199,10 +28039,6 @@ return {
 			},
 		},
 		["1353_LightningDamageLifeLeechPermyriad"] = {
-			["AbyssJewel"] = {
-				["max"] = 0.2,
-				["min"] = 0.2,
-			},
 			["Amulet"] = {
 				["max"] = 0.5,
 				["min"] = 0.3,
@@ -28259,10 +28095,6 @@ return {
 			},
 		},
 		["1356_ChaosDamageLifeLeechPermyriad"] = {
-			["AbyssJewel"] = {
-				["max"] = 0.2,
-				["min"] = 0.2,
-			},
 			["Amulet"] = {
 				["max"] = 0.5,
 				["min"] = 0.3,
@@ -28422,10 +28254,6 @@ return {
 			},
 		},
 		["1396_EnergyShieldLeechPermyriad"] = {
-			["AbyssJewel"] = {
-				["max"] = 0.3,
-				["min"] = 0.3,
-			},
 			["Gloves"] = {
 				["max"] = 0.3,
 				["min"] = 0.3,
@@ -28644,10 +28472,6 @@ return {
 			},
 		},
 		["1418_ManaGainPerTarget"] = {
-			["AbyssJewel"] = {
-				["max"] = 4,
-				["min"] = 2,
-			},
 			["Gloves"] = {
 				["max"] = 5,
 				["min"] = 2,
@@ -29082,10 +28906,6 @@ return {
 			},
 		},
 		["1440_MinionLife"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Belt"] = {
 				["max"] = 30,
 				["min"] = 13,
@@ -29188,10 +29008,6 @@ return {
 			},
 		},
 		["1443_MinionRunSpeed"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 15,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 13,
@@ -30732,10 +30548,6 @@ return {
 			},
 		},
 		["1541_SelfStatusAilmentDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Boots"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -31172,10 +30984,6 @@ return {
 			},
 		},
 		["1557_ManaCostReduction"] = {
-			["AbyssJewel"] = {
-				["max"] = 6,
-				["min"] = 4,
-			},
 			["Ring"] = {
 				["max"] = 6,
 				["min"] = 4,
@@ -31229,10 +31037,6 @@ return {
 				["min"] = 1,
 			},
 			["2HWeapon"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
-			["AbyssJewel"] = {
 				["max"] = 1,
 				["min"] = 1,
 			},
@@ -31758,10 +31562,6 @@ return {
 				["max"] = 1,
 				["min"] = 1,
 			},
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Boots"] = {
 				["max"] = 1,
 				["min"] = 1,
@@ -31867,10 +31667,6 @@ return {
 				["min"] = 1,
 			},
 			["2HWeapon"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
-			["AbyssJewel"] = {
 				["max"] = 1,
 				["min"] = 1,
 			},
@@ -33015,7 +32811,7 @@ return {
 		},
 		["1618_LifeRegenerationRatePercentage"] = {
 			["AbyssJewel"] = {
-				["max"] = 1,
+				["max"] = 0.3,
 				["min"] = 0.3,
 			},
 			["Amulet"] = {
@@ -33455,7 +33251,7 @@ return {
 		},
 		["1647_MinionDamage"] = {
 			["AbyssJewel"] = {
-				["max"] = 30,
+				["max"] = 16,
 				["min"] = 14,
 			},
 			["Gloves"] = {
@@ -33594,10 +33390,6 @@ return {
 			},
 			["2HWeapon"] = {
 				["max"] = 144,
-				["min"] = 30,
-			},
-			["AbyssJewel"] = {
-				["max"] = 130,
 				["min"] = 30,
 			},
 			["Bow"] = {
@@ -33745,10 +33537,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 94,
 				["min"] = 37,
-			},
-			["AbyssJewel"] = {
-				["max"] = 120,
-				["min"] = 19,
 			},
 			["Belt"] = {
 				["max"] = 30,
@@ -33910,10 +33698,6 @@ return {
 				["max"] = 2,
 				["min"] = 1,
 			},
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
-			},
 			["Boots"] = {
 				["max"] = 2,
 				["min"] = 2,
@@ -34040,10 +33824,6 @@ return {
 				["max"] = 2,
 				["min"] = 1,
 			},
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
-			},
 			["Boots"] = {
 				["max"] = 2,
 				["min"] = 2,
@@ -34087,10 +33867,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 2,
 				["min"] = 1,
-			},
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
 			},
 			["Boots"] = {
 				["max"] = 2,
@@ -34913,10 +34689,6 @@ return {
 				["max"] = 2,
 				["min"] = 1,
 			},
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
-			},
 			["Boots"] = {
 				["max"] = 2,
 				["min"] = 2,
@@ -35166,10 +34938,6 @@ return {
 			},
 		},
 		["1733_GlobalFlaskLifeRecovery"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -36519,10 +36287,6 @@ return {
 			},
 		},
 		["1856_IgnoreArmourMovementPenalties"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Helmet"] = {
 				["max"] = 1,
 				["min"] = 1,
@@ -36768,10 +36532,6 @@ return {
 			},
 		},
 		["1903_ManaReservationEfficiency"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 10,
-			},
 			["Amulet"] = {
 				["max"] = 14,
 				["min"] = 4,
@@ -36816,10 +36576,6 @@ return {
 			},
 		},
 		["1907_ReducedReservation"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 8,
-			},
 			["Amulet"] = {
 				["max"] = 14,
 				["min"] = 12,
@@ -36950,10 +36706,6 @@ return {
 			},
 		},
 		["1910_FlatPhysicalDamageTaken"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 34,
-			},
 			["Chest"] = {
 				["max"] = 50,
 				["min"] = 34,
@@ -37168,10 +36920,6 @@ return {
 			},
 		},
 		["1950_ReducedPhysicalDamageTaken"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["Chest"] = {
 				["max"] = 8,
 				["min"] = 2,
@@ -38125,10 +37873,6 @@ return {
 			},
 		},
 		["2174_AddedPhysicalDamageVsBleedingEnemies"] = {
-			["AbyssJewel"] = {
-				["max"] = 14.5,
-				["min"] = 9.5,
-			},
 			["Gloves"] = {
 				["max"] = 14.5,
 				["min"] = 9.5,
@@ -38361,10 +38105,6 @@ return {
 				["min"] = 1,
 			},
 			["2HWeapon"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
-			["AbyssJewel"] = {
 				["max"] = 1,
 				["min"] = 1,
 			},
@@ -38662,10 +38402,6 @@ return {
 			},
 		},
 		["2277_CurseEffectiveness"] = {
-			["AbyssJewel"] = {
-				["max"] = 3,
-				["min"] = 2,
-			},
 			["Shield"] = {
 				["max"] = 12,
 				["min"] = 4,
@@ -39127,10 +38863,6 @@ return {
 			},
 		},
 		["2327_EnergyShieldRegenerationPerMinute"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Boots"] = {
 				["max"] = 1,
 				["min"] = 1,
@@ -39169,10 +38901,6 @@ return {
 			},
 		},
 		["2381_DamageRemovedFromManaBeforeLife"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 5,
-			},
 			["Chest"] = {
 				["max"] = 15,
 				["min"] = 5,
@@ -40785,10 +40513,6 @@ return {
 			},
 		},
 		["250_SupportedByArcaneSurge"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Chest"] = {
 				["max"] = 1,
 				["min"] = 1,
@@ -41103,10 +40827,6 @@ return {
 			},
 		},
 		["250_SupportedByMaim"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -41984,10 +41704,6 @@ return {
 			},
 		},
 		["2652_GlobalChanceToBlindOnHit"] = {
-			["AbyssJewel"] = {
-				["max"] = 6,
-				["min"] = 4,
-			},
 			["Gloves"] = {
 				["max"] = 15,
 				["min"] = 4,
@@ -42070,7 +41786,7 @@ return {
 				["min"] = 7,
 			},
 			["AbyssJewel"] = {
-				["max"] = 5,
+				["max"] = 1,
 				["min"] = 1,
 			},
 			["Amulet"] = {
@@ -42156,7 +41872,7 @@ return {
 				["min"] = 7,
 			},
 			["AbyssJewel"] = {
-				["max"] = 15,
+				["max"] = 1,
 				["min"] = 1,
 			},
 			["Amulet"] = {
@@ -42272,7 +41988,7 @@ return {
 				["min"] = 5,
 			},
 			["AbyssJewel"] = {
-				["max"] = 15,
+				["max"] = 1,
 				["min"] = 1,
 			},
 			["Amulet"] = {
@@ -42388,7 +42104,7 @@ return {
 				["min"] = 9,
 			},
 			["AbyssJewel"] = {
-				["max"] = 15,
+				["max"] = 1,
 				["min"] = 1,
 			},
 			["Amulet"] = {
@@ -42502,10 +42218,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 20,
 				["min"] = 20,
-			},
-			["AbyssJewel"] = {
-				["max"] = 20,
-				["min"] = 3,
 			},
 			["Boots"] = {
 				["max"] = 10,
@@ -42810,10 +42522,6 @@ return {
 			},
 		},
 		["2789_VaalSkillDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 20,
-			},
 			["Belt"] = {
 				["max"] = 40,
 				["min"] = 20,
@@ -42833,7 +42541,7 @@ return {
 		},
 		["2798_AdditionalVaalSoulOnKill"] = {
 			["AbyssJewel"] = {
-				["max"] = 8,
+				["max"] = 5,
 				["min"] = 3,
 			},
 			["AnyJewel"] = {
@@ -42870,10 +42578,6 @@ return {
 			},
 		},
 		["2799_VaalSkillDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 25,
-				["min"] = 15,
-			},
 			["Amulet"] = {
 				["max"] = 25,
 				["min"] = 15,
@@ -42888,10 +42592,6 @@ return {
 			},
 		},
 		["2801_VaalSkillCriticalStrikeChance"] = {
-			["AbyssJewel"] = {
-				["max"] = 120,
-				["min"] = 80,
-			},
 			["Gloves"] = {
 				["max"] = 120,
 				["min"] = 80,
@@ -43404,10 +43104,6 @@ return {
 				["max"] = 20,
 				["min"] = 20,
 			},
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 20,
-			},
 			["Bow"] = {
 				["max"] = 20,
 				["min"] = 20,
@@ -43677,10 +43373,6 @@ return {
 			},
 		},
 		["290_SocketedAttacksManaCost"] = {
-			["AbyssJewel"] = {
-				["max"] = 15,
-				["min"] = 15,
-			},
 			["Boots"] = {
 				["max"] = 15,
 				["min"] = 15,
@@ -44178,10 +43870,6 @@ return {
 			},
 		},
 		["302_SocketedSkillsAttackSpeed"] = {
-			["AbyssJewel"] = {
-				["max"] = 18,
-				["min"] = 18,
-			},
 			["Gloves"] = {
 				["max"] = 18,
 				["min"] = 18,
@@ -44232,10 +43920,6 @@ return {
 			},
 		},
 		["303_SocketedSkillsCastSpeed"] = {
-			["AbyssJewel"] = {
-				["max"] = 18,
-				["min"] = 18,
-			},
 			["Gloves"] = {
 				["max"] = 18,
 				["min"] = 18,
@@ -44414,10 +44098,6 @@ return {
 			},
 		},
 		["3069_FireDamageAvoidance"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 8,
-			},
 			["Boots"] = {
 				["max"] = 10,
 				["min"] = 5,
@@ -44494,10 +44174,6 @@ return {
 				["max"] = 20,
 				["min"] = 20,
 			},
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 20,
-			},
 			["Bow"] = {
 				["max"] = 20,
 				["min"] = 20,
@@ -44532,10 +44208,6 @@ return {
 			},
 		},
 		["3070_ColdDamageAvoidance"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 6,
-			},
 			["Boots"] = {
 				["max"] = 10,
 				["min"] = 5,
@@ -44580,10 +44252,6 @@ return {
 			},
 		},
 		["3071_LightningDamageAvoidance"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 6,
-			},
 			["Boots"] = {
 				["max"] = 10,
 				["min"] = 5,
@@ -44807,10 +44475,6 @@ return {
 			},
 		},
 		["309_SocketedSpellsManaCost"] = {
-			["AbyssJewel"] = {
-				["max"] = 20,
-				["min"] = 20,
-			},
 			["Boots"] = {
 				["max"] = 20,
 				["min"] = 20,
@@ -45011,10 +44675,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 4,
 				["min"] = 4,
-			},
-			["AbyssJewel"] = {
-				["max"] = 4,
-				["min"] = 2,
 			},
 			["Bow"] = {
 				["max"] = 4,
@@ -45326,10 +44986,6 @@ return {
 			},
 		},
 		["3262_AuraEffect"] = {
-			["AbyssJewel"] = {
-				["max"] = 25,
-				["min"] = 20,
-			},
 			["Chest"] = {
 				["max"] = 30,
 				["min"] = 15,
@@ -45504,10 +45160,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 16,
 				["min"] = 6,
-			},
-			["AbyssJewel"] = {
-				["max"] = 12,
-				["min"] = 9,
 			},
 			["Bow"] = {
 				["max"] = 16,
@@ -46778,25 +46430,7 @@ return {
 				["type"] = "explicit",
 			},
 		},
-		["4227_AccuracyIfNoEnemySlainRecently"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_2806435316",
-				["text"] = "#% increased Accuracy Rating if you haven't Killed Recently",
-				["type"] = "explicit",
-			},
-		},
 		["4239_FrenzyChargeWhenHit"] = {
-			["AbyssJewel"] = {
-				["max"] = 20,
-				["min"] = 15,
-			},
 			["Chest"] = {
 				["max"] = 20,
 				["min"] = 15,
@@ -46890,34 +46524,6 @@ return {
 				["type"] = "explicit",
 			},
 		},
-		["4282_ReducedPhysicalDamageTakenIfNotHitRecently"] = {
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_3603666270",
-				["text"] = "#% additional Physical Damage Reduction if you weren't Damaged by a Hit Recently",
-				["type"] = "explicit",
-			},
-		},
-		["4286_ReducedPhysicalDamageTakenVsAbyssMonsters"] = {
-			["AbyssJewel"] = {
-				["max"] = 6,
-				["min"] = 4,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_287491423",
-				["text"] = "#% additional Physical Damage Reduction against Abyssal Monsters",
-				["type"] = "explicit",
-			},
-		},
 		["428_CurseOnHitWarlordsMark"] = {
 			["sign"] = "",
 			["specialCaseData"] = {
@@ -46929,10 +46535,6 @@ return {
 			},
 		},
 		["4292_AdditionalPhysicalDamageReductionWhileMoving"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["Boots"] = {
 				["max"] = 5,
 				["min"] = 3,
@@ -47317,10 +46919,6 @@ return {
 			},
 		},
 		["4533_AttackAndCastSpeedIfHitRecently"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 5,
-			},
 			["Gloves"] = {
 				["max"] = 10,
 				["min"] = 5,
@@ -47920,10 +47518,6 @@ return {
 			},
 		},
 		["4661_EnchantmentElusive"] = {
-			["AbyssJewel"] = {
-				["max"] = 20,
-				["min"] = 10,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -47977,7 +47571,7 @@ return {
 		},
 		["4708_AilmentDamage"] = {
 			["AbyssJewel"] = {
-				["max"] = 40,
+				["max"] = 20,
 				["min"] = 15,
 			},
 			["Amulet"] = {
@@ -48574,10 +48168,6 @@ return {
 			},
 		},
 		["5155_CannotBeChilledOrFrozenWhileMoving"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Amulet"] = {
 				["max"] = 1,
 				["min"] = 1,
@@ -48628,10 +48218,6 @@ return {
 			},
 		},
 		["5171_CannotBeShockedOrIgnitedWhileMoving"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Ring"] = {
 				["max"] = 1,
 				["min"] = 1,
@@ -49249,10 +48835,6 @@ return {
 			},
 		},
 		["5374_ChanceWhenHitForArmourToBeDoubled"] = {
-			["AbyssJewel"] = {
-				["max"] = 20,
-				["min"] = 10,
-			},
 			["Amulet"] = {
 				["max"] = 20,
 				["min"] = 20,
@@ -49279,10 +48861,6 @@ return {
 			},
 		},
 		["5376_AdditionalChanceToEvade"] = {
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 1,
-			},
 			["Amulet"] = {
 				["max"] = 2,
 				["min"] = 1,
@@ -49419,7 +48997,7 @@ return {
 		},
 		["5397_ChanceToGainOnslaughtOnFlaskUse"] = {
 			["AbyssJewel"] = {
-				["max"] = 20,
+				["max"] = 10,
 				["min"] = 5,
 			},
 			["AnyJewel"] = {
@@ -49535,10 +49113,6 @@ return {
 			},
 		},
 		["5438_ChaosResistanceAgainstDamageOverTime"] = {
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 30,
-			},
 			["Belt"] = {
 				["max"] = 43,
 				["min"] = 31,
@@ -50125,10 +49699,6 @@ return {
 			},
 		},
 		["5708_EnchantmentConsecratedGround"] = {
-			["AbyssJewel"] = {
-				["max"] = -15,
-				["min"] = -25,
-			},
 			["inverseKey"] = "reduced",
 			["specialCaseData"] = {
 			},
@@ -50373,20 +49943,6 @@ return {
 				["type"] = "explicit",
 			},
 		},
-		["5793_DamageVSAbyssMonsters"] = {
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 30,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_3257279374",
-				["text"] = "#% increased Damage with Hits and Ailments against Abyssal Monsters",
-				["type"] = "explicit",
-			},
-		},
 		["5795_ColdResistanceAilments"] = {
 			["Gloves"] = {
 				["max"] = 50,
@@ -50455,10 +50011,6 @@ return {
 				["min"] = 50,
 			},
 			["2HWeapon"] = {
-				["max"] = 120,
-				["min"] = 50,
-			},
-			["AbyssJewel"] = {
 				["max"] = 120,
 				["min"] = 50,
 			},
@@ -51056,10 +50608,6 @@ return {
 			},
 		},
 		["6143_EnchantmentBlind"] = {
-			["AbyssJewel"] = {
-				["max"] = -20,
-				["min"] = -30,
-			},
 			["inverseKey"] = "reduced",
 			["specialCaseData"] = {
 			},
@@ -51070,10 +50618,6 @@ return {
 			},
 		},
 		["6149_EnchantmentHinder"] = {
-			["AbyssJewel"] = {
-				["max"] = -25,
-				["min"] = -35,
-			},
 			["inverseKey"] = "reduced",
 			["specialCaseData"] = {
 			},
@@ -51084,10 +50628,6 @@ return {
 			},
 		},
 		["6152_EnchantmentIntimidate"] = {
-			["AbyssJewel"] = {
-				["max"] = 15,
-				["min"] = 10,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -51098,10 +50638,6 @@ return {
 			},
 		},
 		["6153_EnchantmentMaim"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 4,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -51112,10 +50648,6 @@ return {
 			},
 		},
 		["6155_EnchantmentWither"] = {
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -51239,7 +50771,7 @@ return {
 				["min"] = 1,
 			},
 			["AbyssJewel"] = {
-				["max"] = 1,
+				["max"] = 0.3,
 				["min"] = 0.3,
 			},
 			["AnyJewel"] = {
@@ -51398,7 +50930,7 @@ return {
 				["min"] = 1000,
 			},
 			["AbyssJewel"] = {
-				["max"] = 1000,
+				["max"] = 300,
 				["min"] = 250,
 			},
 			["AnyJewel"] = {
@@ -51445,10 +50977,6 @@ return {
 			},
 		},
 		["6236_GlobalEvasionRatingPercentOnFullLife"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["Helmet"] = {
 				["max"] = 50,
 				["min"] = 25,
@@ -51759,10 +51287,6 @@ return {
 				["min"] = 1,
 			},
 			["2HWeapon"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
-			["AbyssJewel"] = {
 				["max"] = 1,
 				["min"] = 1,
 			},
@@ -52291,10 +51815,6 @@ return {
 			},
 		},
 		["6512_FrenzyChargeOnHittingRareOrUnique"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["Quiver"] = {
 				["max"] = 5,
 				["min"] = 3,
@@ -53431,10 +52951,6 @@ return {
 				["max"] = 60,
 				["min"] = 60,
 			},
-			["AbyssJewel"] = {
-				["max"] = 60,
-				["min"] = 60,
-			},
 			["Bow"] = {
 				["max"] = 60,
 				["min"] = 60,
@@ -53498,10 +53014,6 @@ return {
 				["min"] = 60,
 			},
 			["2HWeapon"] = {
-				["max"] = 60,
-				["min"] = 60,
-			},
-			["AbyssJewel"] = {
 				["max"] = 60,
 				["min"] = 60,
 			},
@@ -53570,10 +53082,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 15,
 				["min"] = 7,
-			},
-			["AbyssJewel"] = {
-				["max"] = 15,
-				["min"] = 15,
 			},
 			["Bow"] = {
 				["max"] = 15,
@@ -53766,10 +53274,6 @@ return {
 			},
 		},
 		["7693_NearbyEnemyChaosDamageResistance"] = {
-			["AbyssJewel"] = {
-				["max"] = 9,
-				["min"] = 9,
-			},
 			["Helmet"] = {
 				["max"] = 12,
 				["min"] = 9,
@@ -53784,10 +53288,6 @@ return {
 			},
 		},
 		["7694_NearbyEnemyColdDamageResistance"] = {
-			["AbyssJewel"] = {
-				["max"] = 9,
-				["min"] = 9,
-			},
 			["Helmet"] = {
 				["max"] = 12,
 				["min"] = 9,
@@ -53816,10 +53316,6 @@ return {
 			},
 		},
 		["7696_NearbyEnemyFireDamageResistance"] = {
-			["AbyssJewel"] = {
-				["max"] = 9,
-				["min"] = 9,
-			},
 			["Helmet"] = {
 				["max"] = 12,
 				["min"] = 9,
@@ -53834,10 +53330,6 @@ return {
 			},
 		},
 		["7698_NearbyEnemyLightningDamageResistance"] = {
-			["AbyssJewel"] = {
-				["max"] = 9,
-				["min"] = 9,
-			},
 			["Helmet"] = {
 				["max"] = 12,
 				["min"] = 9,
@@ -53852,10 +53344,6 @@ return {
 			},
 		},
 		["7700_NearbyEnemyPhysicalDamageTaken"] = {
-			["AbyssJewel"] = {
-				["max"] = 9,
-				["min"] = 9,
-			},
 			["Helmet"] = {
 				["max"] = 12,
 				["min"] = 9,
@@ -53986,10 +53474,6 @@ return {
 			},
 		},
 		["7733_LocalItemQuality"] = {
-			["AbyssJewel"] = {
-				["max"] = 20,
-				["min"] = 10,
-			},
 			["Chest"] = {
 				["max"] = 20,
 				["min"] = 10,
@@ -54544,10 +54028,6 @@ return {
 				["max"] = 0.8,
 				["min"] = 0.8,
 			},
-			["AbyssJewel"] = {
-				["max"] = 0.8,
-				["min"] = 0.4,
-			},
 			["Bow"] = {
 				["max"] = 0.8,
 				["min"] = 0.8,
@@ -54587,7 +54067,7 @@ return {
 		},
 		["8004_ManaRegenerationRateWhileMoving"] = {
 			["AbyssJewel"] = {
-				["max"] = 70,
+				["max"] = 25,
 				["min"] = 20,
 			},
 			["Boots"] = {
@@ -54604,10 +54084,6 @@ return {
 			},
 		},
 		["810_BlockPercent"] = {
-			["AbyssJewel"] = {
-				["max"] = 4,
-				["min"] = 3,
-			},
 			["Chest"] = {
 				["max"] = 9,
 				["min"] = 5,
@@ -54690,10 +54166,6 @@ return {
 			},
 		},
 		["814_ChanceToDodgeAndSpellDodge"] = {
-			["AbyssJewel"] = {
-				["max"] = 6,
-				["min"] = 4,
-			},
 			["Boots"] = {
 				["max"] = 6,
 				["min"] = 4,
@@ -54860,10 +54332,6 @@ return {
 			},
 		},
 		["831_SpellBlockPercentage"] = {
-			["AbyssJewel"] = {
-				["max"] = 4,
-				["min"] = 3,
-			},
 			["Amulet"] = {
 				["max"] = 7,
 				["min"] = 4,
@@ -56625,10 +56093,6 @@ return {
 			},
 		},
 		["8923_FortifyEffect"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["Helmet"] = {
 				["max"] = 5,
 				["min"] = 3,
@@ -56671,10 +56135,6 @@ return {
 			},
 		},
 		["8939_MaximumEnergyShieldFromBodyArmour"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -57351,10 +56811,6 @@ return {
 			},
 		},
 		["902_PhysicalDamagePercentPrefix"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -58673,10 +58129,6 @@ return {
 			},
 		},
 		["9069_AddedPhysicalDamageVsPoisonedEnemies"] = {
-			["AbyssJewel"] = {
-				["max"] = 14.5,
-				["min"] = 9.5,
-			},
 			["Gloves"] = {
 				["max"] = 14.5,
 				["min"] = 9.5,
@@ -58687,20 +58139,6 @@ return {
 			["tradeMod"] = {
 				["id"] = "explicit.stat_424026624",
 				["text"] = "Adds # to # Physical Damage against Poisoned Enemies",
-				["type"] = "explicit",
-			},
-		},
-		["9082_MinionAccuracyRatingFlat"] = {
-			["AbyssJewel"] = {
-				["max"] = 250,
-				["min"] = 95,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_1661151735",
-				["text"] = "Minions have +# to Accuracy Rating",
 				["type"] = "explicit",
 			},
 		},
@@ -58753,20 +58191,6 @@ return {
 			["tradeMod"] = {
 				["id"] = "explicit.stat_3091578504",
 				["text"] = "Minions have #% increased Attack and Cast Speed",
-				["type"] = "explicit",
-			},
-		},
-		["9090_MinionAttackAndCastSpeedIfEnemySlainRecently"] = {
-			["AbyssJewel"] = {
-				["max"] = 8,
-				["min"] = 6,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_4227567885",
-				["text"] = "Minions have #% increased Attack and Cast Speed if you or your Minions have Killed Recently",
 				["type"] = "explicit",
 			},
 		},
@@ -58879,20 +58303,6 @@ return {
 			["tradeMod"] = {
 				["id"] = "explicit.stat_1854213750",
 				["text"] = "Minions have +#% to Critical Strike Multiplier",
-				["type"] = "explicit",
-			},
-		},
-		["9117_MinionDamageVSAbyssMonsters"] = {
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 30,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_1086057912",
-				["text"] = "Minions deal #% increased Damage with Hits and Ailments against Abyssal Monsters",
 				["type"] = "explicit",
 			},
 		},
@@ -59273,10 +58683,6 @@ return {
 				["max"] = 15,
 				["min"] = 10,
 			},
-			["AbyssJewel"] = {
-				["max"] = 6,
-				["min"] = 4,
-			},
 			["Boots"] = {
 				["max"] = 6,
 				["min"] = 4,
@@ -59456,10 +58862,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 40,
 				["min"] = 40,
-			},
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 20,
 			},
 			["Bow"] = {
 				["max"] = 40,
@@ -59849,10 +59251,6 @@ return {
 			},
 		},
 		["937_GlobalAddedPhysicalDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 9.5,
-				["min"] = 7.5,
-			},
 			["Gloves"] = {
 				["max"] = 9.5,
 				["min"] = 7.5,
@@ -60160,7 +59558,7 @@ return {
 				["min"] = 1000,
 			},
 			["AbyssJewel"] = {
-				["max"] = 1000,
+				["max"] = 300,
 				["min"] = 250,
 			},
 			["AnyJewel"] = {

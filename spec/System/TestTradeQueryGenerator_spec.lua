@@ -215,4 +215,58 @@ describe("TradeQueryGenerator", function()
 			assert.is_nil(query.filters.socket_filters.filters.sockets)
 		end)
 	end)
+
+	describe("Fork-only weighing fixes", function()
+		it("abyss jewel ranges leave out Delve mods no abyss jewel can roll", function()
+			local entry = LoadModule("Data/QueryMods.lua").Explicit["1654_ElementalDamagePercent"]
+			-- (40-60)% and (80-120)% increased Elemental Damage are Delve weapon mods with weight 0 for abyss_jewel
+			assert.is_nil(entry.AbyssJewel)
+			assert.are.same({ min = 11, max = 30 }, entry.Belt)
+		end)
+
+		it("weighs the entry with the highest max when entries share a trade stat", function()
+			local queryGen = new("TradeQueryGenerator"):TradeQueryGenerator({ itemsTab = { } })
+			local tested = { }
+			queryGen.alreadyWeightedMods = { }
+			queryGen.modWeights = { }
+			queryGen.calcContext = {
+				itemCategory = "Ring", options = { statWeights = { } }, slot = { slotName = "Ring 1" }, baseOutput = { },
+				testItem = { explicitModLines = { }, BuildAndParseRaw = function(item) table.insert(tested, item.explicitModLines[1].line) end },
+				calcFunc = function() return { } end,
+			}
+			local tradeMod = { id = "explicit.stat_1", text = "+# to maximum Life" }
+			local mods = { }
+			for i = 1, 12 do
+				local value = i == 7 and 100 or i
+				mods["mod" .. i] = { tradeMod = tradeMod, sign = "", specialCaseData = { }, Ring = { min = value, max = value } }
+			end
+			queryGen:GenerateModWeights(mods)
+			assert.are.same({ "+100 to maximum Life" }, tested)
+		end)
+
+		it("keeps tied weights in trade id order", function()
+			local queryGen = new("TradeQueryGenerator"):TradeQueryGenerator({ itemsTab = { items = {} } })
+			queryGen.modWeights = { }
+			local ids = { }
+			for index = 40, 1, -1 do
+				table.insert(queryGen.modWeights, { tradeModId = "explicit.stat_" .. index, weight = 1, meanStatDiff = 1 })
+				table.insert(ids, "explicit.stat_" .. index)
+			end
+			table.sort(ids)
+			queryGen.calcContext = {
+				testItem = new("Item"):Item("Rarity: RARE\nNew Item\nGold Ring\nImplicits: 0"),
+				baseOutput = { }, baseStatValue = 0, itemCategoryQueryStr = "accessory.ring", special = { },
+				options = { statWeights = { }, influence1 = 1, influence2 = 1, includeMirrored = false },
+			}
+			queryGen.tradeTypeIndex = 1
+			local query
+			queryGen.requesterCallback = function(_, generatedQuery) query = generatedQuery end
+			queryGen:FinishQuery()
+
+			local got = { }
+			for i, filter in ipairs(query.stats[1].filters) do got[i] = filter.id end
+			assert.is_true(#got > 0)
+			assert.are.same({ unpack(ids, 1, #got) }, got)
+		end)
+	end)
 end)
