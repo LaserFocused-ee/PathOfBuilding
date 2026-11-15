@@ -175,6 +175,23 @@ return function(W)
 		spec:SetWindowTitleWithBuildClass()
 	end
 
+	-- The allocated nodes now, by id (class and ascendancy starts left out).
+	local function allocated(spec)
+		local set = {}
+		for id, node in pairs(spec.allocNodes) do
+			if node.type ~= "ClassStart" and node.type ~= "AscendClassStart" then set[id] = node end
+		end
+		return set
+	end
+
+	-- Nodes in `a` and not in `b`, as { id, name } by id.
+	local function missingFrom(a, b)
+		local out = {}
+		for id, node in pairs(a) do if not b[id] then out[#out + 1] = { id = id, name = node.dn } end end
+		table.sort(out, function(x, y) return x.id < y.id end)
+		return setmetatable(out, { __jsontype = "array" })
+	end
+
 	-- args: nodes (ids or names), ascendancy? ("fail" | "switch"), onDisconnected? ("fail" | "reset" | "connect"). Allocates each with
 	-- the path to it, as a click on the node does. With ascendancy "switch", a node of another ascendancy or bloodline (and another
 	-- class's ascendancy, with onDisconnected as in set_class) switches to it first, as the click does.
@@ -185,7 +202,7 @@ return function(W)
 		if switch ~= "fail" and switch ~= "switch" then W.fail("invalid_input", "ascendancy is fail or switch") end
 		local how = args.onDisconnected or "fail"
 		if how ~= "fail" and how ~= "reset" and how ~= "connect" then W.fail("invalid_input", "onDisconnected is fail, reset or connect") end
-		local done = {}
+		local done, before = {}, allocated(spec)
 		for _, ref in ipairs(args.nodes) do
 			local node = nodeRef(spec, ref)
 			if not node.alloc then
@@ -203,22 +220,36 @@ return function(W)
 		end
 		spec:AddUndoState()
 		return {
-			allocated = done, className = spec.curClassName,
+			allocated = done, added = missingFrom(allocated(spec), before), className = spec.curClassName,
 			ascendancy = spec.curAscendClassName ~= "None" and spec.curAscendClassName or nil,
 			bloodline = spec.curSecondaryAscendClassName ~= "None" and spec.curSecondaryAscendClassName or nil,
 		}
 	end)
 
-	-- args: nodes. Deallocates each and everything that depended on it.
+	-- args: nodes, force?. Deallocates each and everything that depended on it, as a click does, and answers every node that went.
+	-- Removing a node a part of the tree hangs from takes that part too (a node by the class start can take most of the tree):
+	-- unless `force`, a call that would remove any node it does not name is refused, with the count and the first of them.
 	ops.deallocate = W.mutation(function(args, b)
 		local spec = b.spec
 		if type(args.nodes) ~= "table" or #args.nodes == 0 then W.fail("invalid_input", "nodes is required") end
+		local before, named, names = allocated(spec), {}, {}
 		for _, ref in ipairs(args.nodes) do
 			local node = nodeRef(spec, ref)
+			named[node.id] = true
+			names[#names + 1] = (node.dn or "?") .. " (" .. node.id .. ")"
 			if node.alloc then spec:DeallocNode(node) end
 		end
+		local removed = missingFrom(before, allocated(spec))
+		local others = {}
+		for _, n in ipairs(removed) do if not named[n.id] then others[#others + 1] = (n.name or "?") .. " (" .. n.id .. ")" end end
+		if #others > 0 and args.force ~= true then
+			local shown = {}
+			for i = 1, math.min(5, #others) do shown[i] = others[i] end
+			W.fail("invalid_input", ("deallocating %s would also remove %d other node%s that hang%s from it (%d in all): %s%s. Name them too, or pass force true; evaluate what_if with removeNodes lists them (paths) without changing anything"):format(
+				table.concat(names, ", "), #others, #others == 1 and "" or "s", #others == 1 and "s" or "", #removed, table.concat(shown, ", "), #others > 5 and ", ..." or ""))
+		end
 		spec:AddUndoState()
-		return {}
+		return { removed = removed, count = #removed }
 	end)
 
 	-- The Reset Tree button (TreeTab.lua:136).
@@ -254,8 +285,10 @@ return function(W)
 			if effectId == args.effectId and otherNode ~= node.id then W.fail("invalid_input", "effect " .. args.effectId .. " is already taken on node " .. otherNode) end
 		end
 		if not node.alloc and not node.path then W.fail("invalid_input", "mastery " .. node.id .. " cannot be reached from the tree") end
+		local before = allocated(spec)
 		tab:SaveMasteryPopup(node, { selValue = { id = args.effectId } })
-		return { nodeId = node.id, effectId = spec.masterySelections[node.id] }
+		-- the mastery and the path the popup allocated to reach it
+		return { nodeId = node.id, effectId = spec.masterySelections[node.id], added = missingFrom(allocated(spec), before) }
 	end)
 
 	-- The Replace Modifier of Node dialog (TreeTab.lua:846), opened on the nodes a right-click opens it on

@@ -315,5 +315,9 @@ void test("warnings: more suffixes than a rare can have, eldritch implicits with
   const belt = ["Rarity: RARE", "Budget Girdle", "Crystal Belt", "Item Level: 84", "Implicits: 1", "+70 to maximum Energy Shield", "+45 to maximum Energy Shield", "+60 to maximum Mana", "+53 to Strength", "+42% to Cold Resistance", "+42% to Lightning Resistance"];
   assert.equal(await add([...belt, "{crafted}+285 to Armour", "{crafted}+25 to maximum Energy Shield"].join("\n")), undefined, "the Armour and Energy Shield craft is one prefix");
   assert.deepEqual(await add([...belt, "+285 to Armour", "{crafted}+25 to maximum Energy Shield"].join("\n")), ["4 prefixes, more than the 3 a rare Belt can have"], "a rolled Armour line is not part of the craft");
-  assert.equal((await list(id)).items.filter((i) => (i as { warnings?: string[] }).warnings).length, 3, "the list carries them");
+  // cluster notables weigh by the enchant's tags; three prefix notables are one too many, two plus a suffix notable are legal
+  const cluster = (notables: string[]) => ["Rarity: RARE", "C", "Large Cluster Jewel", "Item Level: 84", "Adds 8 Passive Skills", "2 Added Passive Skills are Jewel Sockets", "Added Small Passive Skills grant: 12% increased Lightning Damage", ...notables.map((n) => `1 Added Passive Skill is ${n}`)].join("\n");
+  assert.deepEqual(await add(cluster(["Overshock", "Thunderstruck", "Prismatic Heart"])), ["3 prefixes, more than the 2 a rare Jewel can have"]);
+  assert.equal(await add(cluster(["Overshock", "Thunderstruck", "Widespread Destruction"])), undefined, "Widespread Destruction is a suffix");
+  assert.equal((await list(id)).items.filter((i) => (i as { warnings?: string[] }).warnings).length, 4, "the list carries them");
 });

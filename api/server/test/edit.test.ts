@@ -61,8 +61,11 @@ void test("tree: path, allocate by name, deallocate; stale and failed edits chan
   fails(await srv.call("POST", `/v1/tree/${id}/allocate`, { nodes: ["No Such Node"] }), 404, "not_found");
   assert.equal(await revisionOf(id), 2);
 
-  const d = ok(await srv.call<Mutated>("POST", `/v1/tree/${id}/deallocate`, { nodes: [57264], baseRevision: 2 }));
-  assert.deepEqual([d.revision, d.changed.Int], [3, { before: 122, after: 32 }]);
+  // the first path node: the whole branch hangs from it, so without force the call is refused and nothing changes
+  fails(await srv.call("POST", `/v1/tree/${id}/deallocate`, { nodes: [57264], baseRevision: 2 }), 400, "invalid_input");
+  assert.equal(await revisionOf(id), 2);
+  const d = ok(await srv.call<Mutated & { result: { removed: Array<{ id: number; name: string }>; count: number } }>("POST", `/v1/tree/${id}/deallocate`, { nodes: [57264], force: true, baseRevision: 2 }));
+  assert.deepEqual([d.revision, d.changed.Int, d.result.count, d.result.removed.some((n) => n.id === 46842 && n.name === "Arcane Potency")], [3, { before: 122, after: 32 }, 13, true]);
   assert.equal((await tree(id)).points, 0, "everything past the first path node went with it");
 
   // A list that fails part way is not half-applied: the first node was allocated in the worker, then dropped.

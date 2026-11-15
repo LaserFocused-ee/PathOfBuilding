@@ -91,8 +91,10 @@ return function(W)
 				end
 			end
 			local single, multi = {}, {}
+			-- a cluster jewel's notables weigh by its enchant's tags, not the base's: the whole cluster pool counts
+			local cluster = item.base and item.base.subType == "Cluster"
 			for id, mod in pairs(item.affixes) do
-				if (mod.type == "Prefix" or mod.type == "Suffix") and item:GetModSpawnWeight(mod) > 0 then
+				if (mod.type == "Prefix" or mod.type == "Suffix") and (cluster or item:GetModSpawnWeight(mod) > 0) then
 					if #mod == 1 then
 						local k = norm(mod[1]); single[k] = (single[k] == nil or single[k] == mod.type) and mod.type or false
 					elseif #mod > 1 then

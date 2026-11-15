@@ -75,7 +75,7 @@ void test("tree writes", async () => {
   await write("tree.spec_copy", id, { index: 1 });
   await write("tree.spec_rename", id, { index: 2, title: "Second" });
   await write("tree.spec_activate", id, { index: 2 });
-  await write("tree.deallocate", id, { nodes: ["Arcane Potency"] });
+  await write("tree.deallocate", id, { nodes: ["Arcane Potency"], force: true });
   await write("tree.reset", id);
   await write("tree.allocate", id, { nodes: [37671] });
   await write("tree.tattoo", id, { node: 37671, tattoo: "Tattoo of the Valako Stormrider" });

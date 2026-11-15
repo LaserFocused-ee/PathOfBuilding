@@ -79,8 +79,13 @@ void test("what_if nodes with their paths, as the tree's hover: the path an adde
   // a removal that cuts the branch behind it (4184: 4 nodes), and a leaf (30225) that cuts only itself
   const cut = await ev<Paths>(base, "what-if", { removeNodes: [4184] });
   assert.deepEqual([cut.paths[0]?.kind, cut.paths[0]?.points, cut.withPaths?.points], ["depends", 4, 4]);
-  const gone = await mutate("tree", await dup(base), "deallocate", { nodes: [4184] });
+  const cutting = await dup(base);
+  const refused = await srv.call("POST", `/v1/tree/${cutting}/deallocate`, { nodes: [4184] });
+  assert.deepEqual([refused.status, refused.body.error?.code], [400, "invalid_input"], "a deallocation that takes nodes it does not name needs force");
+  assert.match(refused.body.error?.message ?? "", /would also remove 3 other nodes that hang from it \(4 in all\)/);
+  const gone = await mutate("tree", cutting, "deallocate", { nodes: [4184], force: true });
   assert.deepEqual(cut.withPaths?.changed, gone.changed, "with its dependents the what-if is the engine's own deallocation");
+  assert.deepEqual([(gone.result as { count?: number }).count, (gone.result as { removed?: Array<{ id: number }> }).removed?.map((n) => n.id).sort()], [4, cut.paths[0]?.nodes.map((n) => n.id).sort()], "the answer lists what went, the what-if's dependents");
   const leaf = await ev<Paths>(base, "what-if", { removeNodes: [30225] });
   assert.deepEqual([leaf.paths[0]?.points, leaf.withPaths], [1, undefined]);
 });
