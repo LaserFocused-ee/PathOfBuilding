@@ -158,6 +158,22 @@ fi
 (cd "$P" && deno task --filter pob-packer pack "$VERSION_ID" "$GAME" >/dev/null)
 deno run --quiet --allow-read --allow-write "$HERE/tools/manifest.ts" "$OUT" "$STAGE/root-zipfs" "$COMMIT" "$POBWEB_REV" "$STAGE/rewrites.jsonl"
 echo "packed $GAME $COMMIT as $VERSION_ID"
+# Nothing git ignores may ship: the packed sources are served without sign-in, and an ignored file can hold
+# private data (src/poe_api_response.json is the signed-in account's API response). Zip paths are relative to
+# src/, lua/ is runtime/lua/, and the listed names are written by the packer or come from the repository root.
+[ -f "$REPO/.gitignore" ] || { echo "no .gitignore in $REPO: cannot check the packed tree" >&2; exit 1; }
+SHIPPED="$({ (cd "$STAGE/root-zipfs" && find . -type f) && (cd "$OUT/root" && find . -type f); } | sed 's#^\./##' |
+  grep -vxE '\.image\.tsv|installed\.cfg|manifest\.xml|changelog\.txt|help\.txt|LICENSE\.md' |
+  sed -e 's#^lua/#runtime/lua/#' -e t -e 's#^#src/#')"
+rc=0
+IGNORED="$(printf '%s\n' "$SHIPPED" | git -C "$REPO" check-ignore --no-index --stdin)" || rc=$?
+[ "$rc" -le 1 ] || { echo "git check-ignore failed ($rc)" >&2; exit 1; }
+NAMED="$(printf '%s\n' "$SHIPPED" | grep 'poe_api_response\.json$' || true)"
+if [ -n "$IGNORED$NAMED" ]; then
+  echo "packed tree holds files git ignores:" >&2
+  printf '%s\n%s\n' "$IGNORED" "$NAMED" | sed '/^$/d' | sort -u | head -n 20 >&2
+  exit 1
+fi
 
 # 6. The page (src/), built inside pob-web's workspace, then the packed sources beside it.
 mkdir -p "$P/packages/view"

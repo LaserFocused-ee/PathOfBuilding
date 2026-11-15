@@ -39,7 +39,8 @@ RUN set -e; a="$(uname -m)"; \
 ENV HOME=/home/builder
 WORKDIR /work/PathOfBuilding
 COPY --from=build /pob/api/runtime/rt /opt/pob-rt
-COPY LICENSE.md manifest.xml changelog.txt help.txt ./
+# .gitignore: the in-stage commit leaves out what git ignores, and build-web.sh checks the packed tree against it.
+COPY .gitignore LICENSE.md manifest.xml changelog.txt help.txt ./
 COPY src src
 COPY runtime/lua runtime/lua
 COPY api/lua api/lua
