@@ -89,8 +89,8 @@ export class BuildSync {
   serverRevision(revision: number): Promise<void> {
     return this.run(async () => {
       if (this.state.kind === "loading" || this.state.kind === "failed" || this.state.kind === "deleted") return;
-      // Our own write, or an event older than what we hold: never reload for it.
-      if (revision <= this.revision) return;
+      // Our own write, an event older than what we hold, or the revision "Keep mine" chose: never reload for it.
+      if (revision <= (this.overwriteBase ?? this.revision)) return;
       if (this.state.kind === "conflict") {
         this.set({ ...this.state, serverRevision: Math.max(revision, this.state.serverRevision) });
         return;

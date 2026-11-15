@@ -14,9 +14,10 @@ tree the API server's workers run, so the page and the API calculate the same nu
 Path of Building's own downloads (import from a build-site link, character import by account name) go through the
 server's relay, never from the browser to those sites. Character import by account name: the page answers Path of
 Building's profile-page request itself with the name as typed (the game site screens that page from the server), so the
-name must match exactly, upper and lower case and the #number included; an empty or refused character list says so above
-the view, with the status. Nothing is retried. Sign-in with a Path of Exile account is not available in the page. Builds
-saved with Path of Building's own Save button stay in the browser's storage. Logic and tests: `src/account-import.ts`.
+name must match exactly, upper and lower case and the #number included; an empty list or a 401, 403 or 404 says so above
+the view, with the status. A rate limit (429) says to wait; a site failure (5xx) says the site failed. Nothing is
+retried. Sign-in with a Path of Exile account is not available in the page. Builds saved with Path of Building's own
+Save button stay in the browser's storage. Logic and tests: `src/account-import.ts`.
 
 ## Build
 
@@ -55,7 +56,11 @@ of leaving the previous build on screen. The driver is rebuilt when a patch or a
 decoder (used on GPUs without BPTC) is rebuilt from source without dynamic code, so the Content-Security-Policy below
 holds without `'unsafe-eval'`; `BPTC_SUPPORT_OVERRIDE=false build-web.sh` forces that decoder for testing.
 
-Checks for this directory: `cd api/web && deno task check` (format, lint, type check, unit tests).
+Checks for this directory: `cd api/web && deno task check` (format, lint, type check, unit tests). `src/main.ts` imports
+pob-web's driver, so it type-checks only inside pob-web's workspace: `build-web.sh` runs `deno check` on it there (step
+6). The same build runs the load-build patch against real Path of Building in the engine's LuaJIT runtime
+(`tools/load-build-probe.lua`, step 2c; the runtime comes from `api/runtime/build-runtime.sh` when `POB_RUNTIME_DIR` is
+not set) and checks that the string the patch returns is the one `src/main.ts` compares.
 
 ## Serve contract
 
