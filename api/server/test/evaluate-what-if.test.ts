@@ -237,6 +237,10 @@ void test("compare_item with a trade listing: the text and gain are trade.search
     await refuse({ listing: { item: { typeLine: "Ruby Ring", name: "x" } } }, /item\.rarity/);
     await refuse({ listing: { typeLine: "Ruby Ring" } }, /rarity/);
     await refuse({ listing: { rarity: "Rare", typeLine: "Not An Item Base" } }, /could not read this item/);
+    // Size: the listing's JSON at most 64 KB, its item text no longer than pasted text may be.
+    const mods = (n: number) => ({ item: { ...ringEntry.item, explicitMods: Array.from({ length: n }, () => ({ description: `+1 to maximum Life ${"x".repeat(280)}` })) } });
+    await refuse({ listing: { ...mods(1), pad: "x".repeat(65_536) } }, /at most 64 KB/);
+    await refuse({ listing: mods(80) }, /longer than 20000 characters/);
     assert.equal(await state(), s1, "refusals changed nothing");
   } finally {
     await trade.close();

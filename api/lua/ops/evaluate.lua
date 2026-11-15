@@ -351,6 +351,7 @@ return function(W)
 			if type(args.entry) ~= "table" then bad("listing is one trade listing") end
 			local ok, t = pcall(listingText, args.entry)
 			if not ok or not t then bad("Path of Building could not read this listing") end
+			if #t > 20000 then bad("the listing's item text is longer than 20000 characters, the limit for text") end
 			text = W.strip(t)
 			args = { text = t, slot = args.slot, weights = args.weights, fields = args.fields }
 		end

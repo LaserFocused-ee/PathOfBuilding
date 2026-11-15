@@ -236,6 +236,7 @@ void test("timeless: the Find Timeless Jewel dialog's search, seeds scored for t
     [{ jewel: "Lethal Pride", nodes: [{ node: "Might of the Vaal" }] }, /nodes\[1\]: Might of the Vaal is not a passive Lethal Pride can give/],
     [{ jewel: "Lethal Pride", socket: 1, fallback: "Full DPS" }, /socket 1 is not a jewel socket/],
     [{ jewel: "Lethal Pride", fallback: "Nothing" }, /fallback "Sort by Nothing" matches 0 of: /],
+    [{ jewel: "Lethal Pride", fallback: "Full DPS", league: "Standard" }, /^league Standard is refused: this server's trade league is Covens/],
   ] as const) {
     const r = await post<unknown>(`/v1/evaluate/${base}/timeless`, body);
     assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], JSON.stringify(body));
