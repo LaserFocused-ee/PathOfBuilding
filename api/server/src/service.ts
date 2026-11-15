@@ -7,7 +7,7 @@ import { decodeBuildCode, GAME_HOST, type Fetcher, type Relayed } from "./fetch.
 import type { Logger } from "./log.js";
 import { LOOKUP_SESSION, type Pool } from "./pool.js";
 import { type BuildMeta, type BuildSource, type BuildStore, TRASH_DAYS } from "./store.js";
-import { type Priority, type TradeClient, type TradeRealm, type TradeResult, tradeUrl } from "./trade.js";
+import { type Priority, type TradeClient, type TradeLeagues, type TradeRealm, type TradeResult, tradeClientString, tradeUrl } from "./trade.js";
 import type { WorkerReply } from "./worker.js";
 
 export interface Summary {
@@ -35,7 +35,8 @@ const isRealm = (r: string | undefined): r is Realm => r === "pc" || r === "xbox
 
 export interface TradeSearchInput {
   realm: TradeRealm;
-  league: string;
+  /** Absent = the server's configured league; any other is refused. */
+  league?: string;
   priority: Priority;
   searches: Array<{ query: Record<string, unknown>; sort?: Record<string, "asc" | "desc">; slot?: string; listings: number }>;
   buildId?: string;
@@ -215,6 +216,10 @@ export class Service {
   }
 
   async importLink(input: { url: string; name?: string }): Promise<Output> {
+    const host = URL.canParse(input.url) ? new URL(input.url).hostname : "";
+    if (host === "poe.ninja" || host.endsWith(".poe.ninja")) {
+      throw new ApiError("invalid_input", "poe.ninja links are not fetched (its documentation rules out third-party use of its build endpoint); paste the build code instead (import by code)");
+    }
     const link = await this.pool.run<{ site: string; downloadUrl: string }>(LOOKUP_SESSION, "builds.resolve_link", { url: input.url });
     const body = await this.fetcher.text(link.result.downloadUrl, `import:${link.result.site}`);
     const trimmed = body.trim();
@@ -394,7 +399,32 @@ export class Service {
         throw e;
       },
     );
-    return `Path of Building/${await this.pobVersion}`;
+    return tradeClientString(await this.pobVersion, this.cfg.tradeContact);
+  }
+
+  /**
+   * The league every trade search and trade link is made for: the server's setting (POB_API_TRADE_LEAGUE), the league being
+   * played. A request may name it but no other; with no setting a request league is refused too (nothing falls back to Standard).
+   * Not set and none asked: undefined where the league is optional (`required` false), the same refusal where it is not.
+   */
+  tradeLeague(requested: string | undefined, required: true): string;
+  tradeLeague(requested: string | undefined, required: boolean): string | undefined;
+  tradeLeague(requested: string | undefined, required: boolean): string | undefined {
+    const set = this.cfg.tradeLeague;
+    if (set === undefined) {
+      if (requested === undefined && !required) return undefined;
+      throw new ApiError("unsupported", "no trade league is configured: set POB_API_TRADE_LEAGUE to the league being played");
+    }
+    if (requested !== undefined && requested !== set) {
+      throw new ApiError("invalid_input", `league ${requested} is refused: this server's trade league is ${set}, the league being played`, { league: set });
+    }
+    return set;
+  }
+
+  /** A link route's input with `league` resolved by `tradeLeague` (set to the configured league when it was left out). */
+  withTradeLeague(input: Record<string, unknown>, required: boolean): Record<string, unknown> {
+    const league = this.tradeLeague(typeof input.league === "string" ? input.league : undefined, required);
+    return league === undefined ? input : { ...input, league };
   }
 
   /** The realm's trade leagues (an hour's cache), asked of the trade site on request only. A stop is thrown, not answered. */
@@ -410,13 +440,25 @@ export class Service {
    * the call: the searches done so far are answered with `stopped` saying why and when to try again.
    */
   async tradeSearch(i: TradeSearchInput): Promise<Output> {
+    const league = this.tradeLeague(i.league, true);
     const userAgent = await this.tradeUserAgent();
     const deadline = Date.now() + TRADE_CALL_MS;
     const searches: unknown[] = [];
     const warnings: string[] = [];
     let stopped: Record<string, unknown> | null = null;
+    // The configured league must still be on the site's list for the realm (it may have ended); another is never picked.
+    let listed: TradeLeagues;
+    try {
+      listed = await this.trade.leagues(i.realm, { priority: i.priority, deadline, userAgent });
+    } catch (e) {
+      if (!(e instanceof ApiError)) throw e;
+      return { result: { searches, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, limiter: this.trade.limiter.state() }, warnings };
+    }
+    if (!listed.leagues.includes(league)) {
+      throw new ApiError("invalid_input", `the configured trade league ${league} is not on the trade site's list for ${i.realm} (current: ${listed.current ?? "none listed"}); set POB_API_TRADE_LEAGUE to the league being played`, { league, current: listed.current });
+    }
     for (const s of i.searches) {
-      const ask = { realm: i.realm, league: i.league, body: { query: s.query, sort: s.sort ?? { price: "asc" }, engine: "new" }, listings: s.listings };
+      const ask = { realm: i.realm, league, body: { query: s.query, sort: s.sort ?? { price: "asc" }, engine: "new" }, listings: s.listings };
       let r: TradeResult | undefined = this.trade.cached(ask);
       const cached = r !== undefined;
       if (!r) {
@@ -437,7 +479,7 @@ export class Service {
         return { id: e.id, price: e.price, indexed: e.indexed, text: row?.text ?? null, score: row?.score ?? null, ...(row?.error ? { error: row.error } : {}) };
       });
       if (i.buildId !== undefined) listings.sort((a, b) => (b.score?.gain ?? -Infinity) - (a.score?.gain ?? -Infinity));
-      searches.push({ searchId: r.searchId, total: r.total, cached, link: `${tradeUrl("trade/search", i.realm, i.league)}/${r.searchId}`, listings });
+      searches.push({ searchId: r.searchId, total: r.total, cached, link: `${tradeUrl("trade/search", i.realm, league)}/${r.searchId}`, listings });
     }
     return { result: { searches, notRun: i.searches.length - searches.length, stopped, limiter: this.trade.limiter.state() }, warnings };
   }

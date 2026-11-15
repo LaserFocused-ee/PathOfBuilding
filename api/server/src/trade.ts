@@ -236,6 +236,13 @@ const listingShape = z.object({
   }),
 });
 
+/** The client string of every trade request: the desktop app's, marked as this fork's API, with the operator's contact when one is set. The one place it is built. */
+export const tradeClientString = (version: string, contact?: string): string => `Path of Building/${version} (api; fork${contact ? ` +${contact}` : ""})`;
+
+/** The response headers that say when to retry or how the site counts requests, short, for a stop's details. */
+const limitHeaders = (res: Response): Record<string, string> =>
+  Object.fromEntries([...res.headers].filter(([k]) => /^(retry-after|x-rate-limit-[a-z0-9-]+)$/.test(k)).map(([k, v]) => [k, v.slice(0, 200)]));
+
 /** League as Path of Building's buildUrl encodes it: everything but [A-Za-z0-9-._~] as %XX. */
 const encodeLeague = (league: string): string => league.replace(/[^A-Za-z0-9\-._~]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`);
 
@@ -342,9 +349,11 @@ export class TradeClient {
     if (!res.ok) {
       const retry = Number(res.headers.get("retry-after"));
       const retryAfter = Number.isFinite(retry) && retry > 0 ? { retryAfterSeconds: retry } : res.status === 429 ? { retryAfterSeconds: 60 } : {};
-      const said = siteMessage(text);
-      if (res.status === 429) throw new ApiError("rate_limited", "the trade site is limiting requests; stopped", { status: 429, ...retryAfter });
-      throw new ApiError(res.status === 400 ? "invalid_input" : "upstream_fetch_failed", `the trade site answered ${res.status}${said ? `: ${said}` : ""}`, { status: res.status, ...retryAfter });
+      const headers = limitHeaders(res);
+      if (res.status === 429) throw new ApiError("rate_limited", "the trade site is limiting requests; stopped", { status: 429, ...retryAfter, headers });
+      // The site's own words only for a refused query (400); any other 4xx (a 403 on the client string, say) is reported by status and headers, never retried.
+      const said = res.status === 400 ? siteMessage(text) : "";
+      throw new ApiError(res.status === 400 ? "invalid_input" : "upstream_fetch_failed", `the trade site answered ${res.status}${said ? `: ${said}` : ""}`, { status: res.status, ...retryAfter, headers });
     }
     try {
       return JSON.parse(text) as unknown;

@@ -61,7 +61,7 @@ const gear: Record<string, string> = {
 };
 
 before(async () => {
-  srv = await startServer();
+  srv = await startServer({ tradeLeague: "Standard" });
   const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
   base = ok(await post<{ build: { id: string } }>("/v1/builds/import/xml", { xml })).build.id;
   for (const [slot, text] of Object.entries(gear)) ok(await post(`/v1/items/${base}/add`, { text, equip: slot }));
@@ -96,7 +96,7 @@ void test("item_mods Body Armour: the generator's weights for the slot's base, i
   assert.ok(r.link?.startsWith(prefix), r.link ?? "no link");
   const seg = (r.link ?? "").slice(prefix.length);
   assert.deepEqual(JSON.parse(gunzipSync(Buffer.from(seg.replace(/-/g, "+").replace(/_/g, "/"), "base64")).toString("utf8")), r.query);
-  assert.equal((await items(base, { slot: "Body Armour", limit: 1 })).link, null, "no league, no link");
+  assert.ok((await items(base, { slot: "Body Armour", limit: 1 })).link?.startsWith(prefix), "no league: the link is for the server's configured one");
 });
 
 void test("item_mods Weapon 1: the category follows the weapon's base; Ring 1: equal gains are ordered by trade id", async () => {
@@ -207,8 +207,21 @@ void test("item_mods refuses an option the slot's popup does not show, naming th
   await fail({ slot: "Ring 1", links: 4 }, /links.*Ring 1/);
   await fail({ slot: "Amulet", links: 4 }, /links.*Amulet/);
   await fail({ slot: "Flask 1", sockets: 2 }, /sockets.*Flask 1/);
-  await fail({ slot: "Body Armour", includeScourge: true }, /includeScourge.*Body Armour.*Standard/);
-  await fail({ slot: "Body Armour", includeScourge: true, league: "Settlers" }, /includeScourge/);
+  // the popup shows scourge mods only in Standard or Hardcore: a server whose league is another one refuses the option (the main server's is Standard)
+  await fail({ slot: "Body Armour", includeScourge: true, league: "Settlers" }, /league Settlers is refused.*Standard/);
+  const other = await startServer({ tradeLeague: "Settlers" });
+  try {
+    const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
+    const id = ok(await other.call<{ build: { id: string } }>("POST", "/v1/builds/import/xml", { xml })).build.id;
+    ok(await other.call("POST", `/v1/items/${id}/add`, { text: gear["Body Armour"], equip: "Body Armour" }));
+    for (const body of [{ slot: "Body Armour", includeScourge: true }, { slot: "Body Armour", includeScourge: true, league: "Settlers" }]) {
+      const r = await other.call("POST", `/v1/evaluate/${id}/item-mods`, body);
+      assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], JSON.stringify(body));
+      assert.match(r.body.error?.message ?? "", /includeScourge.*Body Armour.*Standard/);
+    }
+  } finally {
+    await other.close();
+  }
   // and shows it where it does
   assert.equal((await items(base, { slot: "Belt", sockets: 1, limit: 1 })).query?.filters.socket_filters?.filters.sockets !== undefined, true);
   assert.equal((await items(base, { slot: "Amulet", includeTalisman: false, limit: 1 })).options.includeTalisman, false);

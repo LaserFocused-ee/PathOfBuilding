@@ -56,7 +56,7 @@ const fail = async (body: Record<string, unknown>, message: RegExp) => {
 };
 
 before(async () => {
-  srv = await startServer();
+  srv = await startServer({ tradeLeague: "Covens" });
   const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
   base = ok(await post<{ build: { id: string } }>("/v1/builds/import/xml", { xml })).build.id;
   ok(await post("/v1/tree/" + base + "/allocate", { nodes: [41263, 21984] }));
@@ -67,7 +67,7 @@ after(async () => {
 
 void test("jewel_mods base: mods weighed one at a time in the regular socket, the best legal set measured together, Path of Building's search and link", async () => {
   const before0 = await state(base);
-  const r = await jewels(base, { family: "base", league: "Standard", limit: 3, combinations: 1 });
+  const r = await jewels(base, { family: "base", league: "Covens", limit: 3, combinations: 1 });
   assert.equal(await state(base), before0, "jewel_mods changed the build");
   assert.deepEqual([r.socket, r.category, r.total], ["Jewel 41263", "jewel.base", 48]); // the regular socket before the Large one
   assert.deepEqual(r.mods.map((m) => [m.id, m.text, m.weight, m.gain, m.affix, m.group, m.rollable]), [
@@ -87,11 +87,11 @@ void test("jewel_mods base: mods weighed one at a time in the regular socket, th
   assert.deepEqual(r.query.status, { option: "securable" });
   assert.deepEqual(r.query.stats[0]?.filters[0], { id: "explicit.stat_3962278098", value: { weight: 5.3189885091069 } });
   assert.deepEqual([r.search.query, r.search.sort, r.search.engine], [r.query, { "statgroup.0": "desc" }, "new"]);
-  const prefix = "https://www.pathofexile.com/trade/search/Standard/";
+  const prefix = "https://www.pathofexile.com/trade/search/Covens/";
   assert.ok(r.link?.startsWith(prefix), r.link ?? "no link");
   const seg = (r.link ?? "").slice(prefix.length);
   assert.deepEqual(JSON.parse(gunzipSync(Buffer.from(seg.replace(/-/g, "+").replace(/_/g, "/"), "base64")).toString("utf8")), r.query);
-  assert.equal((await jewels(base, { family: "base", limit: 1, combinations: 0 })).link, null, "no league, no link");
+  assert.ok((await jewels(base, { family: "base", limit: 1, combinations: 0 })).link?.startsWith(prefix), "no league: the link is for the server's configured one");
 
   // the set equals that jewel compared in the socket and equipped for real
   assert.deepEqual((await compare(base, { slot: "Jewel 41263", text: `Rarity: RARE\nSet\n${c.base}\n${c.text}`, fields: ["CombinedDPS"] }))[0]?.changed.CombinedDPS, { before: 7672.7473304598, after: 9465.7168820134 });
@@ -133,7 +133,7 @@ void test("jewel_mods abyss: mods no abyss base rolls are flagged and kept out o
 });
 
 void test("jewel_mods cluster: the enchant's notables weighed alone, sets of up to three, a search for that base and enchant", async () => {
-  const r = await jewels(base, { family: "cluster", size: "Large", enchant: "Fire Damage", limit: 3, combinations: 2, minItemLevel: 75, league: "Standard" });
+  const r = await jewels(base, { family: "cluster", size: "Large", enchant: "Fire Damage", limit: 3, combinations: 2, minItemLevel: 75, league: "Covens" });
   assert.deepEqual([r.category, r.total, r.enchantId], ["jewel.cluster", 9, "enchant.stat_3948993189|13"]);
   assert.deepEqual(r.mods.map((m) => [m.notable, m.weight, m.gain, m.affix, m.level]), [
     ["Prismatic Heart", 226.94, 226.94, "Prefix", 1],
@@ -146,7 +146,7 @@ void test("jewel_mods cluster: the enchant's notables weighed alone, sets of up 
   ]);
   assert.deepEqual([r.query.type, r.query.stats[0]?.value, r.query.stats[0]?.filters.length, r.query.stats[1]?.filters], ["Large Cluster Jewel", { min: 226.94 }, 9, [{ id: "enchant.stat_3948993189|13" }]]);
   assert.deepEqual(r.query.filters.misc_filters?.filters.ilvl, { min: 75 });
-  assert.ok(r.link?.startsWith("https://www.pathofexile.com/trade/search/Standard/"));
+  assert.ok(r.link?.startsWith("https://www.pathofexile.com/trade/search/Covens/"));
   const medium = await jewels(base, { family: "cluster", size: "Small", enchant: "Fire Resistance", limit: 1, combinations: 3 });
   assert.ok(medium.combinations.every((c) => c.mods.length === 1), "a small cluster holds one notable");
 });
@@ -209,7 +209,8 @@ void test("timeless: the Find Timeless Jewel dialog's search, seeds scored for t
   await pool.run(base, "worker.reach");
   // Generate: every passive Lethal Pride gives, weighed by Full DPS for this build.
   const dps = await timeless({ jewel: "Lethal Pride", socket: 41263, fallback: "Full DPS", limit: 3 });
-  assert.deepEqual([dps.jewel, dps.conqueror, dps.count, dps.link], ["Lethal Pride", "Any", 4860, null]);
+  assert.deepEqual([dps.jewel, dps.conqueror, dps.count], ["Lethal Pride", "Any", 4860]);
+  assert.ok(dps.link?.startsWith("https://www.pathofexile.com/trade/search/Covens/"), "no league: the link is for the server's configured one");
   assert.deepEqual(dps.results.map((r) => [r.total, r.socket.id]), [[18.51, 41263], [18.01, 41263], [18.01, 41263]]);
   assert.deepEqual([dps.results[0]?.seed, dps.results[0]?.nodes.map((n) => [n.id, n.targets])], [12663, [
     ["karui_notable_add_burning_damage", ["Dark Arts", "Melding"]], ["karui_notable_add_double_damage", ["Grave Intentions", "Steeped in the Profane", "Tolerance"]],

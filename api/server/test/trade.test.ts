@@ -4,11 +4,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import { loadConfig } from "../src/config.js";
 import { ApiError } from "../src/errors.js";
 import { toolDefs } from "../src/mcp.js";
 import { routes } from "../src/routes.js";
 import { TradeClient, TradeLimiter, type TradeSearch } from "../src/trade.js";
-import { FIXTURES, memoryLogger, startServer, type TestServer } from "./helpers.js";
+import { FIXTURES, memoryLogger, startServer, TOKEN, type TestServer } from "./helpers.js";
 
 type Sent = { method: string; url: string; headers: Record<string, string>; body?: string; redirect?: string };
 type Reply = { status?: number; headers?: Record<string, string>; body?: unknown };
@@ -94,7 +95,7 @@ void test("limiter: Retry-After on a 4xx and a restricted window hold every call
   assert.equal(l.state()[1]?.retryAfterSeconds.interactive, 60, "a restricted window holds for its stated time");
 });
 
-const search = (over: Partial<TradeSearch> = {}): TradeSearch => ({ realm: "pc", league: "Keepers of the Flame", body: { query: { status: { option: "securable" } }, sort: { price: "asc" }, engine: "new" }, listings: 10, priority: "interactive", deadline: Date.now() + 60_000, userAgent: "Path of Building/2.67.2", ...over });
+const search = (over: Partial<TradeSearch> = {}): TradeSearch => ({ realm: "pc", league: "Keepers of the Flame", body: { query: { status: { option: "securable" } }, sort: { price: "asc" }, engine: "new" }, listings: 10, priority: "interactive", deadline: Date.now() + 60_000, userAgent: "Path of Building/2.67.2 (api; fork)", ...over });
 const generous = rules("100:10:0", "1:10:0");
 
 void test("trade client: Path of Building's request shapes, fetch blocks of 10, seller fields left out, mod lines as the conversion reads them", async () => {
@@ -113,7 +114,7 @@ void test("trade client: Path of Building's request shapes, fetch blocks of 10, 
     ["GET", "https://www.pathofexile.com/api/trade/fetch/5ids?query=AbC123"],
   ]);
   for (const s of sent) {
-    assert.deepEqual(s.headers, { "content-type": "application/json", "user-agent": "Path of Building/2.67.2" }, "no cookie, no authorization, nothing else");
+    assert.deepEqual(s.headers, { "content-type": "application/json", "user-agent": "Path of Building/2.67.2 (api; fork)" }, "no cookie, no authorization, nothing else");
     assert.equal(s.redirect, "manual");
   }
   assert.deepEqual(JSON.parse(sent[0]?.body ?? ""), { query: { status: { option: "securable" } }, sort: { price: "asc" }, engine: "new" });
@@ -131,9 +132,11 @@ void test("trade client: Path of Building's request shapes, fetch blocks of 10, 
 
 void test("trade client: a 429, any 4xx, a redirect or a malformed answer stops at once and nothing is retried", async () => {
   const cases: Array<[Reply, string, RegExp, Record<string, unknown>]> = [
-    [{ status: 429, headers: { "retry-after": "45" } }, "rate_limited", /limiting/, { status: 429, retryAfterSeconds: 45 }],
-    [{ status: 400, body: { error: { code: 2, message: "Invalid query\u0007" } } }, "invalid_input", /answered 400: Invalid query$/, { status: 400 }],
-    [{ status: 403 }, "upstream_fetch_failed", /answered 403$/, { status: 403 }],
+    [{ status: 429, headers: { "retry-after": "45" } }, "rate_limited", /limiting/, { status: 429, retryAfterSeconds: 45, headers: { "retry-after": "45" } }],
+    [{ status: 400, body: { error: { code: 2, message: "Invalid query\u0007" } } }, "invalid_input", /answered 400: Invalid query$/, { status: 400, headers: {} }],
+    // any other 4xx: the status and the rate-limit and retry headers only, never the body; stopped, not retried with another client string
+    [{ status: 403, headers: { "retry-after": "120", "x-rate-limit-rules": "Ip", "x-rate-limit-ip-state": "1:10:0", "set-cookie": "a=b" }, body: { error: { message: "blocked: the client string is not allowed" } } }, "upstream_fetch_failed", /answered 403$/, { status: 403, retryAfterSeconds: 120, headers: { "retry-after": "120", "x-rate-limit-rules": "Ip", "x-rate-limit-ip-state": "1:10:0" } }],
+    [{ status: 404 }, "upstream_fetch_failed", /answered 404$/, { status: 404, headers: {} }],
     [{ status: 302, headers: { location: "https://elsewhere.example/" } }, "upstream_fetch_failed", /redirects are not followed/, { status: 302 }],
     [{ body: { id: "a/b", result: [], total: 0 } }, "upstream_fetch_failed", /expected shape/, {}],
     [{ body: { id: "ok", result: ["../x"], total: 1 } }, "upstream_fetch_failed", /expected shape/, {}],
@@ -164,7 +167,7 @@ const leaguesAnswer = (...more: unknown[]) => ({
   ],
 });
 const LEAGUES_URL = "https://www.pathofexile.com/api/trade/data/leagues";
-const ask = (c: { t: number }) => ({ priority: "interactive" as const, deadline: c.t + 60_000, userAgent: "Path of Building/2.67.2" });
+const ask = (c: { t: number }) => ({ priority: "interactive" as const, deadline: c.t + 60_000, userAgent: "Path of Building/2.67.2 (api; fork)" });
 const leaguesClient = (answer: (s: Sent) => Reply) => {
   const { c, now, sleep } = clock();
   const { fetch, sent } = site(answer);
@@ -189,7 +192,7 @@ void test("trade client leagues: the request is Path of Building's, with no cook
   await client.leagues("pc", ask(c));
   assert.equal(sent.length, 1);
   assert.deepEqual([sent[0]?.method, sent[0]?.url, sent[0]?.redirect, sent[0]?.body], ["GET", LEAGUES_URL, "manual", undefined]);
-  assert.deepEqual(sent[0]?.headers, { "content-type": "application/json", "user-agent": "Path of Building/2.67.2" }, "no cookie, no authorization, nothing else");
+  assert.deepEqual(sent[0]?.headers, { "content-type": "application/json", "user-agent": "Path of Building/2.67.2 (api; fork)" }, "no cookie, no authorization, nothing else");
 });
 
 void test("trade client leagues: an hour's cache per realm; the 61st minute asks again", async () => {
@@ -255,7 +258,7 @@ before(async () => {
     return { headers: generous, body: { result: s.url.includes(hex("b")) ? [cluster] : [weak, jewel, null, unreadable] } };
   });
   requests = recorded.sent;
-  srv = await startServer({}, { fetch: recorded.fetch });
+  srv = await startServer({ tradeLeague: "Keepers of the Flame" }, { fetch: recorded.fetch });
   const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
   build = (await srv.call<{ build: { id: string } }>("POST", "/v1/builds/import/xml", { xml })).body.result.build.id;
   assert.equal((await srv.call("POST", `/v1/tree/${build}/allocate`, { nodes: [41263, 21984] })).status, 200);
@@ -277,7 +280,7 @@ const fields = ["CombinedDPS", "TotalEHP"];
 void test("trade.search: listings read by Path of Building's conversion and scored for the build in their socket, best first", async () => {
   const before = requests.length;
   const { result: r, warnings } = await trade({ league, buildId: build, fields, searches: [{ query: { status: { option: "securable" } }, slot: "Jewel 41263" }, { query: { name: "cluster", status: { option: "securable" } }, slot: "Jewel 21984" }] });
-  assert.equal(requests.length - before, 4, "two searches, one fetch block each");
+  assert.equal(requests.length - before, 5, "the league check (the first search of the process), then two searches with one fetch block each");
   const [jewels, clusters] = r.searches;
   assert.deepEqual([jewels?.searchId, jewels?.total, jewels?.cached, jewels?.link], ["J3wel", 4, false, "https://www.pathofexile.com/trade/search/Keepers%20of%20the%20Flame/J3wel"]);
   assert.deepEqual(jewels?.listings.map((l) => [l.id, l.score?.gain ?? null, l.error ?? null]), [
@@ -313,7 +316,7 @@ void test("trade.search: a 4xx stops the call; the searches done are answered an
     const before = requests.length;
     const { result: r } = await trade({ league, priority: "background", searches: [{ query: { type: "first" } }, { query: { type: "second" } }, { query: { type: "third" } }] });
     assert.equal(requests.length - before, 3, "search, fetch, refused search; nothing retried");
-    assert.deepEqual([r.searches.length, r.notRun, r.stopped], [1, 2, { code: "invalid_input", message: "the trade site answered 400: Unknown stat provided", status: 400 }]);
+    assert.deepEqual([r.searches.length, r.notRun, r.stopped], [1, 2, { code: "invalid_input", message: "the trade site answered 400: Unknown stat provided", status: 400, headers: {} }]);
   } finally {
     mode = "ok";
   }
@@ -354,7 +357,7 @@ void test("trade.leagues: the realm's leagues and the current one, from the cach
   assert.equal(requests.length - before, 1);
   assert.deepEqual(requests.at(-1)?.url, LEAGUES_URL);
   assert.deepEqual(first.limiter.map((p) => p.policy), ["search", "fetch", "leagues"]);
-  assert.deepEqual(first.limiter.find((p) => p.policy === "leagues")?.remaining, { interactive: 9, background: 4 });
+  assert.deepEqual(first.limiter.find((p) => p.policy === "leagues")?.remaining, { interactive: 8, background: 3 }, "this request and the search's league check for pc are both counted");
   const again = await get("?realm=xbox&priority=background");
   assert.equal(requests.length - before, 1, "answered from the cache");
   assert.deepEqual([again.cached, again.current], [true, "Mercenaries"]);
@@ -367,4 +370,126 @@ void test("trade.leagues: the realm's leagues and the current one, from the cach
   assert.deepEqual(rejected.map((r) => [r.status, r.body.error?.code]), [[400, "invalid_input"], [400, "invalid_input"], [401, "unauthorized"], [401, "unauthorized"]]);
   assert.match(rejected[1]?.body.error?.message ?? "", /unknown parameter league; trade\.leagues takes realm, priority/);
   assert.equal(requests.length - before, 1, "nothing sent for a refused call");
+});
+
+/** A trade site with the recorded leagues list and one search answer; `leaguesReply` replaces the leagues answer. */
+const basic = (leaguesReply?: Reply) => site((s) => {
+  if (s.url === LEAGUES_URL) return leaguesReply ?? { headers: generous, body: leaguesAnswer() };
+  if (s.method === "POST") return { headers: generous, body: { id: "J3wel", result: [hex("a")], total: 1 } };
+  return { headers: generous, body: { result: [{ ...entry(hex("a")) }] } };
+});
+const searchBody = { searches: [{ query: { status: { option: "securable" } }, listings: 1 }] };
+const searchPosts = (sent: Sent[]) => sent.filter((s) => s.method === "POST");
+
+/** A server on a recorded site, closed after `run`. */
+async function withSite<T>(config: Parameters<typeof startServer>[0], recorded: ReturnType<typeof basic>, run: (s: TestServer) => Promise<T>): Promise<T> {
+  const s = await startServer(config, { fetch: recorded.fetch });
+  try {
+    return await run(s);
+  } finally {
+    await s.close();
+  }
+}
+const pobVersion = async (s: TestServer) => ((await (await fetch(`http://127.0.0.1:${s.port}/health/deep`, { headers: { authorization: `Bearer ${TOKEN}` } })).json()) as { pobVersion: string }).pobVersion;
+
+void test("trade requests carry the fork's client string, with the operator's contact only when set; search and leagues both", async () => {
+  for (const [config, suffix] of [[{ tradeLeague: league }, " (api; fork)"], [{ tradeLeague: league, tradeContact: "ops@example.org" }, " (api; fork +ops@example.org)"]] as const) {
+    const recorded = basic();
+    await withSite(config, recorded, async (s) => {
+      const version = await pobVersion(s);
+      assert.equal((await s.call("GET", "/v1/trade/leagues")).status, 200);
+      assert.equal((await s.call("POST", "/v1/trade/search", { league, ...searchBody })).status, 200);
+      assert.ok(recorded.sent.length >= 3, "the leagues request, the search and its fetch");
+      for (const r of recorded.sent) assert.equal(r.headers["user-agent"], `Path of Building/${version}${suffix}`, `${r.method} ${r.url}`);
+      assert.deepEqual(new Set(recorded.sent.map((r) => r.url === LEAGUES_URL ? "leagues" : r.method === "POST" ? "search" : "fetch")), new Set(["leagues", "search", "fetch"]));
+    });
+  }
+});
+
+void test("the contact setting is checked: printable ASCII, no line break, 120 characters at most", () => {
+  const load = (contact: string) => loadConfig({ POB_API_TOKEN: TOKEN, POB_API_TRADE_CONTACT: contact });
+  assert.equal(load("a".repeat(120)).tradeContact?.length, 120);
+  for (const bad of ["a".repeat(121), "a\r\nX-Evil: 1", "a\nb", "caf\u00e9"]) assert.throws(() => load(bad), /POB_API_TRADE_CONTACT/, JSON.stringify(bad));
+  assert.equal(loadConfig({ POB_API_TOKEN: TOKEN }).tradeContact, undefined);
+});
+
+void test("trade.search: the league is the server's; left out it is used, another is refused, and nothing is sent for a refusal", async () => {
+  const before = requests.length;
+  const used = await trade({ searches: [{ query: { status: { option: "securable" }, type: "no league" }, listings: 1 }] });
+  assert.equal(used.result.searches[0]?.link.startsWith("https://www.pathofexile.com/trade/search/Keepers%20of%20the%20Flame/"), true, "the configured league");
+  assert.ok(requests.slice(before).some((r) => r.method === "POST" && r.url.endsWith("/search/Keepers%20of%20the%20Flame")), "searched in it");
+  const sent = requests.length;
+  for (const other of ["Standard", "Hardcore Keepers of the Flame", "SSF Keepers of the Flame", "Ruthless", "keepers of the flame"]) {
+    const r = await srv.call("POST", "/v1/trade/search", { league: other, ...searchBody });
+    assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], other);
+    assert.equal(r.body.error?.message, `league ${other} is refused: this server's trade league is Keepers of the Flame, the league being played`);
+  }
+  assert.equal(requests.length, sent, "nothing sent");
+});
+
+void test("trade.search: a server whose league is Standard searches Standard", async () => {
+  const recorded = basic();
+  await withSite({ tradeLeague: "Standard" }, recorded, async (s) => {
+    const r = await s.call<Answer>("POST", "/v1/trade/search", { league: "Standard", ...searchBody });
+    assert.equal(r.status, 200, JSON.stringify(r.body.error));
+    assert.equal(searchPosts(recorded.sent)[0]?.url, "https://www.pathofexile.com/api/trade/search/Standard");
+    assert.equal(r.body.result.searches[0]?.link, "https://www.pathofexile.com/trade/search/Standard/J3wel");
+    const refused = await s.call("POST", "/v1/trade/search", { league: "Keepers of the Flame", ...searchBody });
+    assert.deepEqual([refused.status, refused.body.error?.code], [400, "invalid_input"]);
+  });
+});
+
+void test("trade.search: a configured league the site no longer lists fails naming it and the listed one, with no search sent", async () => {
+  const recorded = basic();
+  await withSite({ tradeLeague: "Ended League" }, recorded, async (s) => {
+    const r = await s.call("POST", "/v1/trade/search", searchBody);
+    assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"]);
+    assert.equal(r.body.error?.message, "the configured trade league Ended League is not on the trade site's list for pc (current: Keepers of the Flame); set POB_API_TRADE_LEAGUE to the league being played");
+    assert.deepEqual(recorded.sent.map((x) => x.url), [LEAGUES_URL], "only the league list was asked");
+  });
+});
+
+void test("trade.search: a stopped league list stops the call as a search stop does, with nothing searched", async () => {
+  const recorded = basic({ status: 429, headers: { "retry-after": "30" } });
+  await withSite({ tradeLeague: league }, recorded, async (s) => {
+    const r = await s.call<Answer>("POST", "/v1/trade/search", searchBody);
+    assert.equal(r.status, 200, JSON.stringify(r.body.error));
+    assert.deepEqual([r.body.result.searches, r.body.result.notRun], [[], 1]);
+    assert.deepEqual(r.body.result.stopped, { code: "rate_limited", message: "the trade site is limiting requests; stopped", status: 429, retryAfterSeconds: 30, headers: { "retry-after": "30" } });
+    assert.deepEqual(recorded.sent.map((x) => x.url), [LEAGUES_URL]);
+  });
+});
+
+void test("no league configured: trade.search and link routes refuse with 501 unsupported naming the setting; the optional link goes unbuilt", async () => {
+  const recorded = basic();
+  await withSite({}, recorded, async (s) => {
+    const message = "no trade league is configured: set POB_API_TRADE_LEAGUE to the league being played";
+    for (const body of [searchBody, { league: "Standard", ...searchBody }]) {
+      const r = await s.call("POST", "/v1/trade/search", body);
+      assert.deepEqual([r.status, r.body.error?.code, r.body.error?.message], [501, "unsupported", message]);
+    }
+    const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
+    const id = (await s.call<{ build: { id: string } }>("POST", "/v1/builds/import/xml", { xml })).body.result.build.id;
+    await s.call("POST", `/v1/tree/${id}/allocate`, { nodes: [41263] });
+    const buy = await s.call("POST", `/v1/items/${id}/buy-similar`, { slot: "Body Armour" });
+    assert.deepEqual([buy.status, buy.body.error?.code, buy.body.error?.message], [501, "unsupported", message], "buy_similar needs a league");
+    const named = await s.call("POST", `/v1/evaluate/${id}/jewel-mods`, { family: "base", league: "Standard", limit: 1, combinations: 0 });
+    assert.deepEqual([named.status, named.body.error?.code], [501, "unsupported"], "a league is never taken from the request alone");
+    const plain = await s.call<{ link: string | null }>("POST", `/v1/evaluate/${id}/jewel-mods`, { family: "base", limit: 1, combinations: 0 });
+    assert.deepEqual([plain.status, plain.body.error, plain.body.result?.link], [200, undefined, null], "no league, no link, as before");
+    assert.deepEqual(recorded.sent, [], "no request to the trade site");
+  });
+});
+
+void test("link routes: the league is the server's, left out it is used, another is refused (jewel_mods)", async () => {
+  await withSite({ tradeLeague: "Settlers" }, basic(), async (s) => {
+    const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
+    const id = (await s.call<{ build: { id: string } }>("POST", "/v1/builds/import/xml", { xml })).body.result.build.id;
+    await s.call("POST", `/v1/tree/${id}/allocate`, { nodes: [41263] });
+    const body = { family: "base", limit: 1, combinations: 0 };
+    const own = await s.call<{ link: string | null }>("POST", `/v1/evaluate/${id}/jewel-mods`, body);
+    assert.equal(own.body.result.link?.startsWith("https://www.pathofexile.com/trade/search/Settlers/"), true, "the link's path holds the configured league");
+    const other = await s.call("POST", `/v1/evaluate/${id}/jewel-mods`, { ...body, league: "Standard" });
+    assert.deepEqual([other.status, other.body.error?.code, other.body.error?.message], [400, "invalid_input", "league Standard is refused: this server's trade league is Settlers, the league being played"]);
+  });
 });

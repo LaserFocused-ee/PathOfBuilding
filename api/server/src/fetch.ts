@@ -6,8 +6,8 @@ import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
 import type { Logger } from "./log.js";
 
-/** Download hosts of the build sites in src/Modules/BuildSiteTools.lua. */
-export const SHARE_HOSTS = ["maxroll.gg", "api.pob.codes", "pobb.in", "poe.ninja", "pastebin.com", "pastebinp.com", "rentry.co", "poedb.tw"] as const;
+/** Download hosts of the build sites in src/Modules/BuildSiteTools.lua, less the one whose docs rule out third-party use of its endpoint (build import by link refuses it with a note to paste the build code). */
+export const SHARE_HOSTS = ["maxroll.gg", "api.pob.codes", "pobb.in", "pastebin.com", "pastebinp.com", "rentry.co", "poedb.tw"] as const;
 
 /** The game site: character import (character-window endpoints, as src/Classes/ImportTab.lua uses). */
 export const GAME_HOST = "www.pathofexile.com";
@@ -23,7 +23,6 @@ export const RELAY_PATHS: Readonly<Record<string, { paths: readonly string[]; po
   "maxroll.gg": { paths: ["/poe/api/pob"], post: true },
   "api.pob.codes": { paths: ["/"], post: true },
   "pobb.in": { paths: ["/pob/"], post: true },
-  "poe.ninja": { paths: ["/poe1/pob/raw/", "/poe1/pob/api/upload"], post: true },
   "pastebin.com": { paths: ["/raw/"], post: false },
   "pastebinp.com": { paths: ["/raw/"], post: false },
   "rentry.co": { paths: ["/paste/"], post: false },

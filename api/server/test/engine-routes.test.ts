@@ -18,7 +18,7 @@ const ok = <T>(r: { status: number; body: { ok: boolean; result: T; error?: { co
 };
 
 before(async () => {
-  srv = await startServer();
+  srv = await startServer({ tradeLeague: "Settlers" });
   const [occXml, freshXml] = await Promise.all([
     readFile(join(ROOT, "spec/TestBuilds/3.13/OccVortex.xml"), "utf8"),
     readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8"),

@@ -158,10 +158,10 @@ void test("POST /v1/fetch relays the page's imports: allowlisted paths only, its
     await call({ url: "https://pobb.in/pob/", body: "x=1", headers: { "content-type": "application/x-www-form-urlencoded" } });
     assert.deepEqual([seen[1]?.method, seen[1]?.body, seen[1]?.headers["content-type"]], ["POST", "x=1", "application/x-www-form-urlencoded"]);
     // each site's download (and upload) URL as BuildSiteTools.lua builds it
-    for (const url of ["https://maxroll.gg/poe/api/pob/abc", "https://api.pob.codes/abc/raw", "https://poe.ninja/poe1/pob/raw/abc", "https://pastebin.com/raw/abc", "https://pastebinp.com/raw/abc", "https://rentry.co/paste/abc/raw", "https://poedb.tw/pob/abc/raw"]) {
+    for (const url of ["https://maxroll.gg/poe/api/pob/abc", "https://api.pob.codes/abc/raw", "https://pastebin.com/raw/abc", "https://pastebinp.com/raw/abc", "https://rentry.co/paste/abc/raw", "https://poedb.tw/pob/abc/raw"]) {
       assert.equal((await call({ url })).status, 200, url);
     }
-    for (const url of ["https://maxroll.gg/poe/api/pob", "https://api.pob.codes/pob/plain", "https://poe.ninja/poe1/pob/api/upload", "https://poedb.tw/pob/api/gen"]) {
+    for (const url of ["https://maxroll.gg/poe/api/pob", "https://api.pob.codes/pob/plain", "https://poedb.tw/pob/api/gen"]) {
       assert.equal((await call({ url, body: "x=1" })).status, 200, url);
     }
 
@@ -174,9 +174,14 @@ void test("POST /v1/fetch relays the page's imports: allowlisted paths only, its
       const r = await call({ url });
       assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], url);
     }
-    for (const url of ["https://poe.ninja/builds", "https://poe.ninja/poe1/api/data/x", "https://pobb.in/abc", "https://maxroll.gg/poe/build-guides", "https://pastebin.com/abc", "https://rentry.co/abc", "https://poedb.tw/us/Glimpse_of_Chaos"]) {
+    for (const url of ["https://pobb.in/abc", "https://maxroll.gg/poe/build-guides", "https://pastebin.com/abc", "https://rentry.co/abc", "https://poedb.tw/us/Glimpse_of_Chaos"]) {
       const r = await call({ url });
       assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], `${url}: only the download and upload paths Path of Building uses`);
+    }
+    // a site whose docs rule out third-party use of its endpoint is not a share host: refused as any host off the list, before any request
+    for (const url of ["https://poe.ninja/poe1/pob/raw/abc", "https://poe.ninja/poe1/pob/api/upload", "https://poe.ninja/builds"]) {
+      const r = await call({ url, ...(url.endsWith("upload") ? { body: "x=1" } : {}) });
+      assert.deepEqual([r.status, r.body.error?.code, r.body.error?.message], [400, "invalid_input", "host poe.ninja is not on the allowlist"], url);
     }
     for (const url of ["https://pastebin.com/raw/abc", "https://rentry.co/paste/abc/raw"]) {
       const r = await call({ url, body: "x=1" });
@@ -266,5 +271,20 @@ void test("MCP: a failing upstream (a 5xx) comes back as an isError result with 
     assert.equal(http.status, 502, "the same failure over HTTP is a 5xx");
   } finally {
     await down.close();
+  }
+});
+
+void test("POST /v1/builds/import/link refuses a poe.ninja link with a note to paste the build code, and sends no request", async () => {
+  const seen: string[] = [];
+  const s = await startServer({}, { fetch: (input: string | URL | Request) => { seen.push(input instanceof Request ? input.url : input.toString()); return Promise.resolve(new Response("", { status: 500 })); } });
+  try {
+    for (const url of ["https://poe.ninja/poe1/pob/abc123", "https://www.poe.ninja/poe1/pob/abc123", "https://poe.ninja/poe1/builds/x/character/a/b"]) {
+      const r = await s.call("POST", "/v1/builds/import/link", { url });
+      assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], url);
+      assert.match(r.body.error?.message ?? "", /^poe\.ninja links are not fetched .*; paste the build code instead/, url);
+    }
+    assert.deepEqual(seen, [], "no upstream request");
+  } finally {
+    await s.close();
   }
 });

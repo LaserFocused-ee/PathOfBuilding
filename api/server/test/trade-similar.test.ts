@@ -75,7 +75,7 @@ const gear: Record<string, string> = {
 };
 
 before(async () => {
-  srv = await startServer();
+  srv = await startServer({ tradeLeague: "Settlers" });
   const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
   base = ok(await post<{ build: { id: string } }>("/v1/builds/import/xml", { xml })).build.id;
   for (const [slot, text] of Object.entries(gear)) at[slot] = ok(await post<{ result: { id: number } }>(`/v1/items/${base}/add`, { text, equip: slot })).result.id;
@@ -161,13 +161,13 @@ void test("buy_similar option stats and uniques: an enchant by its option, a uni
   assert.deepEqual(filtersOf(jewel.query), [["and", undefined, [["explicit.pseudo_timeless_jewel_akoya", { min: 14000, max: 14000 }]]]]);
 });
 
-void test("buy_similar league, realm and listed: the link is for the league given, never Standard unless asked, in the realm's path; nothing is sent", async () => {
+void test("buy_similar league, realm and listed: the link is for the server's configured league, never another, in the realm's path; nothing is sent", async () => {
   const pool = srv.runtime.svc.pool;
   await pool.run(base, "worker.reach");
-  const a = await similar({ slot: "Body Armour", league: "Hardcore Settlers" });
-  assert.match(a.link, /^https:\/\/www\.pathofexile\.com\/trade\/search\/Hardcore%20Settlers\/[\w-]+$/);
-  const std = await similar({ slot: "Body Armour", league: "Standard" });
-  assert.equal(std.link.startsWith(`${SEARCH}/Standard/`), true);
+  const a = await similar({ slot: "Body Armour" });
+  assert.equal(a.league, "Settlers", "left out: the configured league");
+  assert.match(a.link, /^https:\/\/www\.pathofexile\.com\/trade\/search\/Settlers\/[\w-]+$/);
+  for (const league of ["Standard", "Hardcore Settlers"]) await refused(`/v1/items/${base}/buy-similar`, { slot: "Body Armour", league }, 400, "invalid_input", new RegExp(`league ${league} is refused.*Settlers`));
   const xbox = await similar({ slot: "Body Armour", league: "Settlers", realm: "xbox", listed: "any" });
   assert.equal(xbox.link.startsWith(`${SEARCH}/xbox/Settlers/`), true);
   assert.deepEqual([xbox.realm, xbox.listed, xbox.query.status], ["xbox", "any", { option: "any" }]);
@@ -178,8 +178,7 @@ void test("buy_similar league, realm and listed: the link is for the league give
   const fresh = await similar({ slot: "Body Armour", league: "Settlers" });
   assert.deepEqual([fresh.realm, fresh.listed, fresh.link.startsWith(`${SEARCH}/Settlers/`)], ["pc", "securable", true]);
   assert.deepEqual(await pool.run(base, "worker.reach").then((x) => x.result), { subScripts: 0, urls: 0, writes: [] });
-  // no league is not a league: it is refused, never filled in
-  await refused(`/v1/items/${base}/buy-similar`, { slot: "Body Armour" }, 400, "invalid_input", /league/);
+  // a league that is not a league name is refused
   await refused(`/v1/items/${base}/buy-similar`, { slot: "Body Armour", league: "" }, 400, "invalid_input", /league/);
   await refused(`/v1/items/${base}/buy-similar`, { slot: "Body Armour", league: "Loading..." }, 400, "invalid_input", /league/);
 });
