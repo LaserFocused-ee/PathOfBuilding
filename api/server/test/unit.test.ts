@@ -165,6 +165,26 @@ void test("store: a purge beside an unfinished trash entry keeps it, and never s
   assert.ok(existsSync(staging), "staging is left alone");
 });
 
+void test("store: a delete that finds trash/<id> already there moves the older entry aside; the new one restores, the old is purged on its date", async (t) => {
+  const dir = await tempDir("trash-taken");
+  t.after(dir.remove);
+  const store = new BuildStore(dir.path, 3);
+  await store.init();
+  const { id, trash } = await twoRevisions(store, dir.path);
+  await mkdir(trash);
+  await writeFile(join(trash, "build.json"), JSON.stringify({ id, name: "older", revision: 9 }));
+  await store.delete(id);
+  assert.deepEqual((await store.listTrash()).map((m) => [m.id, m.revision]), [[id, 2]], "this deletion is the restorable one");
+  const aside = (await readdir(join(dir.path, "trash"))).filter((n) => n.startsWith(`.${id}.replaced-`));
+  assert.equal(aside.length, 1, "the older entry is kept");
+  assert.deepEqual(await store.recover(), [], "nothing left for start to finish");
+  await store.restore(id);
+  assert.deepEqual([await store.xml(id), await store.xml(id, 1)], ["<x>2</x>", "<x>1</x>"]);
+  assert.deepEqual(await store.purgeTrash(Date.now() + 6 * 86_400_000), [], "kept inside the window");
+  assert.deepEqual(await store.purgeTrash(Date.now() + 8 * 86_400_000), [id]);
+  assert.deepEqual((await readdir(join(dir.path, "trash"))).filter((n) => n.includes(id)), []);
+});
+
 /** A stored build with two revisions, and where its live files are. */
 async function twoRevisions(store: BuildStore, dir: string) {
   const a = await store.create("A", "<x>1</x>", { kind: "xml" });

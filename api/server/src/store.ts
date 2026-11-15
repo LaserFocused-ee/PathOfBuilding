@@ -180,7 +180,9 @@ export class BuildStore {
     await this.moveIfThere(p.xml, join(stage, "build.xml"));
     await this.moveIfThere(p.history, join(stage, "history"));
     const t = this.trashPaths(id);
-    if (await stat(t.dir).then(() => true, () => false)) throw new ApiError("worker_error", `trash already holds build ${id}`);
+    // An older deletion of this id still in the trash: kept under a name of its own (purged on its own date), so this
+    // deletion is the restorable one and the delete, or recover() at start, never stops here.
+    await this.moveIfThere(t.dir, join(this.dir, "trash", `.${id}.replaced-${Date.now()}`));
     await rename(stage, t.dir);
   }
 
@@ -266,6 +268,13 @@ export class BuildStore {
       } catch (e) {
         // Something else is moving files there: leave it for the next round.
         if (!["ENOTEMPTY", "ENOENT"].includes((e as NodeJS.ErrnoException).code ?? "")) throw e;
+      }
+    }
+    for (const name of await readdir(join(this.dir, "trash"))) {
+      const m = /^\.([a-f0-9]{16})\.replaced-(\d+)$/.exec(name);
+      if (m && now - Number(m[2]) > TRASH_MS) {
+        await rm(join(this.dir, "trash", name), { recursive: true, force: true });
+        purged.push(m[1] ?? "");
       }
     }
     return purged;
