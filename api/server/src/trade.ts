@@ -42,7 +42,7 @@ const FETCH_BLOCK = 10;
 const ID = /^[A-Za-z0-9]{1,128}$/;
 /** A search id: any printable ASCII without spaces (the site's form has changed: 270 characters of letters, digits, "_" and
  * "-" seen on 15 Nov 2026; Path of Building does not check it) or empty when nothing is found. It only goes into URLs encoded. */
-const SEARCH_ID = /^[\x21-\x7e]{0,1000}$/;
+const SEARCH_ID = /^[\x21-\x7e]{0,2048}$/; // the id grows with the query
 /** A league name as the trade routes take it. */
 export const LEAGUE_NAME = /^[A-Za-z0-9][A-Za-z0-9 '-]*$/;
 /** The leagues that last, in the order Path of Building lists them after the current ones (TradeQuery.lua). */
