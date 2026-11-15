@@ -476,5 +476,34 @@ return function(W)
 		return { scope = scope, lines = lines }
 	end
 
+	-- args: realm, league, static (the trade site's static data), exchange ({ markets } of one exchange hour), both fetched by the
+	-- server. Path of Building's own conversion (TradeQuery:PullCXData), its two downloads answered from these and nothing else
+	-- sent: divines per one of each currency in the league, by the trade site's short id.
+	local staticUrl = "https://www.pathofexile.com/api/trade/data/static"
+	function ops.currency_rates(args)
+		if type(args.static) ~= "table" or type(args.exchange) ~= "table" or type(args.league) ~= "string" then W.fail("invalid_input", "static, exchange and league are given by the server") end
+		local realm = args.realm or "pc"
+		local exchangePrefix = "https://web.poecdn.com/api/currency-exchange" .. (realm ~= "pc" and "/" .. realm or "") .. "/"
+		local bodies = { [staticUrl] = W.json.encode(args.static) }
+		local exchangeBody = W.json.encode(args.exchange)
+		new("TradeQuery") -- loads the class; PullCXData reads only the fields of q
+		local notice
+		local q = { pbRealm = realm, pbCurrencyConversion = {}, controls = {}, SetNotice = function(_, _, msg) notice = msg end }
+		local download = W.launch.DownloadPage
+		W.launch.DownloadPage = function(_, url, callback)
+			local hour = url:sub(1, #exchangePrefix) == exchangePrefix and url:sub(#exchangePrefix + 1):match("^%d+$")
+			local body = bodies[url] or (hour and exchangeBody)
+			if not body then error("Path of Building asked for " .. url .. ", which the server did not fetch", 0) end
+			callback({ body = body }, nil)
+		end
+		local ok, err = pcall(common.classes.TradeQuery.PullCXData, q)
+		W.launch.DownloadPage = download
+		if not ok then error(err, 0) end
+		if notice then W.fail("upstream_fetch_failed", "Path of Building could not read the currency rates: " .. W.strip(notice)) end
+		local rates = q.pbCurrencyConversion[realm] and q.pbCurrencyConversion[realm][args.league]
+		if not rates then W.fail("upstream_fetch_failed", "the currency exchange gives no rates for " .. args.league .. " in Path of Building's conversion") end
+		return { rates = rates }
+	end
+
 	return ops
 end

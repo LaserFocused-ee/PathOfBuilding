@@ -340,7 +340,7 @@ void test("trade.search: input limits (8 searches, 30 listings, league text, que
   await bad({ league, searches: [{ query: { filler: "x".repeat(40_000) } }] }, /32 KB/);
   await bad({ league, searches: [q], cookie: "POESESSID=1" }, /unknown parameter cookie/);
   const tool = toolDefs().find((d) => d.name === "pob_trade");
-  assert.deepEqual([tool?.readOnly, tool?.routes.map((r) => r.name)], [true, ["trade.search", "trade.leagues"]]);
+  assert.deepEqual([tool?.readOnly, tool?.routes.map((r) => r.name)], [true, ["trade.search", "trade.currency_rates", "trade.leagues"]]);
 });
 
 void test("trade.leagues: the realm's leagues and the current one, from the cache after the first call; the answer matches its schema", async () => {
@@ -356,7 +356,7 @@ void test("trade.leagues: the realm's leagues and the current one, from the cach
   assert.deepEqual([first.realm, first.leagues, first.current, first.cached], ["xbox", ["HC Mercenaries", "Mercenaries", "Standard", "Hardcore"], "Mercenaries", false]);
   assert.equal(requests.length - before, 1);
   assert.deepEqual(requests.at(-1)?.url, LEAGUES_URL);
-  assert.deepEqual(first.limiter.map((p) => p.policy), ["search", "fetch", "leagues"]);
+  assert.deepEqual(first.limiter.map((p) => p.policy), ["search", "fetch", "leagues", "static", "exchange"]);
   assert.deepEqual(first.limiter.find((p) => p.policy === "leagues")?.remaining, { interactive: 8, background: 3 }, "this request and the search's league check for pc are both counted");
   const again = await get("?realm=xbox&priority=background");
   assert.equal(requests.length - before, 1, "answered from the cache");

@@ -210,14 +210,14 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | Operation | Tier | State | Route / note |
 | --- | --- | --- | --- |
 | `trade.leagues` | S | done | `trade.leagues` (on request only; the realm's leagues and the current one, cached an hour; limits in its summary); trade.test.ts |
-| `trade.currency_rates` | S | F3 | `pob_trade` |
+| `trade.currency_rates` | S | done | `trade.currency_rates` (on request only; Path of Building's two downloads, each host at most once an hour, its own conversion in the worker; the configured league only); trade-rates.test.ts |
 | `trade.stat_weights` | S | done | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Gear slots: `evaluate.item_mods` (weights, search, link); evaluate-items-trade.test.ts |
 | `trade.query.generate` | S | done | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Gear slots: `evaluate.item_mods` (weights, search, link); evaluate-items-trade.test.ts |
 | `trade.search` | S | done | `trade.search` (on request only; limits in its summary); trade.test.ts |
 | `trade.search_url` | S | done | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Gear slots: `evaluate.item_mods` (weights, search, link); evaluate-items-trade.test.ts |
 | `trade.evaluate` | S | done | `trade.search` with `buildId` scores each listing in its slot; `evaluate.compare_item` with `listing` answers the same text and `gain` for one listing in every slot it fits; trade.test.ts, evaluate-what-if.test.ts |
-| `trade.sort` / `total_price` | S | F3 | `pob_trade` |
-| `trade.price_all_slots` | X | F3 | `pob_trade` |
+| `trade.sort` / `total_price` | S | done | `trade.search` `order` (site, gain, price, gainPrice: the Trade tab's sort modes, with its fallback when a listing has no rate) and `total` (the Total Price: the first listing of each search, per currency and in divines); trade-rates.test.ts |
+| `trade.price_all_slots` | X | done | `trade.search` with one search per slot (each slot's `search` from `evaluate.item_mods` or `evaluate.jewel_mods`, up to 8 per call) answers each slot's best listing and their `total`; trade-rates.test.ts |
 | `trade.mod_to_trade_id` | H | done | `lookup.trade_stats` (mod lines to trade stat ids, values, options, inverted lines, timeless jewel stats); trade-similar.test.ts |
 | `trade.rate_limits` | H | done | `trade.search` answers the limiter state (remaining, retry-after, the site's windows); trade.test.ts |
 
@@ -270,10 +270,10 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
 | calcs | 13 | 13 | 0 | 0 | 0 | 0 | 0 | 0 |
 | compare and power | 12 | 8 | 0 | 0 | 4 | 0 | 0 | 0 |
-| trade | 11 | 8 | 0 | 0 | 0 | 3 | 0 | 0 |
+| trade | 11 | 11 | 0 | 0 | 0 | 0 | 0 | 0 |
 | notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 | 0 |
 | data | 17 | 17 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | 187 | 159 | 1 | 9 | 9 | 3 | 0 | 6 |
+| **Total** | 187 | 162 | 1 | 9 | 9 | 0 | 0 | 6 |
 
 ## MCP tools
 
@@ -305,7 +305,7 @@ Routes for the tree, skills, items, config, party, evaluate domains, character i
 
 ## F3. Import and trade query: in progress
 
-In: character import from a public profile, jewel finding (`evaluate.jewel_mods`, jewels in `evaluate.compare_item`), gear finding for every slot (`evaluate.item_mods`), the Buy similar search for an item (`items.buy_similar`), mod lines to trade stat ids (`lookup.trade_stats`), and trade search from the server (`trade.search`) under the limits in `SPEC.md`. The one live check against the trade site after deploy is the orchestrator's; until then the link form and the site's mod-line shape without an account are unverified (both shapes are read).
+In: character import from a public profile, jewel finding (`evaluate.jewel_mods`, jewels in `evaluate.compare_item`), gear finding for every slot (`evaluate.item_mods`), the Buy similar search for an item (`items.buy_similar`), mod lines to trade stat ids (`lookup.trade_stats`), trade search from the server (`trade.search`, with the Trade tab's sort orders and Total Price) and currency rates (`trade.currency_rates`) under the limits in `SPEC.md`. The one live check against the trade site after deploy is the orchestrator's; until then the link form, the site's mod-line shape without an account (both shapes are read) and the exchange answer's shape (read as Path of Building reads it) are unverified.
 
 ## F4. Web view: separate owner
 

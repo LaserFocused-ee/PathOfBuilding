@@ -1,5 +1,6 @@
-// Trade searches on the official trade site, on request only (spec F3, "Trade search from the server").
-// Path of Building's own request shapes (src/Classes/TradeQueryRequests.lua) and client string; the host is fixed;
+// Trade searches on the official trade site, on request only (spec F3, "Trade search from the server"), and the currency
+// rates Path of Building prices listings with (TradeQuery:PullCXData).
+// Path of Building's own request shapes (src/Classes/TradeQueryRequests.lua) and client string; the hosts are fixed;
 // one limiter for the whole process, reading the site's rate-limit headers as TradeQueryRateLimiter.lua does, pacing
 // at half of every stated window (a quarter for background callers). No account, no cookies, no retries: a 429 or
 // any 4xx stops the call. Nothing here repeats a search by itself.
@@ -9,13 +10,22 @@ import { ApiError } from "./errors.js";
 import { readCapped } from "./fetch.js";
 import type { Logger } from "./log.js";
 
-export const TRADE_HOST = "www.pathofexile.com";
+/** Every host a trade request may go to: the trade site, and the currency exchange's hourly history. The one place they are named. */
+export const TRADE_HOSTS = ["www.pathofexile.com", "web.poecdn.com"] as const;
+export const [TRADE_HOST, EXCHANGE_HOST] = TRADE_HOSTS;
 const ORIGIN = `https://${TRADE_HOST}/`;
+/** Path of Building's two currency downloads (TradeQuery:PullCXData): the trade site's short currency names, then an hour of the exchange. */
+export const STATIC_URL = `${ORIGIN}api/trade/data/static`;
+/** The exchange hour Path of Building asks for: the last complete one, in unix seconds. */
+export const exchangeHour = (ms: number): number => (Math.floor(ms / 3_600_000) - 1) * 3600;
+export const exchangeUrl = (realm: TradeRealm, hour: number): string => `https://${EXCHANGE_HOST}/api/currency-exchange${realm === "pc" ? "" : `/${realm}`}/${hour}`;
 
 export type Priority = "interactive" | "background";
 export type TradeRealm = "pc" | "xbox" | "sony";
-type Policy = "search" | "fetch" | "leagues";
-const POLICIES: readonly Policy[] = ["search", "fetch", "leagues"];
+type Policy = "search" | "fetch" | "leagues" | "static" | "exchange";
+const POLICIES: readonly Policy[] = ["search", "fetch", "leagues", "static", "exchange"];
+/** Policies Path of Building asks at most once an hour (its rates cache); each is one host and one request an hour. */
+const HOURLY: ReadonlySet<Policy> = new Set(["static", "exchange"]);
 
 /** Share of each stated window a caller may use. */
 const SHARE: Record<Priority, number> = { interactive: 0.5, background: 0.25 };
@@ -23,6 +33,9 @@ const SHARE: Record<Priority, number> = { interactive: 0.5, background: 0.25 };
 const FIRST_RULES = [{ limit: 2, period: 10, hits: 0 }];
 const CACHE_MS = 10 * 60_000;
 const LEAGUES_CACHE_MS = 60 * 60_000; // leagues change at league start only
+const RATES_MS = 60 * 60_000; // PullCXData: "Limit Currency Conversion request to 1 per hour"
+/** An hour of the exchange was 1.3 MB for 10 leagues (Nov 2026); the general fetch cap is for one build or profile. */
+const EXCHANGE_MAX_BYTES = 8_000_000;
 
 const CACHE_ENTRIES = 100; // ponytail: oldest-first eviction; an LRU only if repeated asks show it matters
 const FETCH_BLOCK = 10;
@@ -74,7 +87,7 @@ export class TradeLimiter {
     private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
   ) {
     const fresh = (): PolicyState => ({ rules: FIRST_RULES.map((r) => ({ ...r })), siteAt: 0, sent: [], holdUntil: 0, queued: 0, lock: Promise.resolve() });
-    this.p = { search: fresh(), fetch: fresh(), leagues: fresh() };
+    this.p = { search: fresh(), fetch: fresh(), leagues: fresh(), static: fresh(), exchange: fresh() };
   }
 
   /** Milliseconds until a request of this priority may go. */
@@ -199,6 +212,13 @@ export interface TradeSearch extends TradeAsk {
   listings: number;
 }
 
+export interface CurrencyRates {
+  /** The exchange hour the rates are from (unix seconds; the last complete hour when they were fetched). */
+  hour: number;
+  /** Divines per one of each currency, by the trade site's short id (divine = 1), as Path of Building converts them. */
+  rates: Record<string, number>;
+}
+
 export interface TradeLeagues {
   /** Not permanent ones first in the site's order, then Standard, Hardcore, Ruthless, Hardcore Ruthless (those the site lists). */
   leagues: string[];
@@ -210,6 +230,13 @@ const searchReply = z.object({ id: z.string().regex(ID), result: z.array(z.strin
 const fetchReply = z.object({ result: z.array(z.unknown()) });
 const leaguesReply = z.object({ result: z.array(z.unknown()) });
 const leagueShape = z.object({ id: z.string().max(64).regex(LEAGUE_NAME), realm: z.string() });
+/** The trade site's static data: PullCXData reads the first group's entries (short id and name of each bulk item). */
+const staticReply = z.object({ result: z.array(z.object({ id: z.string().max(100), entries: z.array(z.object({ id: z.string().max(100), text: z.string().max(200) })).max(5000) })).min(1).max(200) });
+const cxId = z.string().max(200);
+/** An hour of the exchange, the fields PullCXData reads. */
+const exchangeReply = z.object({ markets: z.array(z.object({ league: z.string().max(100), market_pair: z.tuple([cxId, cxId]), lowest_ratio: z.record(cxId, z.number()), highest_stock: z.record(cxId, z.number()) })).max(100_000) });
+export type StaticData = z.infer<typeof staticReply>;
+export type ExchangeHour = z.infer<typeof exchangeReply>;
 /**
  * A mod line as FetchResultBlock reads it ({ description, flags }); a plain string (the older answer shape, which also keeps
  * crafted and fractured mods in their own lists) is read as its description. Which shape the site sends without an account
@@ -270,6 +297,10 @@ export const tradeUrl = (root: string, realm: TradeRealm, league: string): strin
 export class TradeClient {
   private readonly cache = new Map<string, { at: number; value: TradeResult }>();
   private readonly leagueCache = new Map<TradeRealm, { at: number; value: TradeLeagues }>();
+  private readonly ratesCache = new Map<string, { at: number; value: CurrencyRates }>();
+  private staticCache?: { at: number; value: StaticData };
+  /** When each hourly policy last sent a request, answered or not. */
+  private readonly asked = new Map<Policy, number>();
 
   constructor(
     private readonly cfg: Pick<Config, "fetchTimeoutMs" | "fetchMaxBytes">,
@@ -334,48 +365,84 @@ export class TradeClient {
     return { ...value, cached: false };
   }
 
+  /**
+   * The league's currency rates as Path of Building prices listings: from a cache younger than an hour, or the trade site's
+   * static data (itself kept an hour) and the last complete hour of the exchange, `convert`ed by Path of Building's own code.
+   * Each of the two hosts is asked at most once an hour, a failed request included; a request inside the hour is refused.
+   */
+  async currencyRates(realm: TradeRealm, league: string, ask: TradeAsk, convert: (data: StaticData, hour: ExchangeHour) => Promise<Record<string, number>>): Promise<CurrencyRates & { cached: boolean }> {
+    const key = JSON.stringify([realm, league]);
+    const hit = this.ratesCache.get(key);
+    if (hit && this.now() - hit.at < RATES_MS) return { ...hit.value, cached: true };
+    let data = this.staticCache && this.now() - this.staticCache.at < RATES_MS ? this.staticCache.value : undefined;
+    if (!data) {
+      const reply = staticReply.safeParse(await this.send("static", ask, STATIC_URL, "GET"));
+      if (!reply.success) throw new ApiError("upstream_fetch_failed", "the trade site's static data was not in the expected shape");
+      data = { result: reply.data.result.slice(0, 1) }; // the only group PullCXData reads
+      this.staticCache = { at: this.now(), value: data };
+    }
+    const hour = exchangeHour(this.now());
+    const reply = exchangeReply.safeParse(await this.send("exchange", ask, exchangeUrl(realm, hour), "GET"));
+    if (!reply.success) throw new ApiError("upstream_fetch_failed", "the currency exchange's answer was not in the expected shape");
+    const markets = reply.data.markets.filter((m) => m.league === league);
+    if (markets.length === 0) throw new ApiError("upstream_fetch_failed", `the currency exchange has no markets for ${league} in the hour ${hour} (${realm})`, { league, hour });
+    const value = { hour, rates: await convert(data, { markets }) };
+    this.ratesCache.set(key, { at: this.now(), value });
+    return { ...value, cached: false };
+  }
+
   private async send(policy: Policy, s: TradeAsk, url: string, method: "GET" | "POST", body?: string): Promise<unknown> {
+    const host = new URL(url);
+    if (host.protocol !== "https:" || !(TRADE_HOSTS as readonly string[]).includes(host.hostname)) throw new ApiError("worker_error", `refused a trade request to ${host.hostname}: not one of ${TRADE_HOSTS.join(", ")}`);
+    const last = this.asked.get(policy);
+    if (HOURLY.has(policy) && last !== undefined && this.now() - last < RATES_MS) {
+      const wait = Math.ceil((last + RATES_MS - this.now()) / 1000);
+      throw new ApiError("rate_limited", `the ${policy} data was asked less than an hour ago and Path of Building asks at most once an hour; try again in ${wait}s`, { retryAfterSeconds: wait });
+    }
+    const site = host.hostname === TRADE_HOST ? "the trade site" : host.hostname;
     const started = this.now();
     const res = await this.limiter.run(policy, s.priority, s.deadline, async () => {
+      if (HOURLY.has(policy)) this.asked.set(policy, this.now());
       try {
-        // the headers TradeQueryRequests:ProcessQueue sends, and Launch.lua's client string; no cookies, no authorization
+        // the headers TradeQueryRequests:ProcessQueue sends (launch:DownloadPage, which the rates use, sends only the client
+        // string), and Launch.lua's client string; no cookies, no authorization
         return await (this.fetchImpl ?? fetch)(url, {
           method,
           redirect: "manual",
-          headers: { "content-type": "application/json", "user-agent": s.userAgent },
+          headers: HOURLY.has(policy) ? { "user-agent": s.userAgent } : { "content-type": "application/json", "user-agent": s.userAgent },
           ...(body === undefined ? {} : { body }),
           signal: AbortSignal.timeout(this.cfg.fetchTimeoutMs),
         });
       } catch (e) {
         this.log.warn({ event: "trade.request", policy, priority: s.priority, ok: false, duration_ms: this.now() - started, reason: (e as Error).name });
-        throw new ApiError("upstream_fetch_failed", `request to the trade site failed: ${(e as Error).name}`);
+        throw new ApiError("upstream_fetch_failed", `request to ${site} failed: ${(e as Error).name}`);
       }
     });
     this.log.info({ event: "trade.request", policy, priority: s.priority, status: res.status, ok: res.ok, duration_ms: this.now() - started });
     if (res.status >= 300 && res.status < 400) {
       await res.body?.cancel();
-      throw new ApiError("upstream_fetch_failed", `the trade site answered ${res.status}; redirects are not followed`, { status: res.status });
+      throw new ApiError("upstream_fetch_failed", `${site} answered ${res.status}; redirects are not followed`, { status: res.status });
     }
     let text: string;
     try {
-      text = await readCapped(res, this.cfg.fetchMaxBytes, TRADE_HOST);
+      text = await readCapped(res, policy === "exchange" ? EXCHANGE_MAX_BYTES : this.cfg.fetchMaxBytes, host.hostname);
     } catch (e) {
       if (e instanceof ApiError) throw e;
-      throw new ApiError("upstream_fetch_failed", `reading the trade site's answer failed: ${(e as Error).name}`);
+      throw new ApiError("upstream_fetch_failed", `reading ${site}'s answer failed: ${(e as Error).name}`);
     }
     if (!res.ok) {
       const retry = Number(res.headers.get("retry-after"));
       const retryAfter = Number.isFinite(retry) && retry > 0 ? { retryAfterSeconds: retry } : res.status === 429 ? { retryAfterSeconds: 60 } : {};
       const headers = limitHeaders(res);
-      if (res.status === 429) throw new ApiError("rate_limited", "the trade site is limiting requests; stopped", { status: 429, ...retryAfter, headers });
+      if (res.status === 429) throw new ApiError("rate_limited", `${site} is limiting requests; stopped`, { status: 429, ...retryAfter, headers });
       // The site's own words only for a refused query (400); any other 4xx (a 403 on the client string, say) is reported by status and headers, never retried.
       const said = res.status === 400 ? siteMessage(text) : "";
-      throw new ApiError(res.status === 400 ? "invalid_input" : "upstream_fetch_failed", `the trade site answered ${res.status}${said ? `: ${said}` : ""}`, { status: res.status, ...retryAfter, headers });
+      throw new ApiError(res.status === 400 ? "invalid_input" : "upstream_fetch_failed", `${site} answered ${res.status}${said ? `: ${said}` : ""}`, { status: res.status, ...retryAfter, headers });
     }
     try {
       return JSON.parse(text) as unknown;
     } catch {
-      throw new ApiError("upstream_fetch_failed", "the trade site's answer was not JSON");
+      throw new ApiError("upstream_fetch_failed", `${site}'s answer was not JSON`);
     }
   }
 }

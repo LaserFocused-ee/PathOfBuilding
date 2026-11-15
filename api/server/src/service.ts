@@ -7,7 +7,7 @@ import { decodeBuildCode, GAME_HOST, type Fetcher, type Relayed } from "./fetch.
 import type { Logger } from "./log.js";
 import { LOOKUP_SESSION, type Pool } from "./pool.js";
 import { type BuildMeta, type BuildSource, type BuildStore, TRASH_DAYS } from "./store.js";
-import { type Priority, type TradeClient, type TradeLeagues, type TradeRealm, type TradeResult, tradeClientString, tradeUrl } from "./trade.js";
+import { type CurrencyRates, type Priority, type TradeAsk, type TradeClient, type TradeLeagues, type TradeRealm, type TradeResult, tradeClientString, tradeUrl } from "./trade.js";
 import type { WorkerReply } from "./worker.js";
 
 export interface Summary {
@@ -40,9 +40,19 @@ export interface TradeSearchInput {
   priority: Priority;
   searches: Array<{ query: Record<string, unknown>; sort?: Record<string, "asc" | "desc">; slot?: string; listings: number }>;
   buildId?: string;
+  /** The Trade tab's sort of each search's listings; default gain with a build, else the site's order. */
+  order?: TradeOrder;
   weights?: Array<{ stat: string; weight: number }>;
   fields?: string[];
 }
+
+/**
+ * TradeQuery:SortFetchResults' modes: the site's order (Weight), gain (Stat Value), price in divines (Price), and gain less 0.1 x
+ * log10 of the price (Stat Value / Price, on the weighted ratio, which is gain / 1000 plus the build's own).
+ */
+export type TradeOrder = "site" | "gain" | "price" | "gainPrice";
+const byPrice = (o: TradeOrder): boolean => o === "price" || o === "gainPrice";
+const divs = (n: number): number => Math.round(n * 1e6) / 1e6;
 
 /** How long an interactive trade call may wait for the pace, in total. */
 const TRADE_CALL_MS = 60_000; // ponytail: one budget per call; per-search budgets if long batches need them
@@ -434,6 +444,19 @@ export class Service {
     return { result: { realm: i.realm, ...r, limiter: this.trade.limiter.state() }, warnings: [] };
   }
 
+  /** The trade league's currency rates in divines, as Path of Building converts the exchange (TradeQuery:PullCXData), an hour's cache. */
+  private rates(realm: TradeRealm, league: string, ask: TradeAsk): Promise<CurrencyRates & { cached: boolean }> {
+    return this.trade.currencyRates(realm, league, ask, async (data, hour) =>
+      (await this.pool.run<{ rates: Record<string, number> }>(LOOKUP_SESSION, "lookup.currency_rates", { realm, league, static: data, exchange: hour })).result.rates);
+  }
+
+  /** The configured league's currency rates, asked of the trade site and the exchange on request only. A stop is thrown, not answered. */
+  async currencyRates(i: { realm: TradeRealm; priority: Priority; league?: string }): Promise<Output> {
+    const league = this.tradeLeague(i.league, true);
+    const r = await this.rates(i.realm, league, { priority: i.priority, deadline: Date.now() + TRADE_CALL_MS, userAgent: await this.tradeUserAgent() });
+    return { result: { realm: i.realm, league, ...r, limiter: this.trade.limiter.state() }, warnings: [] };
+  }
+
   /**
    * Trade searches, one after another, each with the fetches for its first listings; each listing converted to item text by
    * the worker and, with a build, scored in its slot. The first stop (limiter refusal, 429, any 4xx, a failed request) ends
@@ -441,6 +464,8 @@ export class Service {
    */
   async tradeSearch(i: TradeSearchInput): Promise<Output> {
     const league = this.tradeLeague(i.league, true);
+    const order = i.order ?? (i.buildId === undefined ? "site" : "gain");
+    if ((order === "gain" || order === "gainPrice") && i.buildId === undefined) throw new ApiError("invalid_input", `order ${order} scores listings: give buildId`);
     const userAgent = await this.tradeUserAgent();
     const deadline = Date.now() + TRADE_CALL_MS;
     const searches: unknown[] = [];
@@ -452,11 +477,23 @@ export class Service {
       listed = await this.trade.leagues(i.realm, { priority: i.priority, deadline, userAgent });
     } catch (e) {
       if (!(e instanceof ApiError)) throw e;
-      return { result: { searches, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, limiter: this.trade.limiter.state() }, warnings };
+      return { result: { searches, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, total: null, rates: null, limiter: this.trade.limiter.state() }, warnings };
     }
     if (!listed.leagues.includes(league)) {
       throw new ApiError("invalid_input", `the configured trade league ${league} is not on the trade site's list for ${i.realm} (current: ${listed.current ?? "none listed"}); set POB_API_TRADE_LEAGUE to the league being played`, { league, current: listed.current });
     }
+    // A price order needs the rates before the first search; a stop asking them stops the call as a search stop does.
+    let rates: (CurrencyRates & { cached: boolean }) | undefined;
+    if (byPrice(order)) {
+      try {
+        rates = await this.rates(i.realm, league, { priority: i.priority, deadline, userAgent });
+      } catch (e) {
+        if (!(e instanceof ApiError)) throw e;
+        return { result: { searches, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, total: null, rates: null, limiter: this.trade.limiter.state() }, warnings };
+      }
+    }
+    const rateOf = (currency: string): number | undefined => rates?.rates[currency];
+    const picks: Array<{ amount: number; currency: string }> = [];
     for (const s of i.searches) {
       const ask = { realm: i.realm, league, body: { query: s.query, sort: s.sort ?? { price: "asc" }, engine: "new" }, listings: s.listings };
       let r: TradeResult | undefined = this.trade.cached(ask);
@@ -476,12 +513,44 @@ export class Service {
       })).result).listings;
       const listings = r.entries.map((e, k) => {
         const row = scored[k];
-        return { id: e.id, price: e.price, indexed: e.indexed, text: row?.text ?? null, score: row?.score ?? null, ...(row?.error ? { error: row.error } : {}) };
+        const rate = e.price ? rateOf(e.price.currency) : undefined;
+        return {
+          id: e.id, price: e.price, ...(rates ? { divines: e.price && rate !== undefined ? divs(e.price.amount * rate) : null } : {}), indexed: e.indexed,
+          text: row?.text ?? null, score: row?.score ?? null, ...(row?.error ? { error: row.error } : {}),
+        };
       });
-      if (i.buildId !== undefined) listings.sort((a, b) => (b.score?.gain ?? -Infinity) - (a.score?.gain ?? -Infinity));
-      searches.push({ searchId: r.searchId, total: r.total, cached, link: `${tradeUrl("trade/search", i.realm, league)}/${r.searchId}`, listings });
+      // As SortFetchResults: a price order with any listing it cannot price falls back to gain (the site's order without a build).
+      let used = order;
+      if (byPrice(order) && !listings.every((l) => typeof l.divines === "number")) {
+        used = i.buildId === undefined ? "site" : "gain";
+        const missing = [...new Set(listings.filter((l) => typeof l.divines !== "number").map((l) => l.price?.currency ?? "no price"))].sort();
+        warnings.push(`search ${searches.length + 1}: no ${league} rate for ${missing.join(", ")}; ordered by ${used} instead of ${order}`);
+      }
+      const gain = (l: (typeof listings)[number]): number => l.score?.gain ?? -Infinity;
+      if (used === "gain") listings.sort((a, b) => gain(b) - gain(a));
+      else if (used === "price") listings.sort((a, b) => (a.divines ?? 0) - (b.divines ?? 0));
+      else if (used === "gainPrice") {
+        const key = (l: (typeof listings)[number]): number => gain(l) / 1000 - 0.1 * Math.log10(l.divines ?? 1);
+        listings.sort((a, b) => key(b) - key(a));
+      }
+      const pick = listings[0]?.price;
+      if (pick) picks.push(pick);
+      searches.push({ searchId: r.searchId, total: r.total, cached, order: used, link: `${tradeUrl("trade/search", i.realm, league)}/${r.searchId}`, listings });
     }
-    return { result: { searches, notRun: i.searches.length - searches.length, stopped, limiter: this.trade.limiter.state() }, warnings };
+    // The Trade tab's Total Price: the first listing of each search, summed per currency, most valuable currency first.
+    const sums = new Map<string, number>();
+    for (const p of picks) sums.set(p.currency, (sums.get(p.currency) ?? 0) + p.amount);
+    const prices = [...sums].map(([currency, amount]) => ({ currency, amount }));
+    prices.sort((a, b) => {
+      const [ra, rb] = [rateOf(a.currency), rateOf(b.currency)];
+      return ra !== undefined && rb !== undefined ? rb - ra : a.currency > b.currency ? -1 : a.currency < b.currency ? 1 : 0;
+    });
+    const priced = rates !== undefined && prices.every((p) => rateOf(p.currency) !== undefined);
+    const total = { prices, divines: priced ? divs(prices.reduce((n, p) => n + p.amount * (rateOf(p.currency) ?? 0), 0)) : null };
+    return {
+      result: { searches, notRun: i.searches.length - searches.length, stopped, total, rates: rates ? { hour: rates.hour, cached: rates.cached } : null, limiter: this.trade.limiter.state() },
+      warnings,
+    };
   }
 
   /** A read-only worker command on a build's session, or on the lookup session when no build is named. */

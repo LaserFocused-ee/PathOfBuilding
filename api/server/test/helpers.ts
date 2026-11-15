@@ -48,10 +48,13 @@ export interface TestServer extends Started {
   close: () => Promise<void>;
 }
 
+/** The outside world of a test server that was given no recorded one: every request fails, so no test reaches a real site. */
+const offline: typeof fetch = (input) => Promise.reject(new Error(`a test reached for the network: ${input instanceof Request ? input.url : input.toString()}`));
+
 export async function startServer(overrides: Partial<Config> = {}, deps: RuntimeDeps = {}): Promise<TestServer> {
   const dir = await tempDir("srv");
   const { log, lines } = memoryLogger();
-  const s = await start(testConfig(dir.path, overrides), log, deps);
+  const s = await start(testConfig(dir.path, overrides), log, { ...deps, fetch: deps.fetch ?? offline });
   const base = `http://127.0.0.1:${s.port}`;
   return {
     ...s,
