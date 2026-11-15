@@ -78,20 +78,28 @@ return function(W)
 		return out
 	end
 
-	-- The item list in order, every slot with what it holds, item sets.
-	function ops.list()
+	-- The item list in order, every slot with what it holds, item sets. args: itemSet? (index): the slots as that set holds
+	-- them (each set keeps its own slot items and flask state, ItemsTab itemSets[id][slotName]), without switching to it.
+	function ops.list(args)
 		local tab = W.build().itemsTab
 		local items = {}
 		for _, id in ipairs(tab.itemOrderList) do items[#items + 1] = describe(tab, tab.items[id]) end
+		local set = tab.activeItemSet
+		if args and args.itemSet ~= nil then
+			local id = tab.itemSetOrderList[tonumber(args.itemSet)]
+			if not id then W.fail("not_found", "no item set " .. tostring(args.itemSet)) end
+			set = tab.itemSets[id]
+		end
 		local slots = {}
 		for _, slot in ipairs(tab.orderedSlots) do
 			if not slot.nodeId and slot:IsShown() then
+				local held = set[slot.slotName] or {}
 				local active
-				if slot.controls.activate then active = slot.active == true end -- flask and tincture slots
-				slots[#slots + 1] = { slot = slot.slotName, item = slot.selItemId ~= 0 and slot.selItemId or nil, active = active }
+				if slot.controls.activate then active = held.active == true end -- flask and tincture slots
+				slots[#slots + 1] = { slot = slot.slotName, item = (held.selItemId or 0) ~= 0 and held.selItemId or nil, active = active }
 			end
 		end
-		return { items = items, slots = slots, sets = sets(tab), weaponSet = tab.activeItemSet.useSecondWeaponSet and 2 or 1 }
+		return { items = items, slots = slots, sets = sets(tab), weaponSet = set.useSecondWeaponSet and 2 or 1 }
 	end
 
 	-- args: item. The item's text and parsed lines, variants, roll ranges and the slots it fits.

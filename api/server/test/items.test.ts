@@ -228,6 +228,11 @@ void test("item sets: new, copy, rename, activate (stats follow the set), delete
   const back = ok(await post(id, "set-activate", { index: 1 }));
   assert.deepEqual(back.changed.Life, { before: 1125, after: 1205 });
   assert.deepEqual(await titles(), [["Default", true], ["Renamed", false], ["Empty", false]]);
+  // list with itemSet: the slots as another set holds them, without switching to it
+  const bodyIn = async (q: string) => ok(await srv.call<Listing>("GET", `/v1/items/${id}/list${q}`)).slots.find((x) => x.slot === "Body Armour")?.item;
+  assert.deepEqual([await bodyIn(""), await bodyIn("?itemSet=1"), await bodyIn("?itemSet=2"), await bodyIn("?itemSet=3")], [1, 1, undefined, undefined]);
+  assert.deepEqual(await titles(), [["Default", true], ["Renamed", false], ["Empty", false]], "listing a set does not switch to it");
+  fails(await srv.call("GET", `/v1/items/${id}/list?itemSet=9`), 404, "not_found");
 
   ok(await post(id, "set-delete", { index: 3 }));
   ok(await post(id, "set-delete", { index: 2 }));

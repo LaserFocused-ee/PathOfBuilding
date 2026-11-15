@@ -84,6 +84,23 @@ return function(W)
 		return b.calcsTab:GetMiscCalculator()
 	end
 
+	-- The damage over time cap (data.misc.DotDpsCap): TotalDot, TotalDotDPS and the figures built on them (CombinedDPS,
+	-- FullDPS) stop there, so gains past it read 0. Named when the build's output is at it; the per-type DoT figures
+	-- (ChaosDot, FireDot, ...: one instance, before the skill's DPS multipliers) are not capped and still measure.
+	local dotKeys = { "TotalDot", "TotalDotDPS", "FullDotDPS", "TotalPoisonDPS", "IgniteDPS", "BleedDPS" }
+	local function dotCapOf(output)
+		local at = {}
+		for _, k in ipairs(dotKeys) do
+			if type(output[k]) == "number" and output[k] >= data.misc.DotDpsCap then at[#at + 1] = k end
+		end
+		if #at == 0 then return nil end
+		local raw = {}
+		for _, t in ipairs({ "Physical", "Lightning", "Cold", "Fire", "Chaos" }) do
+			if type(output[t .. "Dot"]) == "number" and output[t .. "Dot"] > 0 then raw[#raw + 1] = t .. "Dot" end
+		end
+		return { cap = data.misc.DotDpsCap, at = setmetatable(at, { __jsontype = "array" }), uncapped = setmetatable(raw, { __jsontype = "array" }) }
+	end
+
 	-- A passive node by id or exact name.
 	local function nodeOf(spec, ref)
 		if type(ref) == "string" and ref:match("^%d+$") then ref = tonumber(ref) end
@@ -185,7 +202,39 @@ return function(W)
 		if next(override) == nil then bad("nothing to evaluate: give nodes, an item for a slot, a flask, a tincture or conditions") end
 		local fields = fieldsOf(args)
 		local calcFunc, calcBase = calculator(b)
-		return { changed = diff(values(b, calcBase, fields), values(b, calcFunc(override), fields)) }
+		local before = values(b, calcBase, fields)
+		local res = { changed = diff(before, values(b, calcFunc(override), fields)), dotCap = dotCapOf(calcBase) }
+		-- As the tree's hover: a node to add brings the path that reaches it, a node to remove the nodes that depend on it.
+		-- `withPaths` is the same evaluation with those, `points` the nodes it adds or removes.
+		if override.addNodes or override.removeNodes then
+			local wide, paths, extra = {}, {}, false
+			for key, list in pairs({ addNodes = "path", removeNodes = "depends" }) do
+				if override[key] then
+					wide[key] = {}
+					for node in pairs(override[key]) do
+						local chain = (key == "addNodes" and not node.alloc and node.path) or (key == "removeNodes" and node.alloc and node.depends) or { node }
+						local names = {}
+						for _, n in ipairs(chain) do
+							wide[key][n] = true
+							names[#names + 1] = { id = n.id, name = W.strip(n.dn) }
+						end
+						if #chain > 1 then extra = true end
+						paths[#paths + 1] = { node = node.id, name = W.strip(node.dn), kind = list, points = #chain, nodes = setmetatable(names, { __jsontype = "array" }) }
+					end
+				end
+			end
+			table.sort(paths, function(x, y) return x.node < y.node end)
+			res.paths = setmetatable(paths, { __jsontype = "array" })
+			if extra then
+				local o = {}
+				for k, v in pairs(override) do o[k] = v end
+				o.addNodes, o.removeNodes = wide.addNodes, wide.removeNodes
+				local points = 0
+				for _, set in pairs(wide) do for _ in pairs(set) do points = points + 1 end end
+				res.withPaths = { changed = diff(before, values(b, calcFunc(o), fields)), points = points }
+			end
+		end
+		return res
 	end
 
 	-- args: stat, depth? (largest path distance; default 10, the whole tree can outlast the worker timeout), limit?, offset?.
@@ -230,7 +279,7 @@ return function(W)
 		end)
 		local page = {}
 		for i = offset + 1, math.min(offset + limit, #list) do page[#page + 1] = list[i] end
-		return { stat = args.stat, total = #list, offset = offset, nodes = page }
+		return { stat = args.stat, total = #list, offset = offset, nodes = page, dotCap = dotCapOf(b.calcsTab.mainOutput) }
 	end
 
 	-- args: candidates? (node ids or exact names; default every unallocated passive next to the allocated tree), fields?,
@@ -414,7 +463,7 @@ return function(W)
 			return x.order < y.order
 		end)
 		for _, row in ipairs(out) do row.order = nil end
-		return { text = text, slots = out }
+		return { text = text, slots = out, dotCap = dotCapOf(calcBase) }
 	end
 
 	-- The gem box lists these fields (SkillsTab.lua sortGemTypeList).

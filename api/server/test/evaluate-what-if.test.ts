@@ -68,6 +68,23 @@ void test("what_if nodes: adding a node equals allocating it; removing a leaf eq
   assert.deepEqual(keystone.changed, (await ev<{ changed: Changed }>(base, "what-if", { addNodes: [22088], fields: ["CombinedDPS"] })).changed, "a name and its id are the same node");
 });
 
+void test("what_if nodes with their paths, as the tree's hover: the path an added node needs, the nodes a removal cuts", async () => {
+  type Paths = { changed: Changed; paths: Array<{ node: number; kind: string; points: number; nodes: Array<{ id: number }> }>; withPaths?: { changed: Changed; points: number } };
+  const far = await ev<Paths>(base, "what-if", { addNodes: ["Elemental Overload"] });
+  const path = far.paths[0];
+  assert.ok(path && path.kind === "path" && path.points > 1 && path.nodes.some((n) => n.id === 22088), JSON.stringify(far.paths));
+  assert.equal(far.withPaths?.points, path.points);
+  const real = await mutate("tree", await dup(base), "allocate", { nodes: ["Elemental Overload"] });
+  assert.deepEqual(far.withPaths?.changed, real.changed, "with its path the what-if is the engine's own allocation");
+  // a removal that cuts the branch behind it (4184: 4 nodes), and a leaf (30225) that cuts only itself
+  const cut = await ev<Paths>(base, "what-if", { removeNodes: [4184] });
+  assert.deepEqual([cut.paths[0]?.kind, cut.paths[0]?.points, cut.withPaths?.points], ["depends", 4, 4]);
+  const gone = await mutate("tree", await dup(base), "deallocate", { nodes: [4184] });
+  assert.deepEqual(cut.withPaths?.changed, gone.changed, "with its dependents the what-if is the engine's own deallocation");
+  const leaf = await ev<Paths>(base, "what-if", { removeNodes: [30225] });
+  assert.deepEqual([leaf.paths[0]?.points, leaf.withPaths], [1, undefined]);
+});
+
 void test("what_if nodes by name, removal and fields", async () => {
   const removed = await ev<{ changed: Changed }>(base, "what-if", { removeNodes: ["Fire Walker"] });
   assert.deepEqual(removed.changed, {
