@@ -2020,6 +2020,7 @@ Crimson Jewel
 Crafted: true
 League: Affliction
 Limited to: 1
+Requires Level 48
 Implicits: 0
 ]]
 }
