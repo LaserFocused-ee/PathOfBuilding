@@ -5,6 +5,7 @@ return function(itemBases)
 #base Metadata/Items/Jewels/JewelDex
 #base Metadata/Items/Jewels/JewelInt
 #base Metadata/Items/Jewels/JewelPrismatic
+#base Metadata/Items/Jewels/JewelBlighted
 
 #subType Abyss
 #base Metadata/Items/Jewels/JewelAbyssSummoner
