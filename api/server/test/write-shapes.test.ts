@@ -210,7 +210,14 @@ void test("config.party_export shows what Export Support would export and leaves
   const out = (await get(`/v1/config/${id}/party-export`)) as { enabled: boolean; exports: Record<string, string> };
   assert.equal(out.enabled, false);
   assert.ok(route("config.party_export").output.safeParse(out).success);
-  assert.equal(out.exports.Aura, "Determination\n100\n1026|Skill:Determination|Armour|BASE|-|-|type=GlobalEffect/effectType=Aura\n49|Skill:Determination|Armour|MORE|-|-|type=GlobalEffect/effectType=Aura\n---");
+  // The aura's mod lines come in the order of its mod list, which Path of Building builds from an unordered table: the
+  // lines are compared as a set between the aura's name and effect and the closing "---".
+  const aura = out.exports.Aura?.split("\n") ?? [];
+  assert.deepEqual([aura.slice(0, 2), aura.slice(2, -1).sort(), aura.at(-1)], [
+    ["Determination", "100"],
+    ["1026|Skill:Determination|Armour|BASE|-|-|type=GlobalEffect/effectType=Aura", "49|Skill:Determination|Armour|MORE|-|-|type=GlobalEffect/effectType=Aura"],
+    "---",
+  ]);
   assert.equal(out.exports.Warcry, "");
   assert.deepEqual([(await get(`/v1/builds/${id}/code`)).code, await revisionOf(id)], [codeBefore, revisionBefore]);
 });

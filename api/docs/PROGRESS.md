@@ -75,7 +75,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | --- | --- | --- | --- |
 | `tree.get` | H | done | `tree.get`; edit.test.ts |
 | `tree.allocate` | H | done | `tree.allocate`; edit.test.ts |
-| `tree.allocate_any` | X | open | Cross-ascendancy and bloodline allocation has no route |
+| `tree.allocate_any` | X | done | `tree.allocate` with `ascendancy: "switch"`; tree-ascendancy.test.ts |
 | `tree.deallocate` | H | done | `tree.deallocate`; edit.test.ts |
 | `tree.reset` | H | done | `tree.reset`; edit.test.ts |
 | `tree.connect_to_class` | H | done | `tree.set_class` with `onDisconnected: connect`; edit.test.ts |
@@ -263,7 +263,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | builds | 30 | 17 | 0 | 9 | 2 | 0 | 2 |
 | import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
-| tree | 27 | 25 | 0 | 0 | 0 | 1 | 1 |
+| tree | 27 | 26 | 0 | 0 | 0 | 1 | 0 |
 | skills | 17 | 16 | 0 | 0 | 0 | 1 | 0 |
 | items and crafting | 30 | 29 | 0 | 0 | 1 | 0 | 0 |
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
@@ -272,7 +272,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 135 | 1 | 9 | 9 | 24 | 10 |
+| **Total** | 187 | 136 | 1 | 9 | 9 | 24 | 9 |
 
 ## MCP tools
 

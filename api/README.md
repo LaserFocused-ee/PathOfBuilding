@@ -146,7 +146,7 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/tree/:id/set-class` | `pob_tree` `set_class` | Change class. If the tree is not connected to the new start, `onDisconnected` decides: fail (default), reset the tree, or connect it by the shortest path. |
 | `POST /v1/tree/:id/set-ascendancy` | `pob_tree` `set_ascendancy` | Change ascendancy (of the current class), or None. |
 | `POST /v1/tree/:id/set-bloodline` | `pob_tree` `set_bloodline` | Change the secondary ascendancy (bloodline), or None. |
-| `POST /v1/tree/:id/allocate` | `pob_tree` `allocate` | Allocate nodes, each with the shortest path to it, as clicking them does. |
+| `POST /v1/tree/:id/allocate` | `pob_tree` `allocate` | Allocate nodes, each with the shortest path to it, as clicking them does. A node of another ascendancy or bloodline is refused unless `ascendancy` is "switch", which switches to that ascendancy, bloodline or class first, as clicking the node does (`onDisconnected` as in set_class). |
 | `POST /v1/tree/:id/deallocate` | `pob_tree` `deallocate` | Deallocate nodes and every node that depended on them. |
 | `POST /v1/tree/:id/reset` | `pob_tree` `reset` | Reset the tree (the Reset Tree button). |
 | `GET /v1/tree/:id/mastery-options` | `pob_tree` `mastery_options` | The effects a mastery node offers and which is selected. |

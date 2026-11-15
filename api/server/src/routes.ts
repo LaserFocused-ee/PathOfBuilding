@@ -208,9 +208,10 @@ const loadoutActivated = z.looseObject({ active: z.string(), sets: loadoutSets }
 const loadoutCreated = z.looseObject({ name: z.string(), sets: loadoutSets, dropped: strings }); // build loadout_new
 const uiResult = z.looseObject({ tab: z.string(), control: z.string(), operation: z.string(), text: z.string().optional(), state: z.boolean().optional(), selected: z.number().optional() }); // build ui_invoke
 const classResult = z.looseObject({ className: z.string() }); // tree set_class
+const onDisconnected = z.enum(["fail", "reset", "connect"]).optional().describe("When the tree is not connected to the other class's start: fail, reset the tree, or connect it by the shortest path");
 const ascendancyResult = z.looseObject({ ascendancy: z.string() }); // tree set_ascendancy
 const bloodlineResult = z.looseObject({ bloodline: z.string() }); // tree set_bloodline
-const allocatedResult = z.looseObject({ allocated: z.array(z.number()) }); // tree allocate: the ids asked for, in order
+const allocatedResult = z.looseObject({ allocated: z.array(z.number()), className: z.string().optional(), ascendancy: z.string().optional(), bloodline: z.string().optional() }); // tree allocate: the ids asked for, in order, and the class, ascendancy and bloodline after
 const masteryResult = z.looseObject({ nodeId: z.number(), effectId: z.number() }); // tree set_mastery
 const tattoosResult = z.looseObject({ removed: z.number() }); // tree remove_tattoos
 const specCount = z.looseObject({ count: z.number() }); // tree spec_new, spec_copy, spec_delete: trees in the list
@@ -338,10 +339,10 @@ export const routes: Route[] = [
 
   // tree
   readRoute("tree", "tree", "get", "The allocated tree: class, ascendancy, bloodline, nodes, masteries, tattoos, jewel sockets, tree list.", z.object({}), z.looseObject({ treeVersion: z.string(), className: z.string(), ascendancy: z.string().optional(), bloodline: z.string().optional(), points: z.number(), ascendancyPoints: z.number(), bloodlinePoints: z.number().optional(), nodes: z.array(nodeBrief), masteries: z.array(z.looseObject({ nodeId: z.number(), effectId: z.number(), stats: strings })), tattoos: z.array(z.looseObject({ nodeId: z.number(), name: z.string(), stats: strings })), jewelSockets: z.array(z.looseObject({ nodeId: z.number(), itemId: z.number() })), specs: z.array(specSummary) })),
-  mutateRoute("tree", "tree", "set_class", "Change class. If the tree is not connected to the new start, `onDisconnected` decides: fail (default), reset the tree, or connect it by the shortest path.", z.object({ className: z.string().min(1).max(50).describe("e.g. Shadow"), onDisconnected: z.enum(["fail", "reset", "connect"]).optional() }), classResult, ["className", "onDisconnected"]),
+  mutateRoute("tree", "tree", "set_class", "Change class. If the tree is not connected to the new start, `onDisconnected` decides: fail (default), reset the tree, or connect it by the shortest path.", z.object({ className: z.string().min(1).max(50).describe("e.g. Shadow"), onDisconnected }), classResult, ["className", "onDisconnected"]),
   mutateRoute("tree", "tree", "set_ascendancy", "Change ascendancy (of the current class), or None.", z.object({ ascendancy: z.string().min(1).max(50) }), ascendancyResult, ["ascendancy"]),
   mutateRoute("tree", "tree", "set_bloodline", "Change the secondary ascendancy (bloodline), or None.", z.object({ bloodline: z.string().min(1).max(50) }), bloodlineResult, ["bloodline"]),
-  mutateRoute("tree", "tree", "allocate", "Allocate nodes, each with the shortest path to it, as clicking them does.", z.object({ nodes: nodeList }), allocatedResult, ["nodes"]),
+  mutateRoute("tree", "tree", "allocate", "Allocate nodes, each with the shortest path to it, as clicking them does. A node of another ascendancy or bloodline is refused unless `ascendancy` is \"switch\", which switches to that ascendancy, bloodline or class first, as clicking the node does (`onDisconnected` as in set_class).", z.object({ nodes: nodeList, ascendancy: z.enum(["fail", "switch"]).optional().describe("switch: change to the node's ascendancy, bloodline or class first"), onDisconnected }), allocatedResult, ["nodes", "ascendancy", "onDisconnected"]),
   mutateRoute("tree", "tree", "deallocate", "Deallocate nodes and every node that depended on them.", z.object({ nodes: nodeList }), nothing, ["nodes"]),
   mutateRoute("tree", "tree", "reset", "Reset the tree (the Reset Tree button).", z.object({}), nothing),
   readRoute("tree", "tree", "mastery_options", "The effects a mastery node offers and which is selected.", z.object({ nodeId: nodeRef }), z.looseObject({ nodeId: z.number(), name: z.string(), allocated: z.boolean(), effects: z.array(z.looseObject({ effectId: z.number(), stats: strings, selected: z.boolean() })) }), ["nodeId"]),

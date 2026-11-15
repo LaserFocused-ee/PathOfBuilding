@@ -116,21 +116,97 @@ return function(W)
 		return { bloodline = b.spec.curSecondaryAscendClassName }
 	end)
 
-	-- args: nodes (ids or names). Allocates each with the path to it, as a click on the node does.
+	-- Whether a click on `node` switches ascendancy or bloodline first (PassiveTreeView.lua:400-431).
+	local function foreignAscendancy(spec, node)
+		if not node.ascendancyName then return false end
+		if node.isBloodline and spec.tree.alternate_ascendancies then
+			return not spec.curSecondaryAscendClass or node.ascendancyName ~= spec.curSecondaryAscendClass.id
+		end
+		return (spec.curAscendClassId == 0 or node.ascendancyName ~= spec.curAscendClassBaseName)
+			and not (spec.curSecondaryAscendClass and node.ascendancyName == spec.curSecondaryAscendClass.id)
+	end
+
+	-- What a left click on an unallocated ascendancy or bloodline node of another ascendancy does before it allocates the node
+	-- (PassiveTreeView.lua:407-506), same spec calls in the same order. `how` is onDisconnected (fail, reset, connect): the popup
+	-- the click opens for another class's ascendancy on a tree not connected to that class (lines 483-500, Continue / Connect Path).
+	local function switchFor(b, node, how)
+		local spec = b.spec
+		if node.isBloodline and spec.tree.alternate_ascendancies then
+			for bloodlineId, bloodlineData in pairs(spec.tree.alternate_ascendancies) do
+				if bloodlineData.id == node.ascendancyName then
+					spec:SelectSecondaryAscendClass(bloodlineId)
+					spec:AddUndoState()
+					spec:SetWindowTitleWithBuildClass()
+					return
+				end
+			end
+			return
+		end
+		local ascendId
+		for id, ascendClass in pairs(spec.curClass.classes) do
+			if ascendClass.id == node.ascendancyName then ascendId = id break end
+		end
+		if ascendId then
+			spec:SelectAscendClass(ascendId)
+			spec:AddUndoState()
+			spec:SetWindowTitleWithBuildClass()
+			return
+		end
+		local classId, classData
+		for id, c in pairs(spec.tree.classes) do
+			for aid, ascendClass in pairs(c.classes) do
+				if ascendClass.id == node.ascendancyName then classId, classData, ascendId = id, c, aid break end
+			end
+			if classId then break end
+		end
+		if not classId then return end
+		if not (spec:CountAllocNodes() == 0 or spec:IsClassConnected(classId)) then
+			if how == "connect" then
+				if not spec:ConnectToClass(classId) then W.fail("invalid_input", "could not connect the tree to " .. classData.name) end
+			elseif how ~= "reset" then
+				W.fail("invalid_input", ("%s belongs to %s's %s, and the tree is not connected to %s's start; pass onDisconnected reset or connect"):format(
+					node.dn, classData.name, node.ascendancyName, classData.name))
+			end
+		end
+		spec:SelectClass(classId)
+		spec:SelectAscendClass(ascendId)
+		if not node.alloc then spec:AllocNode(node) end
+		spec:AddUndoState()
+		spec:SetWindowTitleWithBuildClass()
+	end
+
+	-- args: nodes (ids or names), ascendancy? ("fail" | "switch"), onDisconnected? ("fail" | "reset" | "connect"). Allocates each with
+	-- the path to it, as a click on the node does. With ascendancy "switch", a node of another ascendancy or bloodline (and another
+	-- class's ascendancy, with onDisconnected as in set_class) switches to it first, as the click does.
 	ops.allocate = W.mutation(function(args, b)
 		local spec = b.spec
 		if type(args.nodes) ~= "table" or #args.nodes == 0 then W.fail("invalid_input", "nodes is required") end
+		local switch = args.ascendancy or "fail"
+		if switch ~= "fail" and switch ~= "switch" then W.fail("invalid_input", "ascendancy is fail or switch") end
+		local how = args.onDisconnected or "fail"
+		if how ~= "fail" and how ~= "reset" and how ~= "connect" then W.fail("invalid_input", "onDisconnected is fail, reset or connect") end
 		local done = {}
 		for _, ref in ipairs(args.nodes) do
 			local node = nodeRef(spec, ref)
 			if not node.alloc then
-				if not node.path then W.fail("invalid_input", (node.dn or node.id) .. " cannot be reached from the tree (other class or ascendancy?)") end
-				spec:AllocNode(node)
+				local foreign = foreignAscendancy(spec, node)
+				if foreign and switch == "switch" then switchFor(b, node, how) end
+				if not node.alloc then
+					if not node.path then
+						W.fail("invalid_input", (node.dn or node.id) .. " cannot be reached from the tree (other class or ascendancy?)"
+							.. (foreign and (" - it is a node of " .. node.ascendancyName .. "; pass ascendancy: \"switch\" to switch to it first") or ""))
+					end
+					spec:AllocNode(node)
+				end
 			end
 			done[#done + 1] = node.id
 		end
 		spec:AddUndoState()
-		return { allocated = done }
+		return {
+			allocated = done, className = spec.curClassName,
+			ascendancy = spec.curAscendClassName ~= "None" and spec.curAscendClassName or nil,
+			bloodline = spec.curSecondaryAscendClassName ~= "None" and spec.curSecondaryAscendClassName or nil,
+		}
 	end)
 
 	-- args: nodes. Deallocates each and everything that depended on it.
