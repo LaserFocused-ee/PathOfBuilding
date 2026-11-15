@@ -217,24 +217,42 @@ const leagueShape = z.object({ id: z.string().max(64).regex(LEAGUE_NAME), realm:
  */
 const modLine = z.union([z.string().max(500).transform((description) => ({ description })), z.looseObject({ description: z.string().max(500) })]);
 const mods = z.array(modLine).max(80).optional();
-const listingShape = z.object({
-  id: z.string().regex(ID),
-  listing: z.object({
-    indexed: z.string().max(40).optional(),
-    price: z.object({ amount: z.number(), currency: z.string().max(40), type: z.string().max(10) }).optional(),
-  }),
-  item: z.looseObject({
-    rarity: z.string().max(20),
-    typeLine: z.string().max(200),
-    name: z.string().max(200).optional(),
-    enchantMods: mods,
-    implicitMods: mods,
-    scourgeMods: mods,
-    explicitMods: mods,
-    craftedMods: mods,
-    fracturedMods: mods,
-  }),
+const itemShape = z.looseObject({
+  rarity: z.string().max(20),
+  typeLine: z.string().max(200),
+  name: z.string().max(200).optional(),
+  enchantMods: mods,
+  implicitMods: mods,
+  scourgeMods: mods,
+  explicitMods: mods,
+  craftedMods: mods,
+  fracturedMods: mods,
 });
+const priceShape = z.object({ amount: z.number(), currency: z.string().max(40), type: z.string().max(10) });
+const listingShape = z.object({ id: z.string().regex(ID), listing: z.object({ indexed: z.string().max(40).optional(), price: priceShape.optional() }), item: itemShape });
+
+/**
+ * One fetched item as FetchResultBlock reads it, in the entry shape the worker's conversion takes: fractured and crafted mods
+ * folded into explicitMods with their flags, no seller fields. The one place this is done (search and compare_item both).
+ */
+const fetchEntry = (id: string, listing: { price?: z.infer<typeof priceShape> | undefined }, { craftedMods, fracturedMods, ...item }: z.infer<typeof itemShape>) => {
+  const explicitMods = [...(fracturedMods ?? []).map((m) => ({ flags: { fractured: true }, ...m })), ...(item.explicitMods ?? []), ...(craftedMods ?? []).map((m) => ({ flags: { crafted: true }, ...m }))];
+  return { id, item: { ...item, explicitMods }, listing: { price: listing.price ?? {}, account: { name: "" } } };
+};
+
+/** What a caller may give for one item: the fetch answer's `item` object, or the whole result entry `{ id, item, listing }`. */
+const givenListing = z.object({ id: z.string().regex(ID).optional(), listing: z.object({ price: priceShape.optional() }).optional(), item: itemShape });
+
+/** A trade listing given by a caller, as the entry the worker converts to item text. Throws invalid_input naming what is missing or wrong. */
+export function listingEntry(raw: unknown): ReturnType<typeof fetchEntry> {
+  const whole = typeof raw === "object" && raw !== null && "item" in raw;
+  const r = givenListing.safeParse(whole ? raw : { item: raw });
+  if (!r.success) {
+    const what = r.error.issues.slice(0, 3).map((i) => `${(whole ? i.path : i.path.slice(1)).join(".") || "listing"}: ${i.message}`).join("; ");
+    throw new ApiError("invalid_input", `listing is not a trade listing (the fetch answer's item, or its whole result entry): ${what}`);
+  }
+  return fetchEntry(r.data.id ?? "0", r.data.listing ?? {}, r.data.item);
+}
 
 /** The client string of every trade request: the desktop app's, marked as this fork's API, with the operator's contact when one is set. The one place it is built. */
 export const tradeClientString = (version: string, contact?: string): string => `Path of Building/${version} (api; fork${contact ? ` +${contact}` : ""})`;
@@ -284,9 +302,8 @@ export class TradeClient {
           dropped++;
           continue;
         }
-        const { id, listing, item: { craftedMods, fracturedMods, ...item } } = e.data;
-        const explicitMods = [...(fracturedMods ?? []).map((m) => ({ flags: { fractured: true }, ...m })), ...(item.explicitMods ?? []), ...(craftedMods ?? []).map((m) => ({ flags: { crafted: true }, ...m }))];
-        entries.push({ id, indexed: listing.indexed ?? null, price: listing.price ?? null, entry: { id, item: { ...item, explicitMods }, listing: { price: listing.price ?? {}, account: { name: "" } } } });
+        const { id, listing, item } = e.data;
+        entries.push({ id, indexed: listing.indexed ?? null, price: listing.price ?? null, entry: fetchEntry(id, listing, item) });
       }
     }
     const value = { searchId: found.data.id, total: found.data.total, entries, dropped };

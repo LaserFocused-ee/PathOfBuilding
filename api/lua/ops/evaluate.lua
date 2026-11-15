@@ -306,9 +306,54 @@ return function(W)
 		return res[1], res[2]
 	end
 
+	local function statWeightsOf(args)
+		if args.weights == nil then return { { stat = "FullDPS", weightMult = 1.0 }, { stat = "TotalEHP", weightMult = 0.5 } } end
+		if type(args.weights) ~= "table" or #args.weights == 0 then bad("weights is a list of { stat, weight }") end
+		local out = {}
+		for _, w in ipairs(args.weights) do
+			local entry = powerStat(type(w) == "table" and w.stat or nil)
+			if not entry.stat or entry.ignoreForItems then bad("stat " .. tostring(w.stat) .. " cannot weigh items") end
+			local mult = tonumber(w.weight)
+			if not mult or mult < 0.01 or mult > 1 then bad("a weight is from 0.01 to 1 (the popup's slider)") end
+			out[#out + 1] = { stat = entry.stat, label = entry.label, transform = entry.transform, weightMult = mult }
+		end
+		return out
+	end
+
+	local function rounded(v) return math.floor(v * 1000 + 0.5) / 1000 end
+
+	-- A trade fetch entry as item text, by Path of Building's own conversion (TradeQueryRequests:FetchResultBlock).
+	local function listingText(entry, requests)
+		requests = requests or new("TradeQueryRequests"):TradeQueryRequests({})
+		local text
+		requests:FetchResultBlock("", function(items) text = items and items[1] and items[1].item_string end)
+		table.remove(requests.requestQueue.fetch, 1).callback(json.encode({ result = { entry } }), nil)
+		return text
+	end
+
+	-- The trade search's weighing (TradeQueryGenerator.WeightedRatioOutputs, default Full DPS 1, Effective Hit Pool 0.5) of an
+	-- output against the build's: gain(output) is the weighted change x1000. One place for listings and compare_item.
+	local function gainOf(calcBase, statWeights)
+		new("TradeQueryGenerator") -- loads the class; its WeightedRatioOutputs is a plain function of the class table
+		local weigh = common.classes.TradeQueryGenerator.WeightedRatioOutputs
+		local base = weigh(calcBase, calcBase, statWeights)
+		return function(output) return rounded((weigh(calcBase, output, statWeights) - base) * 1000) end
+	end
+
+	-- args: item (id), text or entry (a trade fetch entry, converted by the server from a listing): exactly one; slot?, weights?, fields?.
 	function ops.compare_item(args)
+		local given = (args.item ~= nil and 1 or 0) + (args.text ~= nil and 1 or 0) + (args.entry ~= nil and 1 or 0)
+		if given ~= 1 then bad("give exactly one of item (id), text and listing") end
 		local b = W.build()
 		local tab = b.itemsTab
+		local text
+		if args.entry ~= nil then
+			if type(args.entry) ~= "table" then bad("listing is one trade listing") end
+			local ok, t = pcall(listingText, args.entry)
+			if not ok or not t then bad("Path of Building could not read this listing") end
+			text = W.strip(t)
+			args = { text = t, slot = args.slot, weights = args.weights, fields = args.fields }
+		end
 		local item = itemOf(tab, args)
 		if item.base.flask or item.base.tincture then bad("flasks and tinctures are compared with what_if (toggleFlask / toggleTincture)") end
 		local slots = {}
@@ -326,21 +371,28 @@ return function(W)
 		local fields = fieldsOf(args)
 		local calcFunc, calcBase = calculator(b)
 		local before = values(b, calcBase, fields)
+		local gainOfOutput = gainOf(calcBase, statWeightsOf(args))
 		local out = {}
 		for _, slot in ipairs(slots) do
 			if slot.nodeId and (changesTree(item) or changesTree(slot.selItemId and tab.items[slot.selItemId])) then
 				local equipped = equippedIn(tab, slot)
 				local now = values(b, b.calcsTab.mainOutput, fields)
-				local changed, points = inSocket(b, slot, item, function(nb, output) return diff(now, values(nb, output, fields)) end)
-				out[#out + 1] = { slot = slot.slotName, equipped = equipped, changed = changed, points = points }
+				local row, points = inSocket(b, slot, item, function(nb, output) return { changed = diff(now, values(nb, output, fields)), gain = gainOfOutput(output) } end)
+				out[#out + 1] = { slot = slot.slotName, equipped = equipped, changed = row.changed, gain = row.gain, points = points }
 				b = W.build()
 				tab = b.itemsTab
 			else
-				out[#out + 1] = { slot = slot.slotName, equipped = equippedIn(tab, slot),
-					changed = diff(before, values(b, calcFunc({ repSlotName = slot.slotName, repItem = item }), fields)) }
+				local output = calcFunc({ repSlotName = slot.slotName, repItem = item })
+				out[#out + 1] = { slot = slot.slotName, equipped = equippedIn(tab, slot), changed = diff(before, values(b, output, fields)), gain = gainOfOutput(output) }
 			end
 		end
-		return { slots = out }
+		for i, row in ipairs(out) do row.order = i end
+		table.sort(out, function(x, y)
+			if x.gain ~= y.gain then return x.gain > y.gain end
+			return x.order < y.order
+		end)
+		for _, row in ipairs(out) do row.order = nil end
+		return { text = text, slots = out }
 	end
 
 	-- The gem box lists these fields (SkillsTab.lua sortGemTypeList).
@@ -544,20 +596,6 @@ return function(W)
 	local function indexOf(list, v) for i, x in ipairs(list) do if x == v then return i end end end
 	local tradeHost = "https://www.pathofexile.com/"
 
-	local function statWeightsOf(args)
-		if args.weights == nil then return { { stat = "FullDPS", weightMult = 1.0 }, { stat = "TotalEHP", weightMult = 0.5 } } end
-		if type(args.weights) ~= "table" or #args.weights == 0 then bad("weights is a list of { stat, weight }") end
-		local out = {}
-		for _, w in ipairs(args.weights) do
-			local entry = powerStat(type(w) == "table" and w.stat or nil)
-			if not entry.stat or entry.ignoreForItems then bad("stat " .. tostring(w.stat) .. " cannot weigh items") end
-			local mult = tonumber(w.weight)
-			if not mult or mult < 0.01 or mult > 1 then bad("a weight is from 0.01 to 1 (the popup's slider)") end
-			out[#out + 1] = { stat = entry.stat, label = entry.label, transform = entry.transform, weightMult = mult }
-		end
-		return out
-	end
-
 	-- A jewel socket: a tree socket (node id or "Jewel <id>") or an item's abyssal socket slot; by default the first allocated tree
 	-- socket that holds no jewel and takes `probe`.
 	local function socketOf(tab, ref, probe)
@@ -651,7 +689,6 @@ return function(W)
 		return out
 	end
 
-	local function rounded(v) return math.floor(v * 1000 + 0.5) / 1000 end
 	local function weightsOut(list)
 		local out = {}
 		for i, w in ipairs(list) do out[i] = { stat = w.stat, weight = w.weightMult } end
@@ -1113,16 +1150,9 @@ return function(W)
 		if type(args.entries) ~= "table" then bad("entries is a list") end
 		local statWeights = args.score and statWeightsOf(args) or nil
 		local fields = fieldsOf(args)
-		new("TradeQueryGenerator") -- loads the class; its WeightedRatioOutputs is a plain function of the class table
-		local weigh = common.classes.TradeQueryGenerator.WeightedRatioOutputs
 		local fixed = args.slot ~= nil and args.score and slotOf(W.build().itemsTab, args.slot, true) or nil
 		local requests = new("TradeQueryRequests"):TradeQueryRequests({})
-		local function textOf(entry)
-			local text
-			requests:FetchResultBlock("", function(items) text = items and items[1] and items[1].item_string end)
-			table.remove(requests.requestQueue.fetch, 1).callback(json.encode({ result = { entry } }), nil)
-			return text
-		end
+		local function textOf(entry) return listingText(entry, requests) end
 		local function scoreOf(item)
 			local b = W.build()
 			local tab = b.itemsTab
@@ -1139,10 +1169,10 @@ return function(W)
 				if not slot then bad("this item fits no slot in use") end
 			end
 			local calcFunc, calcBase = calculator(b)
-			local base = weigh(calcBase, calcBase, statWeights)
+			local gainOfOutput = gainOf(calcBase, statWeights)
 			local before = values(b, calcBase, fields)
 			local function measure(nb, output)
-				return { slot = slot.slotName, gain = rounded((weigh(calcBase, output, statWeights) - base) * 1000), changed = diff(before, values(nb, output, fields)) }
+				return { slot = slot.slotName, gain = gainOfOutput(output), changed = diff(before, values(nb, output, fields)) }
 			end
 			if slot.nodeId and (changesTree(item) or changesTree(slot.selItemId and tab.items[slot.selItemId])) then
 				local score, points = inSocket(b, slot, item, measure)

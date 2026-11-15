@@ -215,7 +215,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `trade.query.generate` | S | done | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Gear slots: `evaluate.item_mods` (weights, search, link); evaluate-items-trade.test.ts |
 | `trade.search` | S | done | `trade.search` (on request only; limits in its summary); trade.test.ts |
 | `trade.search_url` | S | done | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Gear slots: `evaluate.item_mods` (weights, search, link); evaluate-items-trade.test.ts |
-| `trade.evaluate` | S | done | `trade.search` with `buildId` scores each listing in its slot; trade.test.ts |
+| `trade.evaluate` | S | done | `trade.search` with `buildId` scores each listing in its slot; `evaluate.compare_item` with `listing` answers the same text and `gain` for one listing in every slot it fits; trade.test.ts, evaluate-what-if.test.ts |
 | `trade.sort` / `total_price` | S | F3 | `pob_trade` |
 | `trade.price_all_slots` | X | F3 | `pob_trade` |
 | `trade.mod_to_trade_id` | H | done | `lookup.trade_stats` (mod lines to trade stat ids, values, options, inverted lines, timeless jewel stats); trade-similar.test.ts |
