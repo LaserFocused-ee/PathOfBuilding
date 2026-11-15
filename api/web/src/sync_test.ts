@@ -462,7 +462,7 @@ Deno.test("another build open in the view: nothing is written, and try again loa
   await sync.poll(); // an edit was on its way
   view.code = null; // Back, then New: Path of Building holds another build
   await sync.poll();
-  assertEquals(sync.state, { kind: "released" });
+  assertEquals(sync.state, { kind: "released", lost: true }); // the edit seen once is said to be lost
   assertEquals(sync.unsaved, false);
   await sync.poll();
   await sync.serverRevision(5);
@@ -478,7 +478,7 @@ Deno.test("another build open when a remote change or keep mine arrives: release
   await sync.start();
   view.code = null;
   await sync.serverRevision(remoteEdit("B"));
-  assertEquals(sync.state, { kind: "released" });
+  assertEquals(sync.state, { kind: "released", lost: false });
   assertEquals(server.loads, 1);
   await sync.start();
   view.code = "B1";
@@ -487,7 +487,61 @@ Deno.test("another build open when a remote change or keep mine arrives: release
   assertEquals(sync.state.kind, "conflict");
   view.code = null;
   await sync.resolve("overwrite");
-  assertEquals(sync.state, { kind: "released" });
+  assertEquals(sync.state, { kind: "released", lost: true });
+  assertEquals(server.saves, []);
+});
+
+Deno.test("released after a failed write says the edit is lost; with nothing pending it does not", async () => {
+  const { sync, view, api } = setup();
+  await sync.start();
+  view.code = null;
+  await sync.poll();
+  assertEquals(sync.state, { kind: "released", lost: false });
+  await sync.start();
+  api.save = () => Promise.reject(new Error("network down"));
+  view.code = "A1";
+  await sync.poll();
+  await sync.poll(); // the write fails
+  assertEquals(sync.state.kind, "save_failed");
+  view.code = null;
+  await sync.poll();
+  assertEquals(sync.state, { kind: "released", lost: true });
+});
+
+Deno.test("released from a conflict or a failed write that no poll saw: still said to be lost", async () => {
+  const { sync, view, server, ui, api, remoteEdit } = setup();
+  await sync.start();
+  const realLoad = ui.load;
+  ui.load = () => Promise.reject(new Error("not a valid build code"));
+  await sync.serverRevision(remoteEdit("B")); // stopped, holding "A"
+  ui.load = realLoad;
+  view.code = "A1"; // edited while stopped: no poll sees it
+  await sync.start(); // "Try again": the server moved on, so a conflict
+  assertEquals(sync.state.kind, "conflict");
+  view.code = null;
+  await sync.resolve("overwrite");
+  assertEquals(sync.state, { kind: "released", lost: true });
+  view.code = "A1";
+  await sync.start();
+  assertEquals(sync.state.kind, "conflict");
+  api.save = () => Promise.reject(new Error("network down"));
+  await sync.resolve("overwrite");
+  assertEquals(sync.state.kind, "save_failed");
+  view.code = null;
+  await sync.poll();
+  assertEquals(sync.state, { kind: "released", lost: true });
+  assertEquals(server.saves, []);
+});
+
+Deno.test("a load that leaves the view without the build stops, and writes nothing", async () => {
+  const { sync, view, server, ui } = setup();
+  ui.load = () => {
+    view.code = null; // the view took the code but holds no build the page loaded
+    return Promise.resolve();
+  };
+  await sync.start();
+  assertEquals(sync.state, { kind: "failed", reason: "the build did not open in Path of Building" });
+  await sync.poll();
   assertEquals(server.saves, []);
 });
 

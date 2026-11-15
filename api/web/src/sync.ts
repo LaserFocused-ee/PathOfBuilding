@@ -32,7 +32,9 @@ export type SyncState =
   | { kind: "saving"; revision: number }
   | { kind: "save_failed"; revision: number; reason: string; retrying: boolean }
   | { kind: "conflict"; revision: number; serverRevision: number }
-  | { kind: "released" } // another build is open in the view; nothing is written until this one is loaded again
+  // Another build is open in the view; nothing is written until this one is loaded again.
+  // `lost`: an edit of this build had not reached the server (seen once, or its write failed or conflicted).
+  | { kind: "released"; lost: boolean }
   | { kind: "deleted" };
 
 /** An error whose `permanent` is true is a refusal that the same request would get again. */
@@ -198,8 +200,10 @@ export class BuildSync {
 
   /** The view holds another build: drop the claim on it; "Try again" loads this build again. */
   private release(): void {
+    const kind = this.state.kind;
+    const lost = this.candidate !== undefined || kind === "save_failed" || kind === "conflict";
     this.candidate = undefined;
-    this.set({ kind: "released" });
+    this.set({ kind: "released", lost });
   }
 
   private set(state: SyncState): void {

@@ -110,7 +110,9 @@ function describe(state: SyncState): string {
     case "conflict":
       return `The build changed on the server (revision ${state.serverRevision}) while you were editing.`;
     case "released":
-      return "Path of Building has another build open; nothing there is saved to this build. Try again reopens it.";
+      return (state.lost ? "Your last change to this build was not saved. " : "") +
+        "Path of Building has another build open; nothing there is saved to this build. " +
+        "Reopen this build replaces the build open there, unsaved changes included.";
     case "deleted":
       return "This build was deleted on the server.";
   }
@@ -232,6 +234,7 @@ async function viewPage(id: string) {
       text(state, describe(s));
       conflict.hidden = s.kind !== "conflict";
       $("#retry").hidden = s.kind !== "failed" && s.kind !== "released";
+      text($("#retry"), s.kind === "released" ? "Reopen this build" : "Try again");
       state.dataset.kind = s.kind;
     },
   );

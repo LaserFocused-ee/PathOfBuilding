@@ -54,6 +54,24 @@ Deno.test("an empty character list says the name must match exactly; a good one 
   assertStringIncludes(accountNote(url, { status: 200, headers: {}, body: "[]" })!, EXACT_NAME);
   assertEquals(accountNote(url, { status: 200, headers: {}, body: '[{"name":"x"}]' }), null);
   assertEquals(accountNote(`${site}account/view-profile/a`, { status: 403, headers: {}, body: "" }), null);
+  // An empty answer is a note only for the character list; a tree or item list may be empty.
+  for (const kind of ["get-passive-skills", "get-items"]) {
+    const other = `${site}character-window/${kind}?accountName=a%231&character=x&realm=pc`;
+    assertEquals(accountNote(other, { status: 200, headers: {}, body: "[]" }), null, kind);
+  }
+});
+
+Deno.test("a look-alike host gets no note", () => {
+  for (
+    const host of [
+      "https://www.pathofexile.com.example.test",
+      "https://wwwxpathofexile.com",
+      "http://www.pathofexile.com",
+    ]
+  ) {
+    const url = `${host}/character-window/get-characters?accountName=a%231&realm=pc`;
+    assertEquals(accountNote(url, { status: 404, headers: {}, body: "" }), null, host);
+  }
 });
 
 Deno.test("only 401, 403 and 404 name the account name; 429 says wait, 5xx says the site failed", () => {

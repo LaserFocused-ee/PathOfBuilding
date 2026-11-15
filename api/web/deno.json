@@ -7,6 +7,7 @@
   "exclude": [
     ".build",
     "dist",
+    "tools/testdata",
     "src/vite.config.ts"
   ],
   "fmt": {

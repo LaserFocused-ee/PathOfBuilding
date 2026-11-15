@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { allowed } from "./dev-server.ts";
+import { allowed, staticHeaders } from "./dev-server.ts";
 
 const port = 8740;
 const cases: [string, string, Record<string, string>, boolean][] = [
@@ -24,3 +24,7 @@ for (const [name, method, headers, want] of cases) {
     assertEquals(allowed(req, port), want);
   });
 }
+
+Deno.test("static responses send no referrer (README serve contract)", () => {
+  assertEquals(staticHeaders("/index.html", new Headers()).get("referrer-policy"), "no-referrer");
+});
