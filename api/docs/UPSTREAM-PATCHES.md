@@ -21,7 +21,8 @@ entry here: which file, what and why, its upstream status and how to drop it.
 - Putrid Seed sits on a new jewel base, Mycelium Core (`Metadata/Items/Jewels/JewelBlighted`: tags jewel and
   not_for_sale, no implicit, no attribute requirement), added to the base export list and the generated base file. Its
   effect (grows four random passives when anointed) is not something Path of Building can simulate; the item is there
-  so it can be equipped and imported.
+  so it can be equipped and imported. Its Source line (drops from Effulgent Blightworm) comes from the item's public
+  page (poedb.tw, 15 Nov 2026), not from the game tables.
 - Broken Elegy, Lash of Retribution, Kitava's Hunger, Arohongui's Tending: in game tables, no mod link, not added. The
   game files name them at old row numbers with only an item class; poedb.tw has no page for any of them (15 Nov 2026),
   so there is no text to add and no sign they drop in 3.30.
@@ -120,9 +121,13 @@ nothing):
 - What: `{:+d}` placeholders dropped their plus sign, and signed ranges were always printed with `%d`, so a range of
   values divided by one hundred came out as `+(0-0)`. Both placeholder forms now use the value's own format and keep
   the sign.
-- Why: gem tooltips, the skills tab and generated trade text show these descriptions; found by the game-data builder
-  comparing its own dump.
-- Test: `spec/System/TestStatDescriber_spec.lua` (fails without the change).
+- Why: gem tooltips, the skills tab and generated trade text show these descriptions; found by comparing them with
+  the game's own stat description text.
+- Described text also feeds the parser in two places, `src/Classes/TreeTab.lua:2006` (timeless jewel lines) and
+  `src/Data/Uniques/Special/Generated.lua:756` (pearl support descriptions); neither changes with this fix, and
+  `ModCache.lua` regenerates identical.
+- Test: `spec/System/TestStatDescriber_spec.lua`: `{:+d}` single value and range, signed ranges positive and negative
+  (each fails without the change).
 - Upstream status: not offered.
 
 ### Trade weights: `src/Classes/TradeQueryGenerator.lua`, `src/Data/QueryMods.lua`

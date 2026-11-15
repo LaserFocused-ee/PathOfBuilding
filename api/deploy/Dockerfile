@@ -1,5 +1,6 @@
 # Path of Building API and MCP server in one image, with the browser view (api/web) served at /.
 # Build from the repository root:  docker build -f api/deploy/Dockerfile -t pob-api .
+#   (BuildKit, the default builder: it reads Dockerfile.dockerignore beside this file, which keeps git-ignored files out)
 #   API and MCP only (no web toolchain, much faster): add --target api
 # Run:  docker run -e POB_API_TOKEN=<32+ chars> -p 127.0.0.1:8730:8730 -v pob-data:/data pob-api
 # Only the paths the worker, server and view build need are copied, so local build output never enters the image.

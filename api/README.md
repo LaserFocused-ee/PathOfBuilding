@@ -39,7 +39,8 @@ curl -s -H "$auth" "http://127.0.0.1:8730/v1/stats/<id>/output?fields=TotalDPS,L
 curl -s -H "$auth" http://127.0.0.1:8730/v1/builds/<id>/code
 ```
 
-Container: `docker build -f api/deploy/Dockerfile -t pob-api .` from the repository root, then `docker run -e POB_API_TOKEN=... -p 127.0.0.1:8730:8730 -v pob-data:/data pob-api`. A systemd example is in `deploy/pob-api.service.example`.
+Container: `docker build -f api/deploy/Dockerfile -t pob-api .` from the repository root (builds the browser view too;
+add `--target api` for the API and MCP server alone), then `docker run -e POB_API_TOKEN=... -p 127.0.0.1:8730:8730 -v pob-data:/data pob-api`. A systemd example is in `deploy/pob-api.service.example`.
 
 ## Browser view
 
