@@ -345,7 +345,7 @@ end
 
 function ItemClass:GetVariantGroupOptions(groupId, excludeSelected)
 	local options = { }
-	if not self.variantGroups or not self.variantGroups[groupId] then
+	if not self.variantList or not self.variantGroups or not self.variantGroups[groupId] then
 		return options
 	end
 	local used = { }

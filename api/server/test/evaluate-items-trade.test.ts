@@ -271,3 +271,17 @@ void test("item_mods answers the same twice; the build's code and revision are u
   const staff = await items(id, { slot: "Weapon 1", limit: 1 });
   assert.equal(staff.category, "weapon.staff");
 });
+
+void test("item_mods on a unique with variant groups and an anoint: the tester item copies the grouped lines and still answers", async () => {
+  const id = await dup(base);
+  const amulet = [
+    "Rarity: UNIQUE", "Replica Dragonfang's Flight", "Onyx Amulet", "Version: Pre 3.23.0", "Version: Current", "Selected Version: 2",
+    "Variant: Blight", "Selected Variant Group: 1=1", "LevelReq: 56", "Implicits: 2", "{crafted}Allocates Tranquility",
+    "{range:0.5}+(10-16) to all Attributes", "{version:2}{range:0.5}+(5-10)% to all Elemental Resistances",
+    "{variant:1}{group:1}+3 to Level of all Blight Gems", "{version:2}{range:0.5}(5-10)% increased Reservation Efficiency of Skills",
+  ].join("\n");
+  ok(await post(`/v1/items/${id}/add`, { text: amulet, equip: "Amulet" }));
+  // a worker error without the Item.lua guard (GetVariantGroupOptions read the tester's missing variant list)
+  const result = await items(id, { slot: "Amulet", limit: 2 });
+  assert.equal(result.base, "Onyx Amulet");
+});

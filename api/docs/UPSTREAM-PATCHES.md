@@ -167,6 +167,17 @@ nothing):
   400 and the same worker answers the next compare (a worker error without the change).
 - Upstream status: not offered.
 
+### Variant groups on an item without a variant list: `src/Classes/Item.lua`
+
+- What: `GetVariantGroupOptions` counted `#self.variantList` with no check. The trade generator's "Stat Tester" item
+  copies a unique's mod lines, `{group:N}` ones included, onto a rare with no variants; parsing it made variant groups
+  and the count failed. It now answers no options when the item has no variant list.
+- Why: "Find best" (API `evaluate.item_mods`) on a slot holding a unique with variant groups (Replica Dragonfang's
+  Flight) was a script error.
+- Test: `api/server/test/evaluate-items-trade.test.ts`, "item_mods on a unique with variant groups and an anoint"
+  (a worker error without the change).
+- Upstream status: not offered.
+
 ### Open upstream pull requests merged ahead of upstream
 
 Each was fetched read-only (`git fetch upstream pull/<n>/head`) and merged with its own commit, in the order below;
