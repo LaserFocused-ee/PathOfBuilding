@@ -269,6 +269,33 @@ return function(W)
 
 	-- args: to, from? Shortest path. Without `from`, the path the tree would allocate to reach `to`;
 	-- with it, the fewest-node route between two nodes over tree links (no such tool in the application).
+	-- args: socket (node id or "Jewel <id>"), radius? (1-based index or label of data.jewelRadius; default the named radii, not
+	-- the Variable rings). The passives within each radius of a jewel socket, as the tree precalculates them for radius jewels
+	-- (PassiveTree.lua: socket.nodesInRadius), with the inner and outer distance and what is allocated.
+	function ops.radius_nodes(args)
+		local spec = W.build().spec
+		local ref = type(args.socket) == "string" and args.socket:match("^Jewel (%d+)$") or args.socket
+		local socket = nodeRef(spec, ref)
+		if socket.type ~= "Socket" or not socket.nodesInRadius then W.fail("invalid_input", "node " .. socket.id .. " is not a jewel socket with a radius") end
+		local radii = {}
+		local want = tonumber(args.radius) or args.radius -- a query string sends the index as text
+		for i, r in ipairs(data.jewelRadius) do
+			local pick = want == nil and r.label ~= "Variable" or want == i or want == r.label
+			if pick then
+				local nodes, allocated = {}, 0
+				for id, node in pairs(socket.nodesInRadius[i] or {}) do
+					local live = spec.nodes[id] or node
+					nodes[#nodes + 1] = brief(spec, live)
+					if spec.allocNodes[id] then allocated = allocated + 1 end
+				end
+				table.sort(nodes, function(a, c) return a.id < c.id end)
+				radii[#radii + 1] = { index = i, label = r.label, inner = r.inner, outer = r.outer, total = #nodes, allocated = allocated, nodes = setmetatable(nodes, { __jsontype = "array" }) }
+			end
+		end
+		if #radii == 0 then W.fail("invalid_input", "no radius " .. tostring(args.radius) .. "; radii are 1 to " .. #data.jewelRadius .. " (Small, Medium, Large, Very Large, Massive, then Variable rings)") end
+		return { socket = socket.id, allocated = spec.allocNodes[socket.id] ~= nil, radii = radii }
+	end
+
 	function ops.path(args)
 		local spec = W.build().spec
 		local target = nodeRef(spec, args.to)

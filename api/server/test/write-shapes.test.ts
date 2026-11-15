@@ -154,6 +154,7 @@ void test("config and party writes", async () => {
   await write("config.set_rename", id, { index: 2, title: "Renamed" });
   await write("config.set_activate", id, { index: 2 });
   await write("config.set_delete", id, { index: 3 });
+  await write("config.set_custom_mods", id, { groups: [{ title: "Extra", enabled: true, text: "+10 to maximum Life" }] });
   // A party member's code, exported with Export support on.
   const member = await newWitch();
   await write("skills.add_group", member, { gems: [{ name: "Determination" }] });
@@ -188,5 +189,5 @@ void test("build writes: imports, loadouts, settings, history; delete and restor
 void test("every write route was called, and none is declared without a result shape", () => {
   const writes = routes.filter((r) => !r.readOnly).map((r) => r.name).sort();
   assert.deepEqual([...called].sort(), writes, "a write route has no call in this file");
-  assert.equal(called.size, 83);
+  assert.equal(called.size, 84);
 });

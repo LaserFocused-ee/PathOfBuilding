@@ -99,7 +99,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `tree.timeless.search` | S | open | No route |
 | `tree.timeless.read_seed` | H | F3 | Data lookup, not yet routed |
 | `tree.timeless.trade_url` | S | F3 | Trade stage |
-| `tree.radius_nodes` | H | open | No route |
+| `tree.radius_nodes` | H | done | `tree.radius_nodes`; evaluate-jewels.test.ts |
 
 ### skills
 
@@ -167,7 +167,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `config.get` | H | done | `config.get`; edit.test.ts |
 | `config.set` | S | done | `config.set`; edit.test.ts |
 | `config.sets.*` | S | done | `config.set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`; edit.test.ts |
-| `config.custom_mods` | S | open | No route |
+| `config.custom_mods` | S | done | `config.custom_mods`, `config.set_custom_mods`; settings.test.ts |
 
 ### calcs
 
@@ -263,16 +263,16 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | builds | 30 | 15 | 0 | 9 | 2 | 0 | 4 |
 | import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
-| tree | 27 | 18 | 0 | 0 | 0 | 2 | 7 |
+| tree | 27 | 19 | 0 | 0 | 0 | 2 | 6 |
 | skills | 17 | 14 | 0 | 0 | 0 | 1 | 2 |
 | items and crafting | 30 | 26 | 0 | 0 | 0 | 0 | 4 |
-| config | 6 | 5 | 0 | 0 | 0 | 0 | 1 |
+| config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
 | calcs | 13 | 12 | 0 | 0 | 0 | 0 | 1 |
 | compare and power | 12 | 4 | 0 | 0 | 4 | 1 | 3 |
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 116 | 1 | 9 | 8 | 25 | 28 |
+| **Total** | 187 | 118 | 1 | 9 | 8 | 25 | 26 |
 
 ## MCP tools
 

@@ -14,10 +14,10 @@ GET inputs go in the query string (lists comma-separated); POST inputs are a JSO
 | --- | --- | --- |
 | `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `loadout_list`, `loadout_activate`, `loadout_new`, `ui_controls`, `ui_invoke`, `export_xml`, `replace_code`, `export_code`, `save_point`, `history` |
 | `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `versions` |
-| `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `export_url`, `import_url`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `convert` |
+| `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `export_url`, `import_url`, `radius_nodes`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `convert` |
 | `pob_skills` | no | `get`, `group_text`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_skill_options`, `set_spectres`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_items` | no | `list`, `get`, `add`, `add_unique`, `add_rare`, `modify`, `edit`, `anoint`, `enchant`, `craft`, `influence`, `corrupt`, `add_implicit`, `custom_mod`, `crucible_mod`, `cluster_jewel`, `equip`, `unequip`, `set_active`, `delete`, `weapon_set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
-| `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `notes`, `set_notes`, `party_get`, `party_import`, `party_clear`, `party_set`, `party_effects` |
+| `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `custom_mods`, `set_custom_mods`, `notes`, `set_notes`, `party_get`, `party_import`, `party_clear`, `party_set`, `party_effects` |
 | `pob_evaluate` | yes | `what_if`, `passives`, `node_power`, `compare_item`, `jewel_mods`, `gem_rank`, `anoint_rank`, `unique_rank`, `compare_specs`, `compare_item_sets`, `compare_builds` |
 | `pob_lookup` | yes | `gems`, `uniques`, `bases`, `nodes`, `node`, `config` |
 | `pob_trade` | yes | `search` |
@@ -437,6 +437,15 @@ Add a tree from a passive tree link as a new tree in the list and make it active
 - Read-only: no; worker: `tree.import_url`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"url":{"type":"string","maxLength":4000,"format":"uri"},"title":{"type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["url","id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{"type":"object","properties":{"index":{"type":"number"},"title":{"type":"string"},"treeVersion":{"type":"string"},"className":{"type":"string"},"ascendancy":{"type":"string"},"points":{"type":"number"},"ascendancyPoints":{"type":"number"},"active":{"type":"boolean"}},"required":["index","title","treeVersion","className","points","ascendancyPoints","active"],"additionalProperties":{}},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/tree/:id/radius-nodes`
+
+The passives within a jewel socket's radius (as radius jewels such as timeless jewels, Thread of Hope and Unnatural Instinct see them): per radius its index, label, inner and outer distance, the nodes and how many are allocated. Default the named radii (Small, Medium, Large, Very Large, Massive); `radius` picks one, including the Variable rings.
+
+- Name: `tree.radius_nodes` (MCP `pob_tree` action `radius_nodes`)
+- Read-only: yes; worker: `tree.radius_nodes`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"socket":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"string","minLength":1,"maxLength":200}],"description":"Socket node id, or Jewel <id>"},"radius":{"description":"Radius index from 1, or its label","anyOf":[{"type":"integer","minimum":1,"maximum":20},{"type":"string","minLength":1,"maxLength":20}]},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["socket","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"socket":{"type":"number"},"allocated":{"type":"boolean"},"radii":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"label":{"type":"string"},"inner":{"type":"number"},"outer":{"type":"number"},"total":{"type":"number"},"allocated":{"type":"number"},"nodes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"number"},"name":{"type":"string"},"type":{"type":"string"},"allocated":{"type":"boolean"}},"required":["id","name","type","allocated"],"additionalProperties":{}}}},"required":["index","label","inner","outer","total","allocated","nodes"],"additionalProperties":{}}}},"required":["socket","allocated","radii"],"additionalProperties":{}}`
 
 ### `GET /v1/tree/:id/path`
 
@@ -968,6 +977,24 @@ Make a config set the active one.
 - Read-only: no; worker: `config.set_activate`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"index":{"type":"integer","minimum":1,"maximum":500,"description":"Config set number in the set list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["index","id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{"type":"object","properties":{"sets":{"type":"array","items":{"type":"object","properties":{"index":{"type":"number"},"title":{"type":"string"},"active":{"type":"boolean"}},"required":["index","title","active"],"additionalProperties":{}}}},"required":["sets"],"additionalProperties":{}},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/config/:id/custom-mods`
+
+The custom modifier groups of the active config set (Configuration tab, Custom Modifiers): title, enabled, text, and each line with `supported` (Path of Building parses it whole; other lines are ignored by the calculation, as the box shows them in red).
+
+- Name: `config.custom_mods` (MCP `pob_config` action `custom_mods`)
+- Read-only: yes; worker: `config.custom_mods`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"configSet":{"type":"number"},"groups":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"enabled":{"type":"boolean"},"text":{"type":"string"},"lines":{"type":"array","items":{"type":"object","properties":{"text":{"type":"string"},"supported":{"type":"boolean"}},"required":["text","supported"]}}},"required":["title","enabled","text","lines"]}}},"required":["configSet","groups"]}`
+
+### `POST /v1/config/:id/set-custom-mods`
+
+Replace the custom modifier groups of the active config set, as editing the boxes does: each group's lines add to the build's calculation while it is enabled. Answers the groups with each line's `supported`.
+
+- Name: `config.set_custom_mods` (MCP `pob_config` action `set_custom_mods`)
+- Read-only: no; worker: `config.set_custom_mods`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"groups":{"minItems":1,"maxItems":20,"type":"array","items":{"type":"object","properties":{"title":{"type":"string","minLength":1,"maxLength":100},"enabled":{"description":"Default true","type":"boolean"},"text":{"type":"string","maxLength":20000,"description":"One modifier per line, as the item text writes it"}},"required":["text"]}},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991}},"required":["groups","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{"type":"object","properties":{"configSet":{"type":"number"},"groups":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"enabled":{"type":"boolean"},"text":{"type":"string"},"lines":{"type":"array","items":{"type":"object","properties":{"text":{"type":"string"},"supported":{"type":"boolean"}},"required":["text","supported"]}}},"required":["title","enabled","text","lines"]}}},"required":["configSet","groups"]},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
 
 ### `GET /v1/config/:id/notes`
 

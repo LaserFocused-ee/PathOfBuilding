@@ -180,3 +180,18 @@ void test("jewel_mods refusals", async () => {
   await fail({ family: "base", weights: [{ stat: "Name", weight: 1 }] }, /cannot weigh items|unknown stat/);
   await fail({ family: "base", weights: [{ stat: "Life", weight: 0 }] }, /weight/);
 });
+
+void test("tree radius_nodes: the passives in each radius of a socket, as radius jewels see them", async () => {
+  type Radii = { socket: number; allocated: boolean; radii: Array<{ index: number; label: string; inner: number; outer: number; total: number; allocated: number; nodes: Array<{ id: number; name: string; type: string; allocated: boolean }> }> };
+  const all = ok(await srv.call<Radii>("GET", `/v1/tree/${base}/radius-nodes?socket=Jewel%2041263`));
+  assert.deepEqual([all.socket, all.allocated, all.radii.map((r) => [r.index, r.label, r.inner, r.outer, r.total, r.allocated])], [41263, true, [
+    [1, "Small", 0, 960, 13, 2], [2, "Medium", 0, 1440, 29, 6], [3, "Large", 0, 1800, 50, 8], [4, "Very Large", 0, 2400, 106, 10], [5, "Massive", 0, 2880, 164, 14],
+  ]]);
+  assert.deepEqual(all.radii[0]?.nodes.filter((n) => n.allocated || n.type === "Notable").map((n) => [n.id, n.name, n.type, n.allocated]), [
+    [11784, "Vampirism", "Notable", false], [18865, "Melding", "Notable", false], [37671, "Intelligence", "Normal", true], [48778, "Intelligence", "Normal", true],
+  ]);
+  const ring = ok(await srv.call<Radii>("GET", `/v1/tree/${base}/radius-nodes?socket=41263&radius=6`));
+  assert.deepEqual(ring.radii.map((r) => [r.label, r.inner, r.outer, r.total]), [["Variable", 960, 1320, 12]]);
+  assert.equal((await srv.call("GET", `/v1/tree/${base}/radius-nodes?socket=Elemental%20Overload`)).status, 400, "not a socket");
+  assert.equal((await srv.call("GET", `/v1/tree/${base}/radius-nodes?socket=41263&radius=11`)).status, 400, "no such radius");
+});

@@ -142,5 +142,43 @@ return function(W)
 		return function(built) return { level = built.characterLevel, autoLevel = built.characterLevelAutoMode == true } end
 	end)
 
+	-- The Configuration tab's custom modifier groups of the active config set, each line marked as Path of Building reads it
+	-- (ConfigTab.lua: a line counts when modLib.parseMod parses it whole; the box shows the others as unsupported).
+	local function customGroups(b)
+		local out = {}
+		for i, block in ipairs(b.configTab.configSets[b.configTab.activeConfigSetId].customModsList or {}) do
+			local lines = {}
+			for line in (block.text or ""):gmatch("([^\n]*)\n?") do
+				local stripped = StripEscapes(line):match("^%s*(.-)%s*$")
+				if stripped ~= "" then
+					local mods, extra = modLib.parseMod(stripped)
+					lines[#lines + 1] = { text = stripped, supported = (mods and not extra) and true or false }
+				end
+			end
+			out[i] = { title = block.title or "Default", enabled = block.enabled ~= false, text = block.text or "", lines = setmetatable(lines, { __jsontype = "array" }) }
+		end
+		return out
+	end
+	function ops.custom_mods()
+		local b = W.build()
+		return { configSet = b.configTab.activeConfigSetId, groups = customGroups(b) }
+	end
+	-- args: groups (1-20 of { title, enabled?, text }). Replaces the active config set's groups, as editing the boxes does.
+	ops.set_custom_mods = W.mutation(function(args, b)
+		if type(args.groups) ~= "table" or #args.groups == 0 then W.fail("invalid_input", "groups is a list of { title, enabled?, text }") end
+		local list = {}
+		for i, g in ipairs(args.groups) do
+			if type(g) ~= "table" or type(g.text) ~= "string" then W.fail("invalid_input", "group " .. i .. " needs its text") end
+			list[i] = { title = type(g.title) == "string" and g.title or ("Group " .. i), enabled = g.enabled ~= false, text = g.text }
+		end
+		local tab = b.configTab
+		tab.configSets[tab.activeConfigSetId].customModsList = list
+		tab:UpdateCustomModsControls()
+		tab:AddUndoState()
+		tab:BuildModList()
+		b.buildFlag = true
+		return function(built) return { configSet = built.configTab.activeConfigSetId, groups = customGroups(built) } end
+	end)
+
 	return ops
 end

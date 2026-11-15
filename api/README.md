@@ -152,6 +152,7 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/tree/:id/remove-tattoos` | `pob_tree` `remove_tattoos` | Remove every tattoo from the tree. |
 | `GET /v1/tree/:id/export-url` | `pob_tree` `export_url` | The tree as a passive tree link (pathofexile.com). |
 | `POST /v1/tree/:id/import-url` | `pob_tree` `import_url` | Add a tree from a passive tree link as a new tree in the list and make it active. |
+| `GET /v1/tree/:id/radius-nodes` | `pob_tree` `radius_nodes` | The passives within a jewel socket's radius (as radius jewels such as timeless jewels, Thread of Hope and Unnatural Instinct see them): per radius its index, label, inner and outer distance, the nodes and how many are allocated. Default the named radii (Small, Medium, Large, Very Large, Massive); `radius` picks one, including the Variable rings. |
 | `GET /v1/tree/:id/path` | `pob_tree` `path` | Shortest path: without `from`, the nodes allocating `to` would add; with it, the fewest-node route between two nodes. |
 | `POST /v1/tree/:id/spec-new` | `pob_tree` `spec_new` | Add an empty tree to the tree list. |
 | `POST /v1/tree/:id/spec-copy` | `pob_tree` `spec_copy` | Copy a tree in the tree list. |
@@ -211,6 +212,8 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/config/:id/set-rename` | `pob_config` `set_rename` | Rename a config set. |
 | `POST /v1/config/:id/set-delete` | `pob_config` `set_delete` | Delete a config set (not the last one). |
 | `POST /v1/config/:id/set-activate` | `pob_config` `set_activate` | Make a config set the active one. |
+| `GET /v1/config/:id/custom-mods` | `pob_config` `custom_mods` | The custom modifier groups of the active config set (Configuration tab, Custom Modifiers): title, enabled, text, and each line with `supported` (Path of Building parses it whole; other lines are ignored by the calculation, as the box shows them in red). |
+| `POST /v1/config/:id/set-custom-mods` | `pob_config` `set_custom_mods` | Replace the custom modifier groups of the active config set, as editing the boxes does: each group's lines add to the build's calculation while it is enabled. Answers the groups with each line's `supported`. |
 | `GET /v1/config/:id/notes` | `pob_config` `notes` | The build notes (Notes tab), with colour codes. |
 | `POST /v1/config/:id/set-notes` | `pob_config` `set_notes` | Replace the build notes. |
 | `GET /v1/party/:id/get` | `pob_config` `party_get` | The Party tab inputs: the import destination and toggles, the text boxes (auras, curses, warcries, links, party member stats, enemy conditions, enemy modifiers) and what Path of Building parsed from them. |

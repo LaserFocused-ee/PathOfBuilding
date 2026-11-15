@@ -228,6 +228,10 @@ const statValue = z.union([z.number(), z.boolean(), z.string()]);
 const changedStats = z.object({ changed: z.record(z.string(), z.object({ before: statValue.nullable(), after: statValue.nullable() })).describe("Only the stats that differ; null = not shown / absent") });
 const evalFields = z.array(z.string().trim().min(1).max(100)).max(100).optional().describe("Output keys to compare (`Minion.<key>` for the minion's) instead of the sidebar stats");
 const powerStatName = z.string().trim().min(1).max(60).describe("A stat of Path of Building's power stat list, e.g. CombinedDPS, FullDPS, TotalDPS, Life, TotalEHP, Armour, MinionLife (`OffenceDefence` where noted)");
+const customModsResult = z.object({
+  configSet: z.number(),
+  groups: z.array(z.object({ title: z.string(), enabled: z.boolean(), text: z.string(), lines: z.array(z.object({ text: z.string(), supported: z.boolean() })) })),
+});
 const tradeWeights = z.array(z.object({ stat: powerStatName, weight: z.number().min(0.01).max(1) })).min(1).max(20).optional().describe("Stat weights as the trade popup's list sets them (0.01 to 1 each; default Full DPS 1, Effective Hit Pool 0.5)");
 const tradeLeague = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9 '-]*$/, "a league name is letters, digits, spaces, ' and -").max(64);
 const tradeQuery = z.looseObject({}).refine((q) => JSON.stringify(q).length <= 32_768, "a query is at most 32 KB of JSON");
@@ -320,6 +324,7 @@ export const routes: Route[] = [
   mutateRoute("tree", "tree", "remove_tattoos", "Remove every tattoo from the tree.", z.object({}), tattoosResult),
   readRoute("tree", "tree", "export_url", "The tree as a passive tree link (pathofexile.com).", z.object({}), z.looseObject({ url: z.string() })),
   mutateRoute("tree", "tree", "import_url", "Add a tree from a passive tree link as a new tree in the list and make it active.", z.object({ url: z.string().url().max(4000), title: title.optional() }), specSummary, ["url", "title"]),
+  readRoute("tree", "tree", "radius_nodes", "The passives within a jewel socket's radius (as radius jewels such as timeless jewels, Thread of Hope and Unnatural Instinct see them): per radius its index, label, inner and outer distance, the nodes and how many are allocated. Default the named radii (Small, Medium, Large, Very Large, Massive); `radius` picks one, including the Variable rings.", z.object({ socket: nodeRef.describe("Socket node id, or Jewel <id>"), radius: z.union([z.number().int().min(1).max(20), z.string().trim().min(1).max(20)]).optional().describe("Radius index from 1, or its label") }), z.looseObject({ socket: z.number(), allocated: z.boolean(), radii: z.array(z.looseObject({ index: z.number(), label: z.string(), inner: z.number(), outer: z.number(), total: z.number(), allocated: z.number(), nodes: z.array(z.looseObject({ id: z.number(), name: z.string(), type: z.string(), allocated: z.boolean() })) })) }), ["socket", "radius"]),
   readRoute("tree", "tree", "path", "Shortest path: without `from`, the nodes allocating `to` would add; with it, the fewest-node route between two nodes.", z.object({ to: nodeRef, from: nodeRef.optional() }), z.looseObject({ length: z.number(), nodes: z.array(nodeBrief) }), ["to", "from"]),
   mutateRoute("tree", "tree", "spec_new", "Add an empty tree to the tree list.", z.object({ title: title.optional() }), specCount, ["title"]),
   mutateRoute("tree", "tree", "spec_copy", "Copy a tree in the tree list.", z.object({ index: specIndex, title: title.optional() }), specCount, ["index", "title"]),
@@ -385,6 +390,8 @@ export const routes: Route[] = [
   mutateRoute("config", "config", "set_rename", "Rename a config set.", z.object({ index: setIndex, title }), setsResult, ["index", "title"]),
   mutateRoute("config", "config", "set_delete", "Delete a config set (not the last one).", z.object({ index: setIndex }), setsResult, ["index"]),
   mutateRoute("config", "config", "set_activate", "Make a config set the active one.", z.object({ index: setIndex }), setsResult, ["index"]),
+  readRoute("config", "config", "custom_mods", "The custom modifier groups of the active config set (Configuration tab, Custom Modifiers): title, enabled, text, and each line with `supported` (Path of Building parses it whole; other lines are ignored by the calculation, as the box shows them in red).", z.object({}), customModsResult),
+  mutateRoute("config", "config", "set_custom_mods", "Replace the custom modifier groups of the active config set, as editing the boxes does: each group's lines add to the build's calculation while it is enabled. Answers the groups with each line's `supported`.", z.object({ groups: z.array(z.object({ title: z.string().trim().min(1).max(100).optional(), enabled: z.boolean().optional().describe("Default true"), text: z.string().max(20000).describe("One modifier per line, as the item text writes it") })).min(1).max(20) }), customModsResult, ["groups"]),
   readRoute("config", "config", "notes", "The build notes (Notes tab), with colour codes.", z.object({}), z.looseObject({ text: z.string() })),
   mutateRoute("config", "config", "set_notes", "Replace the build notes.", z.object({ text: z.string().max(100000) }), nothing, ["text"]),
 

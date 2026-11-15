@@ -263,3 +263,25 @@ void test("ui_invoke: every action every control offers, on every tab, reaches n
   fails(finder, 400, "invalid_input");
   assert.match(finder.body.error?.message ?? "", /asks the trade site for its leagues/);
 });
+
+void test("config custom_mods: groups add their supported lines to the calculation while enabled; unsupported lines are marked", async () => {
+  const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
+  const id = ok(await srv.call<{ build: { id: string } }>("POST", "/v1/builds/import/xml", { xml })).build.id;
+  type Groups = { configSet: number; groups: Array<{ title: string; enabled: boolean; text: string; lines: Array<{ text: string; supported: boolean }> }> };
+  const life = async () => ok(await srv.call<{ output: { Life: number } }>("GET", `/v1/stats/${id}/output?fields=Life`)).output.Life;
+  const base = await life();
+  assert.deepEqual(ok(await srv.call<Groups>("GET", `/v1/config/${id}/custom-mods`)), { configSet: 1, groups: [{ title: "Default", enabled: true, text: "", lines: [] }] });
+  const rev = await revisionOf(id);
+  const set = ok(await srv.call<Mutated<Groups>>("POST", `/v1/config/${id}/set-custom-mods`, { groups: [{ title: "Flat", text: "+100 to maximum Life\nthis line means nothing" }, { title: "Off", enabled: false, text: "+1000 to maximum Life" }] }));
+  assert.deepEqual(set.result.groups, [
+    { title: "Flat", enabled: true, text: "+100 to maximum Life\nthis line means nothing", lines: [{ text: "+100 to maximum Life", supported: true }, { text: "this line means nothing", supported: false }] },
+    { title: "Off", enabled: false, text: "+1000 to maximum Life", lines: [{ text: "+1000 to maximum Life", supported: true }] },
+  ]);
+  assert.equal(set.revision, rev + 1);
+  const withMods = await life();
+  assert.deepEqual([base, withMods, set.changed.Life], [1328, 1446, { before: 1328, after: 1446 }], "+100 flat, then the build's increased life applies");
+  ok(await srv.call("POST", `/v1/config/${id}/set-custom-mods`, { groups: [{ text: "" }] }));
+  assert.equal(await life(), base, "cleared");
+  const r = await srv.call("POST", `/v1/config/${id}/set-custom-mods`, { groups: [] });
+  fails(r, 400, "invalid_input");
+});
