@@ -1,11 +1,12 @@
 // Worker tests for evaluate jewel_mods (Path of Building's trade weighting for jewels) and compare_item in jewel sockets, on tree 3_30.
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { gunzipSync } from "node:zlib";
 import { routes } from "../src/routes.js";
-import { FIXTURES, startServer, type TestServer } from "./helpers.js";
+import { FIXTURES, ROOT, startServer, type TestServer } from "./helpers.js";
 
 type Value = number | string | boolean | null;
 type Changed = Record<string, { before: Value; after: Value }>;
@@ -194,4 +195,50 @@ void test("tree radius_nodes: the passives in each radius of a socket, as radius
   assert.deepEqual(ring.radii.map((r) => [r.label, r.inner, r.outer, r.total]), [["Variable", 960, 1320, 12]]);
   assert.equal((await srv.call("GET", `/v1/tree/${base}/radius-nodes?socket=Elemental%20Overload`)).status, 400, "not a socket");
   assert.equal((await srv.call("GET", `/v1/tree/${base}/radius-nodes?socket=41263&radius=11`)).status, 400, "no such radius");
+});
+
+void test("timeless: the Find Timeless Jewel dialog's search, seeds scored for the build, its trade search; the build is left as it was", async () => {
+  type Timeless = { jewel: string; conqueror: string | null; count: number; results: Array<{ seed: number; total: number; socket: { id: number; label: string }; nodes: Array<{ id: string; name: string; targets: string[] }> }>; query: { stats: Stats; status: { option: string } } | null; search: { query: unknown; sort: unknown } | null; link: string | null };
+  const timeless = async (body: Record<string, unknown>) => {
+    const result = ok(await post<Timeless>(`/v1/evaluate/${base}/timeless`, body));
+    assert.ok(declared("evaluate.timeless")?.safeParse(result).success, "timeless answer matches its declared output");
+    return result;
+  };
+  const pool = srv.runtime.svc.pool;
+  const before = await state(base);
+  await pool.run(base, "worker.reach");
+  // Generate: every passive Lethal Pride gives, weighed by Full DPS for this build.
+  const dps = await timeless({ jewel: "Lethal Pride", socket: 41263, fallback: "Full DPS", limit: 3 });
+  assert.deepEqual([dps.jewel, dps.conqueror, dps.count, dps.link], ["Lethal Pride", "Any", 4860, null]);
+  assert.deepEqual(dps.results.map((r) => [r.total, r.socket.id]), [[18.51, 41263], [18.01, 41263], [18.01, 41263]]);
+  assert.deepEqual([dps.results[0]?.seed, dps.results[0]?.nodes.map((n) => [n.id, n.targets])], [12663, [
+    ["karui_notable_add_burning_damage", ["Dark Arts", "Melding"]], ["karui_notable_add_double_damage", ["Grave Intentions", "Steeped in the Profane", "Tolerance"]],
+  ]]);
+  // Open Trade URL: the best 4 seeds, each under the three conquerors' stats, count at least 1.
+  const filters = dps.query?.stats[0]?.filters ?? [];
+  assert.deepEqual([dps.query?.stats[0]?.type, filters.length, filters[0]], ["count", 12, { id: "explicit.pseudo_timeless_jewel_kaom", value: { min: 12663, max: 12663 } }]);
+  assert.deepEqual(dps.search, { query: dps.query, sort: { price: "asc" } });
+  // A named conqueror and wanted passive, by name, counting allocated nodes only; the link in the league played.
+  const str = await timeless({ jewel: "lethal", conqueror: "Kaom", socket: "Jewel 41263", nodes: [{ node: "Total Strength", weight: 1 }], allocatedOnly: true, limit: 3, league: "Covens" });
+  assert.deepEqual([str.conqueror, str.count, str.results.map((r) => r.total), str.results[0]?.nodes], ["Kaom (Strength of Blood)", 8001, [34, 34, 34], [{ id: "totalStat", name: "Strength", targets: ["Deep Wisdom"] }]]);
+  assert.equal(str.query?.stats[0]?.filters.length, 11, "one seed per filter with one conqueror");
+  assert.ok(str.query?.stats[0]?.filters.every((f) => f.id === "explicit.pseudo_timeless_jewel_kaom"));
+  const seg = (str.link ?? "").match(/^https:\/\/www\.pathofexile\.com\/trade\/search\/Covens\/([\w-]+=*)$/)?.[1] ?? "";
+  assert.deepEqual(JSON.parse(gunzipSync(Buffer.from(seg.replace(/-/g, "+").replace(/_/g, "/"), "base64")).toString("utf8")), str.query, "the link carries the same search");
+  // The seed table's unpacked cache is refused outside the state dir; the link is captured, never opened anywhere.
+  assert.deepEqual(await pool.run(base, "worker.reach").then((r) => r.result), { subScripts: 0, urls: 2, writes: ["./Data/TimelessJewelData/LethalPride.bin", "./Data/TimelessJewelData/LethalPride.bin"] });
+  assert.equal(existsSync(join(ROOT, "src/Data/TimelessJewelData/LethalPride.bin")), false, "nothing written next to the sources");
+  assert.equal(await state(base), before, "code, revision and stats unchanged");
+  for (const [body, message] of [
+    [{ jewel: "a" }, /jewel "a" matches \d+ of: /],
+    [{ jewel: "Lethal Pride" }, /give nodes, a fallback stat, or both/],
+    [{ jewel: "Lethal Pride", nodes: [{ node: "Might of the Vaal" }] }, /nodes\[1\]: Might of the Vaal is not a passive Lethal Pride can give/],
+    [{ jewel: "Lethal Pride", socket: 1, fallback: "Full DPS" }, /socket 1 is not a jewel socket/],
+    [{ jewel: "Lethal Pride", fallback: "Nothing" }, /fallback "Sort by Nothing" matches 0 of: /],
+  ] as const) {
+    const r = await post<unknown>(`/v1/evaluate/${base}/timeless`, body);
+    assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], JSON.stringify(body));
+    assert.match(r.body.error?.message ?? "", message);
+  }
+  assert.equal(await state(base), before, "refusals leave the build as it was");
 });

@@ -1024,5 +1024,115 @@ return function(W)
 		return { listings = out, weights = statWeights and weightsOut(statWeights) or json.null }
 	end
 
+	-- args: jewel (timeless jewel type, by name or one unique part), conqueror?, socket? (node id or "Jewel <id>"; default every
+	-- socket), nodes? [{node (legion passive id or exact name), weight?, weight2?, minimum?}], fallback? (a Fallback Weight Mode
+	-- stat, e.g. "Full DPS": Generate weighs every other passive the jewel can give by that stat), minimumTotal?, allocatedOnly?,
+	-- limit?, league?, realm?. The Tree tab's Find Timeless Jewel dialog, driven through its controls: Search scores every seed
+	-- in the socket(s) against the weights; Open Trade URL makes the trade search for the best seeds (captured, not opened).
+	-- The dialog keeps its settings in the build (timelessData); they are put back, so the build does not change.
+	function ops.timeless(args)
+		local b = W.build()
+		local tab = b.treeTab
+		if type(args.jewel) ~= "string" then bad("jewel is a timeless jewel type, e.g. Lethal Pride") end
+		local realm = args.realm or "pc"
+		local keep = { data = copyTable(b.timelessData), flag = b.modFlag, leagues = tab.tradeLeaguesList, league = tab.timelessJewelLeagueSelect,
+			realm = tab.selectedRealmIndex, tradeType = tab.tradeTypeIndex, more = tab.lastSearchMore }
+		-- The league list is given, so the dialog never asks the trade site for it (updateLeagues -> FetchLeagues).
+		tab.tradeLeaguesList = { [realm] = { args.league or "-" } }
+		tab.selectedRealmIndex = ({ pc = 1, sony = 2, xbox = 3 })[realm]
+		tab.timelessJewelLeagueSelect, tab.tradeTypeIndex, tab.lastSearchMore = nil, 1, false
+		local popups = #main.popups
+		local ok, out = pcall(function()
+			tab:FindTimelessJewel()
+			local c = main.popups[1].controls
+			local function pick(drop, want, what)
+				local lower = want:lower()
+				local exact = W.choose(drop, function(v) return v.label:lower() == lower end)
+				if exact then return exact end
+				local hits = {}
+				for _, v in ipairs(drop.list) do
+					if v.label:lower():find(lower, 1, true) then hits[#hits + 1] = v.label end
+				end
+				if #hits ~= 1 then
+					local all = {}
+					for _, v in ipairs(drop.list) do all[#all + 1] = v.label end
+					bad(("%s %q matches %d of: %s"):format(what, want, #hits, table.concat(#hits > 1 and hits or all, "; ")))
+				end
+				return W.choose(drop, function(v) return v.label == hits[1] end)
+			end
+			local jewel = pick(c.jewelSelect, args.jewel, "jewel")
+			local conqueror = args.conqueror and pick(c.conquerorSelect, args.conqueror, "conqueror") or c.conquerorSelect.list[c.conquerorSelect.selIndex]
+			if args.socket ~= nil then
+				local ref = type(args.socket) == "string" and args.socket:match("^Jewel (%d+)$") or args.socket
+				local id = tonumber(ref)
+				if not W.choose(c.socketSelect, function(v) return v.id == id end) then bad("socket " .. tostring(args.socket) .. " is not a jewel socket on this tree") end
+			else
+				W.choose(c.socketSelect, function(v) return v.id == -1 end)
+			end
+			c.socketFilter.state = args.allocatedOnly == true
+			c.socketFilter.changeFunc(c.socketFilter.state)
+			-- The search list's text form (parseSearchList): one passive per line, "id, weight, weight2, minimum".
+			local lines = {}
+			for i, n in ipairs(args.nodes or {}) do
+				local entry
+				for _, v in ipairs(c.nodeSelect.list) do
+					if v.id and (v.id == n.node or v.label:match("^(.-)%s*$") == n.node or v.label:match("^(.-)  ") == n.node) then entry = v break end
+				end
+				if not entry then bad(("nodes[%d]: %s is not a passive %s can give (an id like %s, or its name)"):format(i, tostring(n.node), jewel.label, tostring((c.nodeSelect.list[2] or {}).id))) end
+				lines[#lines + 1] = ("%s, %s, %s, %s"):format(entry.id, n.weight or 1, n.weight2 or 0, n.minimum or 0)
+			end
+			c.searchList:SetText(table.concat(lines, "\n"), true)
+			if args.fallback ~= nil then
+				pick(c.fallbackWeightsList, "Sort by " .. args.fallback, "fallback")
+				c.fallbackWeightsButton:Click()
+			else
+				c.searchListFallback:SetText("", true)
+			end
+			if #lines == 0 and args.fallback == nil then bad("give nodes, a fallback stat, or both") end
+			c.totalMinimumWeight:SetText(args.minimumTotal and tostring(args.minimumTotal) or "", true)
+			c.searchButton:Click()
+			local td = b.timelessData
+			local limit = math.min(tonumber(args.limit) or 20, 200)
+			local results = {}
+			for i, r in ipairs(td.searchResults) do
+				if i > limit then break end
+				local nodes = {}
+				for id, d in pairs(td.sharedResults.desiredNodes or {}) do
+					if r[id] then
+						local targets = copyTable(r[id].targetNodeNames or {})
+						table.sort(targets)
+						nodes[#nodes + 1] = { id = id, name = d.displayName, targets = setmetatable(targets, { __jsontype = "array" }) }
+					end
+				end
+				table.sort(nodes, function(x, y) return x.id < y.id end)
+				setmetatable(nodes, { __jsontype = "array" })
+				local socket = r.socketId and { id = r.socketId, label = r.socketLabel } or { id = td.jewelSocket.id, label = td.jewelSocket.label }
+				results[i] = { seed = r.seed, total = r.total, socket = socket, nodes = nodes }
+			end
+			local link, query = json.null, json.null
+			if #td.searchResults > 0 then
+				c.searchTradeButton:Click()
+				local url = W.takeCopied()
+				if url then
+					local encoded = url:match("/([^/]+)$")
+					link = args.league and url or json.null
+					query = encoded and json.decode(require("Classes.TradeHelpers").B64GzipDecode(encoded)) or json.null
+				end
+			end
+			return { jewel = jewel.label, conqueror = conqueror and conqueror.label or json.null, count = #td.searchResults,
+				results = setmetatable(results, { __jsontype = "array" }), query = query,
+				search = query ~= json.null and { query = query, sort = { price = "asc" } } or json.null, link = link }
+		end)
+		while #main.popups > popups do main:ClosePopup() end
+		-- ponytail: the seed tables (Glorious Vanity is over 1 GB unpacked) are dropped after each call and unpacked again on
+		-- the next one (a few seconds); keep them per worker if repeat searches matter more than memory.
+		for k in pairs(data.timelessJewelLUTs) do data.timelessJewelLUTs[k] = nil end
+		collectgarbage()
+		b.timelessData, b.modFlag = keep.data, keep.flag
+		tab.tradeLeaguesList, tab.timelessJewelLeagueSelect, tab.selectedRealmIndex, tab.tradeTypeIndex, tab.lastSearchMore = keep.leagues, keep.league, keep.realm, keep.tradeType, keep.more
+		if not ok then error(out, 0) end
+		return out
+	end
+
 	return ops
 end

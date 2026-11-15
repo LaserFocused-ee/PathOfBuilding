@@ -244,7 +244,7 @@ void test("ui_invoke: every action every control offers, on every tab, reaches n
   const id = ok(await srv.call<{ build: { id: string } }>("POST", "/v1/builds/import/xml", { xml })).build.id;
   const pool = srv.runtime.svc.pool;
   const reach = async () => (await pool.run<{ subScripts: number; urls: number; writes: string[] }>(id, "worker.reach")).result;
-  await reach(); // from zero: boot writes its data caches next to the sources
+  await reach(); // from zero
   let invoked = 0;
   for (const tab of ["build", "tree", "skills", "items", "calcs", "config", "notes", "party", "import"]) {
     const list = (await pool.run<UiList>(id, "ui.controls", { tab, limit: 5000 })).result.controls;

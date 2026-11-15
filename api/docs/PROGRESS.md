@@ -96,9 +96,9 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `tree.node_info` / `node_text` | S, H | done | `lookup.node` (stats, links, path length, mastery effects); engine.test.ts. Differences: `evaluate.what_if` |
 | `tree.node_power` | S | done | `evaluate.node_power`; evaluate.test.ts |
 | `tree.power_report` | H | done | `evaluate.node_power` (ranked, paged list); per-candidate stat differences with paths: `evaluate.passives`; evaluate.test.ts |
-| `tree.timeless.search` | S | open | No route |
+| `tree.timeless.search` | S | done | `evaluate.timeless` (the Find Timeless Jewel dialog driven through its controls, league list given so it fetches nothing); evaluate-jewels.test.ts |
 | `tree.timeless.read_seed` | H | F3 | Data lookup, not yet routed |
-| `tree.timeless.trade_url` | S | F3 | Trade stage |
+| `tree.timeless.trade_url` | S | done | `evaluate.timeless` `search` / `link` (Open Trade URL captured, not opened); run it with `trade.search` |
 | `tree.radius_nodes` | H | done | `tree.radius_nodes`; evaluate-jewels.test.ts |
 
 ### skills
@@ -263,7 +263,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | builds | 30 | 15 | 0 | 9 | 2 | 0 | 4 |
 | import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
-| tree | 27 | 19 | 0 | 0 | 0 | 2 | 6 |
+| tree | 27 | 21 | 0 | 0 | 0 | 1 | 5 |
 | skills | 17 | 14 | 0 | 0 | 0 | 1 | 2 |
 | items and crafting | 30 | 26 | 0 | 0 | 0 | 0 | 4 |
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
@@ -272,7 +272,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 118 | 1 | 9 | 8 | 25 | 26 |
+| **Total** | 187 | 120 | 1 | 9 | 8 | 24 | 25 |
 
 ## MCP tools
 

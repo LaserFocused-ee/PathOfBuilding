@@ -94,7 +94,9 @@ local copied
 Copy = function(text) copied = text end
 Paste = function() return nil end
 -- The ways out of the Lua state: sub-scripts (Launch.lua's downloads), links, and files written outside the state dir.
--- None of them goes anywhere; each is counted so a test can show what a control reached (`worker.reach`).
+-- None of them goes anywhere: a write outside the state dir is refused as a failed open (Path of Building's own callers
+-- already handle that, e.g. the timeless jewel data loader's uncompressed cache in src/Data). Each is counted so a test
+-- can show what a control reached (`worker.reach`).
 local reach = { subScripts = 0, urls = 0, writes = {} }
 LaunchSubScript = function() reach.subScripts = reach.subScripts + 1; return nil end
 OpenURL = function() reach.urls = reach.urls + 1 end
@@ -103,16 +105,20 @@ local function outside(path)
 	local p = tostring(path)
 	return p:sub(1, #stateDir + 1) ~= stateDir .. "/" or p:find("..", 1, true) ~= nil
 end
+local function refuse(path)
+	reach.writes[#reach.writes + 1] = tostring(path)
+	return nil, tostring(path) .. ": writes outside the state directory are refused"
+end
 io.open = function(path, mode)
-	if mode and mode:find("[wa+]") and outside(path) then reach.writes[#reach.writes + 1] = tostring(path) end
+	if mode and mode:find("[wa+]") and outside(path) then return refuse(path) end
 	return l_open(path, mode)
 end
 os.remove = function(path)
-	if outside(path) then reach.writes[#reach.writes + 1] = tostring(path) end
+	if outside(path) then return refuse(path) end
 	return l_remove(path)
 end
 os.rename = function(from, to)
-	if outside(from) or outside(to) then reach.writes[#reach.writes + 1] = tostring(to) end
+	if outside(from) or outside(to) then return refuse(to) end
 	return l_rename(from, to)
 end
 function GetVirtualScreenSize() return 1920, 1080 end
