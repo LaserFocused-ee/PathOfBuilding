@@ -2,6 +2,7 @@
 // library, on tree 3_30, through HTTP. Each choice moves an exact output number.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
+import { routes } from "../src/routes.js";
 import { startServer, type TestServer } from "./helpers.js";
 
 type Change = Record<string, { before: number | null; after: number | null }>;
@@ -134,4 +135,31 @@ void test("set_skill_options and set_spectres refusals answer 400 and keep the r
   await refused(await srv.call("POST", `/v1/skills/${id}/set-spectres`, { remove: ["Blackguard Mage"] }), /no spectre Blackguard Mage/);
   // A refused call leaves the choices where they were.
   assert.deepEqual(await options(id), { part: 1, parts: ["0 Blades", "5 Blades", "10 Blades"] });
+});
+
+void test("group and gem tooltips: the Skills tab's hover text, read-only, checked against the declared output", async () => {
+  const id = await witch();
+  ok(await srv.call("POST", `/v1/skills/${id}/add-group`, { gems: [{ name: "Fireball" }, { name: "Spell Echo" }] }));
+  const rev = await revisionOf(id);
+  const declared = (name: string) => routes.find((r) => r.name === name)?.output;
+  const read = async <T>(name: string, query: string) => {
+    const result = ok(await srv.call<T>("GET", `/v1/skills/${id}/${name.replace("_", "-")}?${query}`));
+    const parsed = declared(`skills.${name}`)?.safeParse(result);
+    assert.ok(parsed?.success, JSON.stringify(parsed?.error?.issues.slice(0, 3)));
+    return result;
+  };
+
+  const group = await read<{ group: number; label: string; lines: string[] }>("group_tooltip", "group=1");
+  assert.deepEqual(group, { group: 1, label: "", lines: ["Active Skill #1:", "Fireball 20/0", "Spell Echo 20/0"] });
+
+  const fireball = await read<{ group: number; gem: number; name: string; lines: string[] }>("gem_tooltip", "group=1&gem=1");
+  assert.deepEqual([fireball.group, fireball.gem, fireball.name], [1, 1, "Fireball"]);
+  assert.deepEqual(fireball.lines.slice(0, 8), ["Fireball", "", "Projectile, Spell, AoE, Fire", "Level: 20 (Max)", "Cost: 20 Mana", "Cast Time: 0.75 sec", "Critical Strike Chance: 5.00%", "Effectiveness of Added Damage: 480%"]);
+  const echo = await read<{ name: string; lines: string[] }>("gem_tooltip", "group=1&gem=2");
+  assert.deepEqual([echo.name, ...echo.lines.slice(0, 4)], ["Spell Echo", "Spell Echo", "", "Spell, Support", "Level: 20 (Max)"]);
+
+  fails(await srv.call("GET", `/v1/skills/${id}/group-tooltip?group=99`), 404, "not_found");
+  fails(await srv.call("GET", `/v1/skills/${id}/gem-tooltip?group=1&gem=99`), 404, "not_found");
+  fails(await srv.call("GET", `/v1/skills/${id}/gem-tooltip?group=1`), 400, "invalid_input");
+  assert.equal(await revisionOf(id), rev);
 });

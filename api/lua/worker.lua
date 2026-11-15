@@ -169,6 +169,21 @@ end
 function W.strip(s)
 	return type(s) == "string" and StripEscapes(s) or s
 end
+-- The lines a Tooltip would draw, colour codes stripped; a separator becomes one "" between two text lines.
+function W.tooltip(fn)
+	local t = new("Tooltip"):Tooltip()
+	fn(t)
+	local list = setmetatable({}, { __jsontype = "array" })
+	for _, line in ipairs(t.lines) do
+		if line.text then
+			list[#list + 1] = W.strip(line.text)
+		elseif #list > 0 and list[#list] ~= "" then
+			list[#list + 1] = ""
+		end
+	end
+	if list[#list] == "" then list[#list] = nil end
+	return list
+end
 function W.build()
 	local b = main.modes.BUILD
 	if main.mode ~= "BUILD" or not b.calcsTab or not b.calcsTab.mainOutput then

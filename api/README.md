@@ -168,6 +168,8 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/tree/:id/convert-all` | `pob_tree` `convert_all` | Convert every tree in the tree list that is not on a tree version to it (default the latest); the trees are replaced. |
 | `GET /v1/skills/:id/get` | `pob_skills` `get` | The Skills tab: socket groups with their gems and active skills, the main socket group, skill sets and gem options. `mainSocketGroup` is one group number for the whole build, not per skill set (as in Path of Building): it points at the same position in every set. |
 | `GET /v1/skills/:id/group-text` | `pob_skills` `group_text` | A socket group as Path of Building copies it (paste it back with `add_group`). |
+| `GET /v1/skills/:id/group-tooltip` | `pob_skills` `group_tooltip` | The hover text of a socket group in the Skills tab's group list, as lines of text. |
+| `GET /v1/skills/:id/gem-tooltip` | `pob_skills` `gem_tooltip` | The hover text of a gem's name box in the Skills tab, as lines of text. |
 | `POST /v1/skills/:id/add-group` | `pob_skills` `add_group` | Add a socket group from gems or from copy text (the Paste button). Gem names resolve as the gem box does; unknown names fail. |
 | `POST /v1/skills/:id/update-group` | `pob_skills` `update_group` | Change a socket group's label, item slot, enabled and Full DPS flags (and the count of an item-granted group). |
 | `POST /v1/skills/:id/delete-group` | `pob_skills` `delete_group` | Delete a socket group. |

@@ -15,7 +15,7 @@ GET inputs go in the query string (lists comma-separated); POST and PUT inputs a
 | `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `loadout_list`, `loadout_activate`, `loadout_new`, `ui_controls`, `ui_invoke`, `export_xml`, `replace_code`, `export_code`, `save_point`, `history` |
 | `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `versions` |
 | `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `copy_from`, `tattoo_options`, `tattoo`, `untattoo`, `export_url`, `import_url`, `radius_nodes`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `spec_move`, `convert`, `convert_all` |
-| `pob_skills` | no | `get`, `group_text`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_skill_options`, `set_spectres`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
+| `pob_skills` | no | `get`, `group_text`, `group_tooltip`, `gem_tooltip`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_skill_options`, `set_spectres`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_items` | no | `list`, `get`, `add`, `add_unique`, `add_rare`, `modify`, `edit`, `anoint`, `enchant`, `copy_from`, `craft`, `affix_options`, `influence`, `corrupt`, `add_implicit`, `custom_mod`, `crucible_mod`, `cluster_jewel`, `equip`, `unequip`, `set_active`, `delete`, `weapon_set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `custom_mods`, `set_custom_mods`, `copy_from`, `notes`, `set_notes`, `party_get`, `party_import`, `party_clear`, `party_set`, `party_effects` |
 | `pob_evaluate` | yes | `what_if`, `passives`, `node_power`, `compare_item`, `jewel_mods`, `timeless`, `gem_rank`, `anoint_rank`, `unique_rank`, `compare_specs`, `compare_item_sets`, `compare_builds`, `compare_power` |
@@ -581,6 +581,24 @@ A socket group as Path of Building copies it (paste it back with `add_group`).
 - Read-only: yes; worker: `skills.group_text`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["group","id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":{}}`
+
+### `GET /v1/skills/:id/group-tooltip`
+
+The hover text of a socket group in the Skills tab's group list, as lines of text.
+
+- Name: `skills.group_tooltip` (MCP `pob_skills` action `group_tooltip`)
+- Read-only: yes; worker: `skills.group_tooltip`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["group","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"number"},"label":{"type":"string"},"lines":{"type":"array","items":{"type":"string"}}},"required":["group","label","lines"],"additionalProperties":{}}`
+
+### `GET /v1/skills/:id/gem-tooltip`
+
+The hover text of a gem's name box in the Skills tab, as lines of text.
+
+- Name: `skills.gem_tooltip` (MCP `pob_skills` action `gem_tooltip`)
+- Read-only: yes; worker: `skills.gem_tooltip`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"gem":{"type":"integer","minimum":1,"maximum":100,"description":"Gem position in the group, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["group","gem","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"number"},"gem":{"type":"number"},"name":{"type":"string"},"lines":{"type":"array","items":{"type":"string"}}},"required":["group","gem","name","lines"],"additionalProperties":{}}`
 
 ### `POST /v1/skills/:id/add-group`
 

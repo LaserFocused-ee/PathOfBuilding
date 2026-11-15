@@ -83,6 +83,23 @@ return function(W)
 		return { text = (W.takeCopied() or ""):gsub("\r\n", "\n") }
 	end
 
+	-- The hover text of the group list (SkillsTab:AddSocketGroupTooltip).
+	function ops.group_tooltip(args)
+		local tab = W.build().skillsTab
+		local g = groupOf(tab, args.group)
+		return { group = args.group, label = g.label or "", lines = W.tooltip(function(t) tab:AddSocketGroupTooltip(t, g) end) }
+	end
+
+	-- The hover text of a gem name box (GemTooltip.AddGemTooltip).
+	function ops.gem_tooltip(args)
+		local b = W.build()
+		local g = groupOf(b.skillsTab, args.group)
+		local gem = g.gemList[args.gem]
+		if not gem then W.fail("not_found", "no gem " .. tostring(args.gem)) end
+		if not gem.gemData then W.fail("invalid_input", "gem " .. args.gem .. " of group " .. args.group .. " is not a known gem") end
+		return { group = args.group, gem = args.gem, name = gem.gemData.name, lines = W.tooltip(function(t) require("Classes.GemTooltip").AddGemTooltip(t, b, gem) end) }
+	end
+
 	-- args: text (the copy format: optional "Label: ..." and "Slot: ..." lines, then "<gem> <level>/<quality> [DISABLED] <count>"
 	-- lines), or gems ({ name, level?, quality?, enabled?, count? }) with label? and slot?. Ctrl+V on the group list.
 	ops.add_group = W.mutation(function(args, b)

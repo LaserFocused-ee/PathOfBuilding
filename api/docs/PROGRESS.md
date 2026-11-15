@@ -116,8 +116,8 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `skills.optimise_sockets` | X | done | `skills.optimise_sockets`; skills.test.ts |
 | `skills.sets.*` | S | done | `skills.set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` (list in `skills.get`); skills.test.ts |
 | `skills.options` | H | done | `skills.set_options`; skills.test.ts |
-| `skills.group_tooltip` | S | open | Tooltip text is not routed |
-| `skills.gem_tooltip` | S | open | Tooltip text is not routed |
+| `skills.group_tooltip` | S | done | `skills.group_tooltip`; skills2.test.ts |
+| `skills.gem_tooltip` | S | done | `skills.gem_tooltip`; skills2.test.ts |
 | `skills.gems.find` | H | done | `lookup.gems`; engine.test.ts |
 | `skills.gems.search` | S | done | `lookup.gems`; engine.test.ts |
 | `skills.support_compatible` | H | F3 | Data lookup, not yet routed (`lookup.gems` only filters support gems) |
@@ -264,7 +264,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | builds | 30 | 16 | 0 | 9 | 2 | 0 | 3 |
 | import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
 | tree | 27 | 25 | 0 | 0 | 0 | 1 | 1 |
-| skills | 17 | 14 | 0 | 0 | 0 | 1 | 2 |
+| skills | 17 | 16 | 0 | 0 | 0 | 1 | 0 |
 | items and crafting | 30 | 27 | 0 | 0 | 0 | 0 | 3 |
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
 | calcs | 13 | 12 | 0 | 0 | 0 | 0 | 1 |
@@ -272,7 +272,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 128 | 1 | 9 | 8 | 24 | 17 |
+| **Total** | 187 | 130 | 1 | 9 | 8 | 24 | 15 |
 
 ## MCP tools
 
