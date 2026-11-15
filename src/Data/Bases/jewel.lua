@@ -25,6 +25,12 @@ itemBases["Prismatic Jewel"] = {
 	implicitModTypes = { },
 	req = { },
 }
+itemBases["Mycelium Core"] = {
+	type = "Jewel",
+	tags = { default = true, jewel = true, not_for_sale = true, },
+	implicitModTypes = { },
+	req = { },
+}
 
 itemBases["Ghastly Eye Jewel"] = {
 	type = "Jewel",

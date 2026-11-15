@@ -123,4 +123,12 @@ Removes (10-20)% of Life when Used
 (4-6)% chance for a damaging Retaliation skill to
 become usable for every 100 life removed this way
 ]],
+[[
+Putrid Seed
+Mycelium Core
+League: Covens
+Source: Drops from unique{Effulgent Blightworm}
+Grows four random Passive Skills when Anointed
+Passive Skills grown are influenced by Oils used when Anointing
+]],
 }

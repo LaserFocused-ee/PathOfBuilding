@@ -77,4 +77,14 @@ describe("TestNewUniques", function()
 		runCallback("OnFrame")
 		assert.is_true(build.calcsTab.mainOutput.Speed > speedBefore)
 	end)
+
+	it("Putrid Seed loads on its Mycelium Core base", function()
+		local raw
+		for _, text in ipairs(data.uniques.new) do
+			if text:match("^%s*Putrid Seed\n") then raw = text end
+		end
+		local item = new("Item"):Item("Rarity: UNIQUE\n" .. raw)
+		assert.are.equals("Mycelium Core", item.baseName)
+		assert.are.equals("Jewel", item.base.type)
+	end)
 end)
