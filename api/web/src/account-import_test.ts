@@ -72,6 +72,9 @@ Deno.test("a look-alike host gets no note", () => {
     const url = `${host}/character-window/get-characters?accountName=a%231&realm=pc`;
     assertEquals(accountNote(url, { status: 404, headers: {}, body: "" }), null, host);
   }
+  // The game URL carried in another host's query is not a character request.
+  const carried = `https://example.test/?u=${site}character-window/get-characters?accountName=a%231&realm=pc`;
+  assertEquals(accountNote(carried, { status: 404, headers: {}, body: "" }), null);
 });
 
 Deno.test("only 401, 403 and 404 name the account name; 429 says wait, 5xx says the site failed", () => {
@@ -81,6 +84,7 @@ Deno.test("only 401, 403 and 404 name the account name; 429 says wait, 5xx says 
   assertEquals(note(429), SLOW_DOWN);
   for (const status of [400, 429, 500, 503]) assertEquals(note(status).includes(EXACT_NAME), false);
   assertStringIncludes(note(503), "failed to answer (503)");
+  assertEquals(note(500), "Path of Exile failed to answer (500). Try again later.");
   assertStringIncludes(note(400), "(400)");
   // Not a character request: nothing to say, whatever the answer.
   assertEquals(accountNote("https://pobb.in/abc", { status: 404, headers: {}, body: "" }), null);
@@ -125,4 +129,16 @@ Deno.test("Path of Building's downloads: no profile URL is sent; notes clear at 
   assertEquals(notes.length, 6); // each character request: cleared at its start, then its answer
   assertEquals([notes[0], notes[2], notes[3], notes[4], notes[5]], [null, null, null, null, SLOW_DOWN]);
   assertStringIncludes(notes[1]!, "(403)");
+});
+
+Deno.test("relay errors: only rate_limited on a character request says wait", async () => {
+  const notes: (string | null)[] = [];
+  let error: Error = new ApiError(502, "upstream_fetch_failed", "the site did not answer");
+  const onFetch = pageFetch(() => Promise.reject(error), (n) => notes.push(n));
+  const chars = `${site}character-window/get-characters?accountName=a%231&realm=pc`;
+  assertEquals((await onFetch(chars, {}, undefined)).error, "the site did not answer");
+  assertEquals(notes, [null]); // cleared at the start, nothing after another relay error
+  error = new ApiError(429, "rate_limited", "limited");
+  assertEquals((await onFetch("https://pobb.in/abc", {}, undefined)).error, "limited");
+  assertEquals(notes, [null]); // not a character request: no note
 });
