@@ -29,7 +29,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `builds.status` | S | store | `build.get` (revision, summary), `stats.versions`; there is no unsaved state |
 | `builds.convert_version` | S | done | `tree.convert`; edit.test.ts |
 | `builds.list` | S | store | `build.list`, `build.trash` |
-| `builds.search` / `sort` | S | open | `build.list` has no filter or sort options (newest change first) |
+| `builds.search` / `sort` | S | done | `build.list` with `query` (name contains) and `sort` (updated, created, name); engine.test.ts |
 | `builds.rename` | S | store | `build.rename` |
 | `builds.copy` | S | store | `build.duplicate` |
 | `builds.delete` | S | store | `build.delete`, `build.restore` (kept 7 days) |
@@ -85,11 +85,11 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `tree.tattoo.options` / `apply` / `remove` | X | done | `tree.tattoo_options`, `tree.tattoo`, `tree.untattoo` (the Replace Modifier of Node dialog); edit.test.ts |
 | `tree.tattoo.remove_all` | S | done | `tree.remove_tattoos`; edit.test.ts |
 | `tree.specs.list` / `new` / `copy` / `rename` / `delete` | S | done | `tree.get` (list), `tree.spec_new`, `tree.spec_copy`, `tree.spec_rename`, `tree.spec_delete`; edit.test.ts |
-| `tree.specs.reorder` | S | open | No route |
+| `tree.specs.reorder` | S | done | `tree.spec_move`; edit.test.ts |
 | `tree.specs.switch` | H | done | `tree.spec_activate`; edit.test.ts |
 | `tree.specs.compare_preview` / `compare_spec` | X, H | done | `evaluate.compare_specs` (stat differences; no refunds or gold); evaluate.test.ts |
 | `tree.version.list` / `convert` | H | done | `stats.versions` (list), `tree.convert`; edit.test.ts, engine.test.ts |
-| `tree.version.convert_all` | H | open | `tree.convert` converts the active tree only |
+| `tree.version.convert_all` | H | done | `tree.convert_all`; edit.test.ts |
 | `tree.import_url` | S | done | `tree.import_url`; edit.test.ts |
 | `tree.export_url` | H | done | `tree.export_url`; edit.test.ts |
 | `tree.search` | S | done | `lookup.nodes`; engine.test.ts |
@@ -261,9 +261,9 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 
 | Domain | Total | done | ui | store | not needed | F3 | open |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| builds | 30 | 15 | 0 | 9 | 2 | 0 | 4 |
+| builds | 30 | 16 | 0 | 9 | 2 | 0 | 3 |
 | import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
-| tree | 27 | 23 | 0 | 0 | 0 | 1 | 3 |
+| tree | 27 | 25 | 0 | 0 | 0 | 1 | 1 |
 | skills | 17 | 14 | 0 | 0 | 0 | 1 | 2 |
 | items and crafting | 30 | 26 | 0 | 0 | 0 | 0 | 4 |
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
@@ -272,7 +272,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 122 | 1 | 9 | 8 | 24 | 23 |
+| **Total** | 187 | 125 | 1 | 9 | 8 | 24 | 20 |
 
 ## MCP tools
 

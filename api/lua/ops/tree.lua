@@ -350,6 +350,31 @@ return function(W)
 		return { active = b.treeTab.activeSpec }
 	end)
 
+	-- args: index, to. A drag in the tree list manager (ListControl.lua:441); OnOrderChange keeps the active tree on its spec.
+	ops.spec_move = W.mutation(function(args, b)
+		local tab = b.treeTab
+		for _, x in ipairs({ args.index, args.to }) do
+			if type(x) ~= "number" or not tab.specList[x] then W.fail("not_found", "no tree position " .. tostring(x)) end
+		end
+		if args.to ~= args.index then
+			local popups = #main.popups
+			local ok, err = pcall(function()
+				tab:OpenSpecManagePopup()
+				local list
+				for _, c in ipairs(main.popups[1].controls) do
+					if c.OnOrderChange then list = c break end
+				end
+				if not list then W.fail("worker_error", "the tree list manager has no list") end
+				local spec = table.remove(list.list, args.index)
+				table.insert(list.list, args.to, spec)
+				list:OnOrderChange(args.index, args.to)
+			end)
+			while #main.popups > popups do main:ClosePopup() end
+			if not ok then error(err, 0) end
+		end
+		return { index = args.to, active = tab.activeSpec }
+	end)
+
 	-- args: version? (default latest), keepOld? The convert popup's Convert / Copy + Convert (TreeTab.lua:654).
 	ops.convert = W.mutation(function(args, b)
 		local version = args.version or latestTreeVersion
@@ -358,6 +383,25 @@ return function(W)
 		b.treeTab:OpenVersionConvertPopup(version)
 		W.clickPopup(args.keepOld and "convertCopy" or "convert")
 		return { treeVersion = b.spec.treeVersion }
+	end)
+
+	-- args: version? (default latest). The Convert all dialog (TreeTab.lua:673): every tree not on that version, replaced.
+	ops.convert_all = W.mutation(function(args, b)
+		local version = args.version or latestTreeVersion
+		if not treeVersions[version] then W.fail("invalid_input", "unknown tree version " .. tostring(version)) end
+		local tab, popups, converted = b.treeTab, #main.popups, 0
+		for _, s in ipairs(tab.specList) do
+			if s.treeVersion ~= version then converted = converted + 1 end
+		end
+		local ok, err = pcall(function()
+			tab:OpenVersionConvertAllPopup(version)
+			W.clickPopup("convert")
+		end)
+		while #main.popups > popups do main:ClosePopup() end
+		if not ok then error(err, 0) end
+		local specs = {}
+		for i, s in ipairs(tab.specList) do specs[#specs + 1] = specSummary(tab, i, s) end
+		return { converted = converted, specs = specs }
 	end)
 
 	-- args: to, from? Shortest path. Without `from`, the path the tree would allocate to reach `to`;

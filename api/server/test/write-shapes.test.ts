@@ -83,8 +83,10 @@ void test("tree writes", async () => {
   await write("tree.remove_tattoos", id);
   await write("tree.spec_new", id, { title: "Blank" });
   await write("tree.import_url", id, { url, title: "From link" });
+  await write("tree.spec_move", id, { index: 2, to: 1 });
   await write("tree.spec_delete", id, { index: 1 });
   await write("tree.convert", id, { version: "3_28", keepOld: true });
+  await write("tree.convert_all", id, { version: "3_30" });
 });
 
 void test("skills writes", async () => {
@@ -192,5 +194,5 @@ void test("build writes: imports, loadouts, settings, history; delete and restor
 void test("every write route was called, and none is declared without a result shape", () => {
   const writes = routes.filter((r) => !r.readOnly).map((r) => r.name).sort();
   assert.deepEqual([...called].sort(), writes, "a write route has no call in this file");
-  assert.equal(called.size, 86);
+  assert.equal(called.size, 88);
 });

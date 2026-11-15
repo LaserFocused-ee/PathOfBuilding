@@ -99,6 +99,28 @@ void test("killing a worker mid-session is recovered from the store", async () =
   assert.notEqual(pool.workerFor(occ)?.proc.pid, oldPid);
 });
 
+void test("build.list: filter by name and sort by updated, created or name", async () => {
+  const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
+  const ids: string[] = [];
+  for (const name of ["Zqtest Beta", "ZQTEST alpha", "zqtest Charlie"]) {
+    ids.push(ok(await srv.call<Created>("POST", "/v1/builds/import/xml", { xml, name })).build.id);
+    await new Promise((resolve) => setTimeout(resolve, 5)); // distinct timestamps
+  }
+  ok(await srv.call("POST", `/v1/builds/${ids[0]}/rename`, { name: "zqtest Bravo" }));
+  const names = async (qs: string) => ok(await srv.call<{ builds: Array<{ name: string }> }>("GET", `/v1/builds?query=zqtest${qs}`)).builds.map((b) => b.name);
+  assert.deepEqual(await names(""), ["zqtest Bravo", "zqtest Charlie", "ZQTEST alpha"], "default: most recently changed first");
+  assert.deepEqual(await names("&sort=created"), ["zqtest Charlie", "ZQTEST alpha", "zqtest Bravo"], "created: newest first");
+  assert.deepEqual(await names("&sort=name"), ["ZQTEST alpha", "zqtest Bravo", "zqtest Charlie"], "name: A to Z");
+  const q = ok(await srv.call<{ builds: Array<{ name: string }> }>("GET", "/v1/builds?query=CHARLIE"));
+  assert.deepEqual(q.builds.map((b) => b.name), ["zqtest Charlie"], "the filter ignores case");
+  assert.deepEqual(ok(await srv.call<{ builds: unknown[] }>("GET", "/v1/builds?query=no-such-build-name")).builds, []);
+  const all = ok(await srv.call<{ builds: Array<{ id: string }> }>("GET", "/v1/builds"));
+  assert.ok(ids.every((id) => all.builds.some((b) => b.id === id)), "no query lists every build");
+  const bad = await srv.call("GET", "/v1/builds?sort=size");
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.error?.code, "invalid_input");
+});
+
 void test("metadata ops: list, rename with stale check, save point, history, duplicate, delete", async () => {
   const list = ok(await srv.call<{ builds: Array<{ id: string }> }>("GET", "/v1/builds"));
   assert.ok(list.builds.some((b) => b.id === occ) && list.builds.some((b) => b.id === fresh));

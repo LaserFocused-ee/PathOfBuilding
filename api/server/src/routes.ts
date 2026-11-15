@@ -208,6 +208,7 @@ const tattoosResult = z.looseObject({ removed: z.number() }); // tree remove_tat
 const specCount = z.looseObject({ count: z.number() }); // tree spec_new, spec_copy, spec_delete: trees in the list
 const activeSpecResult = z.looseObject({ active: z.number() }); // tree spec_activate
 const convertResult = z.looseObject({ treeVersion: z.string() }); // tree convert
+const convertAllResult = z.looseObject({ converted: z.number(), specs: z.array(z.looseObject({ index: z.number(), title: z.string(), treeVersion: z.string() })) }); // tree convert_all
 const groupResult = z.looseObject({ group: z.number() }); // skills add_group, update_group, move_group
 const groupsResult = z.looseObject({ groups: z.number() }); // skills delete_group: groups left
 const mainGroupResult = z.looseObject({ mainSocketGroup: z.number(), mainSkill: z.string().optional() }); // skills set_main
@@ -247,7 +248,21 @@ const compareBuildsInput = z.object({ other: buildId.describe("The build to comp
 
 export const routes: Route[] = [
   // builds
-  route({ name: "build.list", domain: "build", method: "GET", path: "/v1/builds", summary: "List stored builds, most recently changed first.", input: z.object({}), output: z.object({ builds: z.array(meta) }), readOnly: true, workerOp: "(store)", run: (s) => s.list() }),
+  route({
+    name: "build.list", domain: "build", method: "GET", path: "/v1/builds", summary: "List stored builds, most recently changed first; `query` keeps builds whose name contains the text, `sort` orders them.",
+    input: z.object({ query: z.string().min(1).max(100).optional().describe("Case-insensitive text the build name contains"), sort: z.enum(["updated", "name", "created"]).default("updated").describe("updated and created: newest first; name: A to Z") }),
+    output: z.object({ builds: z.array(meta) }), readOnly: true, workerOp: "(store)",
+    run: async (s, i) => {
+      const out = await s.list();
+      const want = i.query?.toLowerCase();
+      let builds = out.result.builds;
+      if (want) builds = builds.filter((b) => b.name.toLowerCase().includes(want));
+      // The store lists newest change first; the sorts are stable, so equal keys keep that order.
+      if (i.sort === "name") builds = [...builds].sort((a, b) => a.name.localeCompare(b.name));
+      if (i.sort === "created") builds = [...builds].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      return { ...out, result: { builds } };
+    },
+  }),
   route({
     name: "build.new", domain: "build", method: "POST", path: "/v1/builds", summary: "Create an empty build. Tree version defaults to the latest.",
     input: z.object({ name: name.optional(), className: z.string().optional().describe("e.g. Witch"), ascendancy: z.string().optional().describe("e.g. Elementalist"), level: z.number().int().min(1).max(100).optional(), treeVersion: z.string().regex(/^\d+_\d+(_[a-z]+)?$/).optional().describe("e.g. 3_30") }),
@@ -334,7 +349,9 @@ export const routes: Route[] = [
   mutateRoute("tree", "tree", "spec_rename", "Rename a tree in the tree list.", z.object({ index: specIndex, title }), nothing, ["index", "title"]),
   mutateRoute("tree", "tree", "spec_delete", "Delete a tree from the tree list (not the last one).", z.object({ index: specIndex }), specCount, ["index"]),
   mutateRoute("tree", "tree", "spec_activate", "Make a tree in the tree list the active one.", z.object({ index: specIndex }), activeSpecResult, ["index"]),
+  mutateRoute("tree", "tree", "spec_move", "Move a tree to another position in the tree list.", z.object({ index: specIndex, to: specIndex.describe("New position, from 1") }), z.looseObject({ index: z.number(), active: z.number() }), ["index", "to"]),
   mutateRoute("tree", "tree", "convert", "Convert the active tree to another tree version (default the latest); `keepOld` converts a copy.", z.object({ version: treeVersion.optional(), keepOld: z.boolean().optional() }), convertResult, ["version", "keepOld"]),
+  mutateRoute("tree", "tree", "convert_all", "Convert every tree in the tree list that is not on a tree version to it (default the latest); the trees are replaced.", z.object({ version: treeVersion.optional() }), convertAllResult, ["version"]),
 
   // skills
   readRoute("skills", "skills", "get", "The Skills tab: socket groups with their gems and active skills, the main socket group, skill sets and gem options. `mainSocketGroup` is one group number for the whole build, not per skill set (as in Path of Building): it points at the same position in every set.", z.object({}), z.looseObject({ mainSocketGroup: z.number(), groups: z.array(z.looseObject({ index: z.number(), label: z.string(), slot: z.string().optional(), enabled: z.boolean(), includeInFullDPS: z.boolean(), gems: z.array(z.looseObject({ index: z.number(), name: z.string(), level: z.number(), quality: z.number(), enabled: z.boolean(), count: z.number(), support: z.boolean(), error: z.string().optional() })), activeSkills: strings, mainActiveSkill: z.number().optional(), main: z.boolean() })), sets: setList, options: gemOptions, mainOptions: mainOptions, spectres: spectreList })),

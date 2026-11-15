@@ -145,6 +145,33 @@ void test("tree: masteries and the tree list (new, copy, rename, activate, delet
   fails(await srv.call("POST", `/v1/tree/${id}/convert`, { version: "3_28" }), 400, "invalid_input");
 });
 
+void test("tree: spec_move reorders the tree list and keeps the active tree; convert_all converts every tree", async () => {
+  const id = await newWitch();
+  const titles = async () => (await tree(id)).specs.map((s) => s.title);
+  ok(await srv.call("POST", `/v1/tree/${id}/spec-rename`, { index: 1, title: "A" }));
+  ok(await srv.call("POST", `/v1/tree/${id}/spec-new`, { title: "B" }));
+  ok(await srv.call("POST", `/v1/tree/${id}/spec-new`, { title: "C" }));
+  ok(await srv.call("POST", `/v1/tree/${id}/spec-activate`, { index: 2 }));
+  const moved = ok(await srv.call<Mutated<{ index: number; active: number }>>("POST", `/v1/tree/${id}/spec-move`, { index: 3, to: 1 }));
+  assert.deepEqual([moved.result.index, moved.result.active], [1, 3]);
+  assert.deepEqual(await titles(), ["C", "A", "B"]);
+  assert.deepEqual((await tree(id)).specs.map((s) => [s.title, s.active]), [["C", false], ["A", false], ["B", true]], "the active tree is still B");
+  const rev = await revisionOf(id);
+  for (const body of [{ index: 9, to: 1 }, { index: 1, to: 9 }]) fails(await srv.call("POST", `/v1/tree/${id}/spec-move`, body), 404, "not_found");
+  assert.equal(await revisionOf(id), rev, "a refused move changes nothing");
+  assert.deepEqual(await titles(), ["C", "A", "B"]);
+
+  const id2 = await newWitch();
+  ok(await srv.call("POST", `/v1/tree/${id2}/convert`, { version: "3_28" }));
+  ok(await srv.call("POST", `/v1/tree/${id2}/spec-new`, { title: "Latest" }));
+  assert.deepEqual((await tree(id2)).specs.map((s) => s.treeVersion), ["3_28", "3_30"]);
+  const all = ok(await srv.call<Mutated<{ converted: number; specs: Array<{ treeVersion: string }> }>>("POST", `/v1/tree/${id2}/convert-all`, {}));
+  assert.equal(all.result.converted, 1, "only the 3_28 tree needed converting");
+  assert.deepEqual(all.result.specs.map((s) => s.treeVersion), ["3_30", "3_30"]);
+  assert.deepEqual((await tree(id2)).specs.map((s) => s.treeVersion), ["3_30", "3_30"]);
+  fails(await srv.call("POST", `/v1/tree/${id2}/convert-all`, { version: "9_99" }), 400, "invalid_input");
+});
+
 void test("tree: tattoos through the Replace Modifier of Node dialog: options, add, reset one, remove all", async () => {
   type Options = { node: { id: number; name: string; allocated: boolean }; current: string | null; tattoos: number; limit: number; options: Array<{ id: string; name: string; stats: string[]; legacy: boolean }> };
   const id = await newWitch();

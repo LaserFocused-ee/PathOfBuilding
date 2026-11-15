@@ -172,7 +172,7 @@ export class Service {
     });
   }
 
-  async list(): Promise<Output> {
+  async list(): Promise<Output<{ builds: Array<ReturnType<typeof publicMeta>> }>> {
     const metas = await this.store.list();
     return { result: { builds: metas.map(publicMeta) }, warnings: [] };
   }
