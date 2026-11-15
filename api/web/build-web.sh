@@ -5,7 +5,7 @@
 # Env: POB_WEB_BUILD (cache dir, default api/web/.build), POB_WEB_DIST (output, default api/web/dist; emptied by Vite),
 #      POB_WEB_FONTIN=1 keeps the Fontin font files in the output (local builds only; see THIRD-PARTY.md).
 # Output: api/web/dist, a static site to serve at the root of the API server's origin (README.md).
-# Needs git, gcc, cmake, ninja, python3 (emsdk) and deno. No root: everything lands in $B (gitignored).
+# Needs git, gcc, cmake, ninja, python3 (emsdk), perl and deno. No root: everything lands in $B (gitignored).
 set -euo pipefail
 unset NODE_ENV # an inherited NODE_ENV=development makes Vite ship React's development build
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -92,7 +92,12 @@ PS="$(mktemp -d "$PR/state.XXXXXX")" # ponytail: one small directory per build, 
 } >"$PR/probe.lua"
 (cd "$REPO/src" && SENTINEL="$SENTINEL" FIXTURE="$REPO/api/server/test/fixtures/witch-elementalist-3_30.xml" \
   POB_STATE_DIR="$PS" LUA_CPATH="$RT/?.so" "$RT/bin/luajit" "$PR/probe.lua" >"$PR/result.txt" 2>"$PR/stderr.log") ||
-  { echo "load-build probe failed; see $PR/result.txt and $PR/stderr.log" >&2; grep -v '^ok' "$PR/result.txt" >&2; exit 1; }
+  {
+    echo "load-build probe failed; see $PR/result.txt and $PR/stderr.log" >&2
+    grep -v '^ok' "$PR/result.txt" >&2 || true
+    tail -n 20 "$PR/stderr.log" >&2 # a probe that stops before its first check prints only here
+    exit 1
+  }
 
 # 2b. The published decoder module compiles its bindings with `new Function`, which the serve
 # contract's Content-Security-Policy refuses; this build uses -sDYNAMIC_EXECUTION=0 and no eval.
@@ -162,16 +167,27 @@ echo "packed $GAME $COMMIT as $VERSION_ID"
 # private data (src/poe_api_response.json is the signed-in account's API response). Zip paths are relative to
 # src/, lua/ is runtime/lua/, and the listed names are written by the packer or come from the repository root.
 [ -f "$REPO/.gitignore" ] || { echo "no .gitignore in $REPO: cannot check the packed tree" >&2; exit 1; }
-SHIPPED="$({ (cd "$STAGE/root-zipfs" && find . -type f) && (cd "$OUT/root" && find . -type f); } | sed 's#^\./##' |
-  grep -vxE '\.image\.tsv|installed\.cfg|manifest\.xml|changelog\.txt|help\.txt|LICENSE\.md' |
-  sed -e 's#^lua/#runtime/lua/#' -e t -e 's#^#src/#')"
-rc=0
-IGNORED="$(printf '%s\n' "$SHIPPED" | git -C "$REPO" check-ignore --no-index --stdin)" || rc=$?
-[ "$rc" -le 1 ] || { echo "git check-ignore failed ($rc)" >&2; exit 1; }
-NAMED="$(printf '%s\n' "$SHIPPED" | grep 'poe_api_response\.json$' || true)"
-if [ -n "$IGNORED$NAMED" ]; then
+# stdin: packed names (./ allowed); stdout: the repository paths among them that git ignores or that are named
+# poe_api_response.json.
+ignored_files() {
+  local listed ignored named rc=0
+  listed="$(sed 's#^\./##' | { grep -vxE '\.image\.tsv|installed\.cfg|manifest\.xml|changelog\.txt|help\.txt|LICENSE\.md' || true; } |
+    sed -e 's#^lua/#runtime/lua/#' -e t -e 's#^#src/#')"
+  ignored="$(printf '%s\n' "$listed" | git -C "$REPO" check-ignore --no-index --stdin)" || rc=$?
+  [ "$rc" -le 1 ] || { echo "git check-ignore failed ($rc)" >&2; return 2; }
+  named="$(printf '%s\n' "$listed" | grep 'poe_api_response\.json$' || true)"
+  printf '%s\n%s\n' "$ignored" "$named" | sed '/^$/d' | sort -u
+}
+# The check itself first: five names it must catch, as the zip names them.
+CANARY="$(printf '%s\n' poe_api_response.json Data/poe_api_response.json Data/x_currency_values.json Builds/x.lua \
+  lua/debugger.lua | ignored_files)"
+if [ "$(printf '%s\n' "$CANARY" | grep -c .)" != 5 ]; then
+  echo "the ignored-file check caught only these of its five canaries:" >&2; echo "$CANARY" >&2; exit 1
+fi
+IGNORED="$({ (cd "$STAGE/root-zipfs" && find . -type f) && (cd "$OUT/root" && find . -type f); } | ignored_files)"
+if [ -n "$IGNORED" ]; then
   echo "packed tree holds files git ignores:" >&2
-  printf '%s\n%s\n' "$IGNORED" "$NAMED" | sed '/^$/d' | sort -u | head -n 20 >&2
+  echo "$IGNORED" | head -n 20 >&2
   exit 1
 fi
 
@@ -189,6 +205,17 @@ if [ "${POB_WEB_FONTIN:-0}" != 1 ]; then
   rm -f "$DIST"/Fontin-*.woff
   perl -0pi -e 's#<span data-fontin>.*?</span>##gs' "$DIST/index.html"
   if grep -qi fontin "$DIST/index.html"; then echo "index.html still credits Fontin, which this build leaves out" >&2; exit 1; fi
+fi
+# Both ways: Fontin files ship only with the page's link to their author, and the link only with the files.
+FONTIN_FILES="$(find "$DIST" -maxdepth 1 -name 'Fontin-*.woff' | wc -l)"
+FONTIN_LINKS="$(grep -c 'href="https://www.exljbris.nl"' "$DIST/index.html" || true)"
+if [ "$FONTIN_FILES" -gt 0 ] && [ "$FONTIN_LINKS" -eq 0 ]; then
+  echo "Fontin files ($FONTIN_FILES) ship without the page's link to their author" >&2
+  exit 1
+fi
+if [ "$FONTIN_FILES" -eq 0 ] && [ "$FONTIN_LINKS" -gt 0 ]; then
+  echo "the page links the Fontin author ($FONTIN_LINKS lines) but the build holds no Fontin file" >&2
+  exit 1
 fi
 mkdir -p "$DIST/licenses"
 cp "$P/LICENSE" "$DIST/licenses/pob-web-LICENSE"

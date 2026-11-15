@@ -69,9 +69,10 @@ not set) and checks that the string the patch returns is the one `src/main.ts` c
 ## Serve contract
 
 Serve `dist/` at the root of the same origin as the API (`/v1/...`), so the page reaches the API without CORS and its
-session cookie applies. GET and HEAD only; `/` serves `index.html`; no directory listings. Every response from `dist/`
-needs these headers, because the driver shares memory between workers (`SharedArrayBuffer`), which browsers allow only
-on a cross-origin isolated page:
+session cookie applies. GET and HEAD only; `/` serves `index.html`; no directory listings; a missing file answers 404
+(the page asks for optional files, such as the Fontin fonts, and a 200 page in their place stops the view at start).
+Every response from `dist/` needs these headers, because the driver shares memory between workers (`SharedArrayBuffer`),
+which browsers allow only on a cross-origin isolated page:
 
 | Header                         | Value                                                                                                                                                                                                                                                                  |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
