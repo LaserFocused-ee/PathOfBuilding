@@ -301,6 +301,7 @@ export class TradeClient {
   private staticCache?: { at: number; value: StaticData };
   /** When each hourly policy last sent a request, answered or not. */
   private readonly asked = new Map<Policy, number>();
+  private readonly ratesPending = new Map<string, Promise<CurrencyRates & { cached: boolean }>>();
 
   constructor(
     private readonly cfg: Pick<Config, "fetchTimeoutMs" | "fetchMaxBytes">,
@@ -374,6 +375,15 @@ export class TradeClient {
     const key = JSON.stringify([realm, league]);
     const hit = this.ratesCache.get(key);
     if (hit && this.now() - hit.at < RATES_MS) return { ...hit.value, cached: true };
+    // Callers at the same time share one fetch: the second waits for the first instead of being refused by the hour's gate.
+    const pending = this.ratesPending.get(key);
+    if (pending) return pending;
+    const p = this.fetchRates(realm, league, ask, convert, key).finally(() => this.ratesPending.delete(key));
+    this.ratesPending.set(key, p);
+    return p;
+  }
+
+  private async fetchRates(realm: TradeRealm, league: string, ask: TradeAsk, convert: (data: StaticData, hour: ExchangeHour) => Promise<Record<string, number>>, key: string): Promise<CurrencyRates & { cached: boolean }> {
     let data = this.staticCache && this.now() - this.staticCache.at < RATES_MS ? this.staticCache.value : undefined;
     if (!data) {
       const reply = staticReply.safeParse(await this.send("static", ask, STATIC_URL, "GET"));
@@ -394,15 +404,21 @@ export class TradeClient {
   private async send(policy: Policy, s: TradeAsk, url: string, method: "GET" | "POST", body?: string): Promise<unknown> {
     const host = new URL(url);
     if (host.protocol !== "https:" || !(TRADE_HOSTS as readonly string[]).includes(host.hostname)) throw new ApiError("worker_error", `refused a trade request to ${host.hostname}: not one of ${TRADE_HOSTS.join(", ")}`);
+    // The hour's gate is checked and taken in one step, before any wait, so callers at the same time cannot both pass it; it is
+    // given back only when the limiter refused before anything was sent.
     const last = this.asked.get(policy);
-    if (HOURLY.has(policy) && last !== undefined && this.now() - last < RATES_MS) {
-      const wait = Math.ceil((last + RATES_MS - this.now()) / 1000);
-      throw new ApiError("rate_limited", `the ${policy} data was asked less than an hour ago and Path of Building asks at most once an hour; try again in ${wait}s`, { retryAfterSeconds: wait });
+    if (HOURLY.has(policy)) {
+      if (last !== undefined && this.now() - last < RATES_MS) {
+        const wait = Math.ceil((last + RATES_MS - this.now()) / 1000);
+        throw new ApiError("rate_limited", `the ${policy} data was asked less than an hour ago and Path of Building asks at most once an hour; try again in ${wait}s`, { retryAfterSeconds: wait });
+      }
+      this.asked.set(policy, this.now());
     }
     const site = host.hostname === TRADE_HOST ? "the trade site" : host.hostname;
     const started = this.now();
+    let sent = false;
     const res = await this.limiter.run(policy, s.priority, s.deadline, async () => {
-      if (HOURLY.has(policy)) this.asked.set(policy, this.now());
+      sent = true;
       try {
         // the headers TradeQueryRequests:ProcessQueue sends (launch:DownloadPage, which the rates use, sends only the client
         // string), and Launch.lua's client string; no cookies, no authorization
@@ -417,6 +433,12 @@ export class TradeClient {
         this.log.warn({ event: "trade.request", policy, priority: s.priority, ok: false, duration_ms: this.now() - started, reason: (e as Error).name });
         throw new ApiError("upstream_fetch_failed", `request to ${site} failed: ${(e as Error).name}`);
       }
+    }).catch((e: unknown) => {
+      if (!sent && HOURLY.has(policy)) {
+        if (last === undefined) this.asked.delete(policy);
+        else this.asked.set(policy, last);
+      }
+      throw e;
     });
     this.log.info({ event: "trade.request", policy, priority: s.priority, status: res.status, ok: res.ok, duration_ms: this.now() - started });
     if (res.status >= 300 && res.status < 400) {

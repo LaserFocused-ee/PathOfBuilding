@@ -492,7 +492,7 @@ export class Service {
         return { result: { searches, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, total: null, rates: null, limiter: this.trade.limiter.state() }, warnings };
       }
     }
-    const rateOf = (currency: string): number | undefined => rates?.rates[currency];
+    const rateOf = (currency: string): number | undefined => (rates && Object.hasOwn(rates.rates, currency) ? rates.rates[currency] : undefined);
     const picks: Array<{ amount: number; currency: string }> = [];
     for (const s of i.searches) {
       const ask = { realm: i.realm, league, body: { query: s.query, sort: s.sort ?? { price: "asc" }, engine: "new" }, listings: s.listings };

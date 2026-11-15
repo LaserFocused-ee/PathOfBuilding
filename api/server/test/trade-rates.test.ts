@@ -98,6 +98,26 @@ void test("trade client: the two downloads, the league's markets only, an hour's
   assert.ok(recorded.sent.every((s) => (TRADE_HOSTS as readonly string[]).includes(new URL(s.url).hostname)));
 });
 
+void test("trade client: callers at the same time share one fetch, another realm is refused by the hour's gate, and a refusal before sending gives the gate back", async () => {
+  const c = { t: 1_794_675_600_000 };
+  const now = () => c.t;
+  const recorded = site((s) => (s.url === STATIC_URL ? { body: staticData } : { body: exchange }));
+  const sleep = (ms: number) => {
+    c.t += ms;
+    return Promise.resolve();
+  };
+  const client = new TradeClient({ fetchTimeoutMs: 1000, fetchMaxBytes: 1_000_000 }, memoryLogger().log, recorded.fetch, new TradeLimiter(now, sleep), now);
+  const ask = (deadline = c.t + 600_000) => ({ priority: "interactive" as const, deadline, userAgent: "Path of Building/test (api; fork)" });
+  const convert = () => Promise.resolve({ divine: 1 });
+  // the limiter refuses a caller whose deadline has passed before anything is sent: the hour's gate is not used up
+  await assert.rejects(client.currencyRates("pc", LEAGUE, ask(c.t - 1), convert), (e: ApiError) => e.code === "rate_limited" && /static budget/.test(e.message));
+  assert.equal(recorded.sent.length, 0);
+  const [a, b, x, d] = await Promise.allSettled([client.currencyRates("pc", LEAGUE, ask(), convert), client.currencyRates("pc", LEAGUE, ask(), convert), client.currencyRates("xbox", LEAGUE, ask(), convert), client.currencyRates("pc", LEAGUE, ask(), convert)]);
+  assert.deepEqual([a, b, d].map((r) => r.status === "fulfilled" && r.value.rates), [{ divine: 1 }, { divine: 1 }, { divine: 1 }], "the pc callers share the one answer");
+  assert.ok(x.status === "rejected" && (x.reason as ApiError).code === "rate_limited", "xbox at the same time: the hour's gate is taken");
+  assert.deepEqual(recorded.sent.map((s) => s.url), [STATIC_URL, "https://web.poecdn.com/api/currency-exchange/1794672000"], "each host once");
+});
+
 void test("trade.currency_rates and trade.search price orders: Path of Building's conversion of the hour for the configured league; Total Price; only the two hosts reached", async () => {
   const atStart = Date.now();
   const strong = ["15% increased Fire Damage", "9% increased Damage", "4% increased Cast Speed with Fire Skills", "11% increased Projectile Damage"];
@@ -106,7 +126,7 @@ void test("trade.currency_rates and trade.search price orders: Path of Building'
   const listings: Record<string, ReturnType<typeof jewel>[]> = {
     many: [jewel(id("a"), 1, "mirror"), jewel(id("b"), 2, "chaos"), jewel(id("c"), 3, "exalted"), jewel(id("d"), 1, "divine")],
     two: [jewel(id("a"), 1, "mirror"), jewel(id("d"), 1, "divine")],
-    unpriced: [jewel(id("e"), 7, "fusing"), jewel(id("b"), 2, "chaos")],
+    unpriced: [jewel(id("e"), 7, "fusing"), jewel(id("b"), 2, "chaos"), jewel(id("9"), 1, "constructor")],
     build: [jewel(id("a"), 1, "mirror"), jewel(id("f"), 1, "chaos", ["+5 to maximum Life"]), jewel(id("b"), 2, "chaos")],
   };
   const generous = { "x-rate-limit-rules": "Ip", "x-rate-limit-ip": "100:10:0", "x-rate-limit-ip-state": "1:10:0" };
@@ -155,8 +175,8 @@ void test("trade.currency_rates and trade.search price orders: Path of Building'
 
     // A listing the rates do not price: the site's order, as Path of Building falls back, and no total in divines.
     const fallback = await search({ order: "price" }, "unpriced");
-    assert.deepEqual([fallback.result.searches[0]?.order, fallback.result.searches[0]?.listings.map((l) => [l.id[0], l.divines])], ["site", [["e", null], ["b", 0.01]]]);
-    assert.deepEqual(fallback.warnings, ["search 1: no Covens rate for fusing; ordered by site instead of price"]);
+    assert.deepEqual([fallback.result.searches[0]?.order, fallback.result.searches[0]?.listings.map((l) => [l.id[0], l.divines])], ["site", [["e", null], ["b", 0.01], ["9", null]]]);
+    assert.deepEqual(fallback.warnings, ["search 1: no Covens rate for constructor, fusing; ordered by site instead of price"]);
     assert.deepEqual(fallback.result.total, { prices: [{ currency: "fusing", amount: 7 }], divines: null });
 
     // With a build: gain, and gain less 0.1 x log10(divines), on the same three listings.
