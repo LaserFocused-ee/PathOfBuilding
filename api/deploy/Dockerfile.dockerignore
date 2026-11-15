@@ -1,0 +1,38 @@
+# Used by `docker build -f api/deploy/Dockerfile .` (BuildKit reads <Dockerfile>.dockerignore beside it).
+# Mirrors the repository's .gitignore: nothing git ignores enters the image. A git pattern without a slash
+# matches at any depth, written **/ here. Keep the two in step; api/web/build-web.sh also refuses to ship
+# any file the .gitignore matches.
+**/.idea
+**/.vs
+**/.vscode
+**/*.code-workspace
+**/inspect.lua
+**/*.lnk
+**/Builds
+**/*.cfg
+**/Settings.xml
+**/luajit
+spec/test_results.log
+spec/test_generation.log
+src/luacov.stats.out
+runtime/lua/debugger.lua
+**/manifest-updated.xml
+src/Export/ggpk/metadata
+src/Export/ggpk/data
+src/Export/ggpk/art
+src/Export/ggpk/*.exe
+src/Export/ggpk/*.dll
+**/*_currency_values.json
+src/Data/TimelessJewelData/*.bin
+runtime/imgui.ini
+runtime/SimpleGraphic/SimpleGraphic.log
+src/poe_api_response.json
+runtime/SimpleGraphic/Screenshots
+**/.emmyrc.json
+**/.luarc.json
+api/runtime/rt
+api/runtime/.src
+api/server/node_modules
+api/server/dist
+api/web/.build
+api/web/dist

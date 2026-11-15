@@ -2,7 +2,8 @@
 # Build the browser view: pob-web's driver (Lua VM + SimpleGraphic bridge compiled to WebAssembly)
 # and a pack of this repository's own Path of Building sources at one commit.
 # Usage: api/web/build-web.sh [commit]   (default: HEAD; the server's worker runs the same tree)
-# Env: POB_WEB_BUILD (cache dir, default api/web/.build), POB_WEB_DIST (output, default api/web/dist; emptied by Vite).
+# Env: POB_WEB_BUILD (cache dir, default api/web/.build), POB_WEB_DIST (output, default api/web/dist; emptied by Vite),
+#      POB_WEB_FONTIN=1 keeps the Fontin font files in the output (local builds only; see THIRD-PARTY.md).
 # Output: api/web/dist, a static site to serve at the root of the API server's origin (README.md).
 # Needs git, gcc, cmake, ninja, python3 (emsdk) and deno. No root: everything lands in $B (gitignored).
 set -euo pipefail
@@ -75,8 +76,10 @@ fi
 # getBuildCode answers the sentinel for every build the page did not load (tools/load-build-probe.lua),
 # and the sentinel is the string main.ts compares.
 SENTINEL="$(sed -n 's/^+ *return "\(![a-z-]*\)"$/\1/p' "$HERE/patches/pob-web-load-build.patch")"
-[ -n "$SENTINEL" ] && grep -qF "code === \"$SENTINEL\"" "$HERE/src/main.ts" ||
-  { echo "load-build sentinel '$SENTINEL' from the patch is not the one src/main.ts compares" >&2; exit 1; }
+if [ -z "$SENTINEL" ] || ! grep -qF "code === \"$SENTINEL\"" "$HERE/src/main.ts"; then
+  echo "load-build sentinel '$SENTINEL' from the patch is not the one src/main.ts compares" >&2
+  exit 1
+fi
 RT="${POB_RUNTIME_DIR:-$REPO/api/runtime/rt}"
 [ -x "$RT/bin/luajit" ] || RT="$RT" "$REPO/api/runtime/build-runtime.sh"
 PR="$B/load-build-probe"; mkdir -p "$PR"
@@ -155,6 +158,22 @@ fi
 (cd "$P" && deno task --filter pob-packer pack "$VERSION_ID" "$GAME" >/dev/null)
 deno run --quiet --allow-read --allow-write "$HERE/tools/manifest.ts" "$OUT" "$STAGE/root-zipfs" "$COMMIT" "$POBWEB_REV" "$STAGE/rewrites.jsonl"
 echo "packed $GAME $COMMIT as $VERSION_ID"
+# Nothing git ignores may ship: the packed sources are served without sign-in, and an ignored file can hold
+# private data (src/poe_api_response.json is the signed-in account's API response). Zip paths are relative to
+# src/, lua/ is runtime/lua/, and the listed names are written by the packer or come from the repository root.
+[ -f "$REPO/.gitignore" ] || { echo "no .gitignore in $REPO: cannot check the packed tree" >&2; exit 1; }
+SHIPPED="$({ (cd "$STAGE/root-zipfs" && find . -type f) && (cd "$OUT/root" && find . -type f); } | sed 's#^\./##' |
+  grep -vxE '\.image\.tsv|installed\.cfg|manifest\.xml|changelog\.txt|help\.txt|LICENSE\.md' |
+  sed -e 's#^lua/#runtime/lua/#' -e t -e 's#^#src/#')"
+rc=0
+IGNORED="$(printf '%s\n' "$SHIPPED" | git -C "$REPO" check-ignore --no-index --stdin)" || rc=$?
+[ "$rc" -le 1 ] || { echo "git check-ignore failed ($rc)" >&2; exit 1; }
+NAMED="$(printf '%s\n' "$SHIPPED" | grep 'poe_api_response\.json$' || true)"
+if [ -n "$IGNORED$NAMED" ]; then
+  echo "packed tree holds files git ignores:" >&2
+  printf '%s\n%s\n' "$IGNORED" "$NAMED" | sed '/^$/d' | sort -u | head -n 20 >&2
+  exit 1
+fi
 
 # 6. The page (src/), built inside pob-web's workspace, then the packed sources beside it.
 mkdir -p "$P/packages/view"
@@ -163,6 +182,14 @@ mv "$P/packages/view/view.deno.json" "$P/packages/view/deno.json"
 (cd "$P" && deno check packages/view/main.ts)
 (cd "$P" && POB_VERSION_ID="$VERSION_ID" POB_WEB_OUT="$DIST" POB_WEB_DECODER_DIR="$T2D/out" deno task vite build --config packages/view/vite.config.ts >"$B/view-build.log" 2>&1) ||
   { tail -n 30 "$B/view-build.log"; exit 1; }
+# Fontin's licence does not cover a published image or package holding it: left out unless asked for
+# (patches/pob-web-optional-fontin.patch then draws that text in Liberation Sans).
+# The page credits Fontin (its licence asks for that) only when the files are in the build: <span data-fontin>.
+if [ "${POB_WEB_FONTIN:-0}" != 1 ]; then
+  rm -f "$DIST"/Fontin-*.woff
+  perl -0pi -e 's#<span data-fontin>.*?</span>##gs' "$DIST/index.html"
+  if grep -qi fontin "$DIST/index.html"; then echo "index.html still credits Fontin, which this build leaves out" >&2; exit 1; fi
+fi
 mkdir -p "$DIST/licenses"
 cp "$P/LICENSE" "$DIST/licenses/pob-web-LICENSE"
 cp "$P/NOTICE.md" "$DIST/licenses/pob-web-NOTICE.md"

@@ -1,0 +1,44 @@
+diff --git a/packages/driver/src/js/renderer/text.ts b/packages/driver/src/js/renderer/text.ts
+index b69beb4..4a71fdb 100644
+--- a/packages/driver/src/js/renderer/text.ts
++++ b/packages/driver/src/js/renderer/text.ts
+@@ -9,14 +9,17 @@ export async function loadFonts() {
+   await loadFont("/LiberationSans-Regular.woff", "Liberation Sans");
+   await loadFont("/LiberationSans-Bold.woff", "Liberation Sans Bold");
+   await loadFont("/VeraMono.woff", "Bitstream Vera Mono");
+-  await loadFont("/Fontin-Italic.woff", "Fontin Italic");
+-  await loadFont("/Fontin-Regular.woff", "Fontin Regular");
+-  await loadFont("/Fontin-SmallCaps.woff", "Fontin SmallCaps");
++  // Fontin's licence does not cover shipping it in a published image or package, so a build leaves it out
++  // unless asked to keep it (api/web/build-web.sh POB_WEB_FONTIN=1). Missing, its text uses Liberation Sans.
++  await loadFont("/Fontin-Italic.woff", "Fontin Italic", true);
++  await loadFont("/Fontin-Regular.woff", "Fontin Regular", true);
++  await loadFont("/Fontin-SmallCaps.woff", "Fontin SmallCaps", true);
+ }
+ 
+-export async function loadFont(url: string, family: string) {
++export async function loadFont(url: string, family: string, optional = false) {
+   try {
+     const r = await fetch(url);
++    if (optional && r.status === 404) return;
+     if (!r.ok) throw new Error(`Failed to load font: ${url} (${r.status} ${r.statusText})`);
+     const data = await r.arrayBuffer();
+     const fontFace = new FontFace(family, data);
+@@ -35,13 +38,13 @@ function font(size: number, fontNum: number) {
+     case 2:
+       return `${fontSize}px Liberation Sans Bold`;
+     case 3:
+-      return `${fontSize}px Fontin SmallCaps`;
++      return `${fontSize}px Fontin SmallCaps, Liberation Sans`;
+     case 4:
+-      return `italic ${fontSize}px Fontin SmallCaps`;
++      return `italic ${fontSize}px Fontin SmallCaps, Liberation Sans`;
+     case 5:
+-      return `${fontSize}px Fontin Regular`;
++      return `${fontSize}px Fontin Regular, Liberation Sans`;
+     case 6:
+-      return `${fontSize}px Fontin Italic`;
++      return `${fontSize}px Fontin Italic, Liberation Sans`;
+     default:
+       return `${fontSize}px Bitstream Vera Mono`;
+   }
