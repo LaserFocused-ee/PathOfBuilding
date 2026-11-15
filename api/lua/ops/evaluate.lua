@@ -1024,6 +1024,33 @@ return function(W)
 		return { listings = out, weights = statWeights and weightsOut(statWeights) or json.null }
 	end
 
+	-- args: xml, label (the other build, filled in by the server), stat? (a power stat label, default Full DPS), categories?
+	-- ({ tree, items, gems, supports, config }: default all), limit?. The Compare tab's power report: what each passive, item,
+	-- skill group, support gem and config option of the compared build would change on this build, one at a time, best first.
+	function ops.compare_power(args)
+		return W.compared(args.xml, args.label, function(tab, entry)
+			local stat
+			for _, s in ipairs(tab.controls.comparePowerStatSelect.list) do
+				if s.stat and (s.label == (args.stat or "Full DPS")) then stat = s break end
+			end
+			if not stat then bad("stat " .. tostring(args.stat) .. " is not in the power report's list (e.g. Full DPS, Life, Effective Hit Pool)") end
+			local c = args.categories or {}
+			local all = next(c) == nil
+			tab:ComparePowerBuilder(entry, stat, { treeNodes = all or c.tree == true, items = all or c.items == true, skillGems = all or c.gems == true,
+				supportGems = all or c.supports == true, config = all or c.config == true })
+			local list = {}
+			for _, r in ipairs(tab.comparePowerResults or {}) do list[#list + 1] = r end
+			table.sort(list, function(x, y) return x.impact > y.impact end)
+			local out = {}
+			for i, r in ipairs(list) do
+				if args.limit and i > args.limit then break end
+				out[i] = { category = r.category, name = W.strip(r.name or ""), nodeId = r.nodeId, slot = r.slotName, impact = r.impact,
+					percent = r.impactPercent, pathDist = r.pathDist, perPoint = r.perPoint }
+			end
+			return { other = args.label, stat = stat.label, total = #list, results = setmetatable(out, { __jsontype = "array" }) }
+		end)
+	end
+
 	-- args: jewel (timeless jewel type, by name or one unique part), conqueror?, socket? (node id or "Jewel <id>"; default every
 	-- socket), nodes? [{node (legion passive id or exact name), weight?, weight2?, minimum?}], fallback? (a Fallback Weight Mode
 	-- stat, e.g. "Full DPS": Generate weighs every other passive the jewel can give by that stat), minimumTotal?, allocatedOnly?,

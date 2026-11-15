@@ -385,6 +385,19 @@ return function(W)
 		return item
 	end
 
+	-- args: xml, label (the other build, filled in by the server), slot, use?. The Compare tab's copy of the item the compared
+	-- build has in a slot into this build's items; `use` equips it in the same slot.
+	ops.copy_from = W.mutation(function(args, b)
+		local tab = b.itemsTab
+		local before = {}
+		for id in pairs(tab.items) do before[id] = true end
+		W.compared(args.xml, args.label, function(ctab, entry) ctab:CopyCompareItemToPrimary(args.slot, entry, args.use == true) end)
+		local added
+		for id in pairs(tab.items) do if not before[id] then added = id end end
+		if not added then W.fail("invalid_input", "the other build has no item in " .. tostring(args.slot)) end
+		return function(nb) return describe(nb.itemsTab, nb.itemsTab.items[added], true) end
+	end)
+
 	ops.craft = W.mutation(function(args, b)
 		craftBase(b, args)
 		return describe(b.itemsTab, save(b.itemsTab, args.equip), true)

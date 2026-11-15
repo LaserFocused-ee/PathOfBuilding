@@ -197,8 +197,8 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `compare.select` | H | not needed | Same |
 | `compare.set_loadout` | H | open | No route; the other build is compared as stored |
 | `compare.diff.*` | X | done | Output differences: `evaluate.compare_builds`, `evaluate.compare_specs`, `evaluate.compare_item_sets`; evaluate.test.ts. The drawn side-by-side screens are not needed |
-| `compare.copy_tree` / `copy_item` / `copy_config` | H | open | No route |
-| `compare.power_report` | S | open | No route |
+| `compare.copy_tree` / `copy_item` / `copy_config` | H | done | `tree.copy_from` (`use` makes it active), `items.copy_from` (a slot of the other build; `use` equips it), `config.copy_from`, each naming the other stored build; compare.test.ts |
+| `compare.power_report` | S | done | `evaluate.compare_power`: passives, items, skill and support gems, config of the other build, one at a time on this one, best first by a power stat; compare.test.ts |
 | `compare.import_folder` | S | not needed | The store is flat; there are no folders |
 | `compare.buy_similar_url` | S | F3 | Trade stage |
 | `power.uniques` | S | done | `evaluate.unique_rank`; evaluate.test.ts |
@@ -268,11 +268,11 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | items and crafting | 30 | 27 | 0 | 0 | 0 | 0 | 3 |
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
 | calcs | 13 | 12 | 0 | 0 | 0 | 0 | 1 |
-| compare and power | 12 | 4 | 0 | 0 | 4 | 1 | 3 |
+| compare and power | 12 | 6 | 0 | 0 | 4 | 1 | 1 |
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 126 | 1 | 9 | 8 | 24 | 19 |
+| **Total** | 187 | 128 | 1 | 9 | 8 | 24 | 17 |
 
 ## MCP tools
 

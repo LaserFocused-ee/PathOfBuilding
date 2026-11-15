@@ -349,6 +349,17 @@ export class Service {
     return { result: { changed }, warnings: [...a.warnings, ...b.warnings] };
   }
 
+  /**
+   * Runs an op with another stored build loaded as the Compare tab's compared build: its XML comes from the store (the latest
+   * revision), never from the caller. A write op goes through the same lock and revision check as any mutation.
+   */
+  async withCompared(id: string, other: string, op: string, args: Record<string, unknown>, write: boolean, baseRevision?: number): Promise<Output> {
+    if (id === other) throw new ApiError("invalid_input", "other is this build; name another build to compare with");
+    const meta = await this.store.get(other);
+    const withOther = { ...args, xml: await this.store.xml(other), label: meta.name };
+    return write ? this.mutate(id, op, withOther, baseRevision) : this.read(id, op, withOther);
+  }
+
   private pobVersion?: Promise<string>;
 
   /**

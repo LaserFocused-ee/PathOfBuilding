@@ -147,6 +147,14 @@ const mutateRoute = <Z extends z.ZodObject<Shape>>(domain: Domain, area: string,
     run: (svc, i) => svc.mutate(i.id, op, pick(i, args), i.baseRevision),
   }), { id: buildId, baseRevision: revision.optional().describe("Refuse the change unless the build is at this revision") });
 
+/** The route's op runs with another stored build (`other`) loaded as the Compare tab's compared build (Service.withCompared). */
+const withOther = (r: Route, keys: string[]): Route => ({
+  ...r,
+  input: r.input.extend({ other: buildId.describe("The other build, loaded as the Compare tab's compared build") }),
+  workerOp: `${r.workerOp}, with the other build in the Compare tab`,
+  run: (svc, i) => svc.withCompared(String(i.id), String(i.other), r.workerOp, pick(i, keys), !r.readOnly, typeof i.baseRevision === "number" ? i.baseRevision : undefined),
+});
+
 // Output schemas of the read routes: top-level keys of what the Lua op returns; nested detail stays loose.
 const strings = z.array(z.string());
 const nodeBrief = z.looseObject({ id: z.number(), name: z.string(), type: z.string(), ascendancy: z.string().optional(), allocated: z.boolean() });
@@ -337,6 +345,7 @@ export const routes: Route[] = [
   readRoute("tree", "tree", "mastery_options", "The effects a mastery node offers and which is selected.", z.object({ nodeId: nodeRef }), z.looseObject({ nodeId: z.number(), name: z.string(), allocated: z.boolean(), effects: z.array(z.looseObject({ effectId: z.number(), stats: strings, selected: z.boolean() })) }), ["nodeId"]),
   mutateRoute("tree", "tree", "set_mastery", "Choose a mastery effect; allocates the mastery if needed.", z.object({ nodeId: nodeRef, effectId: z.number().int().min(0) }), masteryResult, ["nodeId", "effectId"]),
   mutateRoute("tree", "tree", "remove_tattoos", "Remove every tattoo from the tree.", z.object({}), tattoosResult),
+  withOther(mutateRoute("tree", "tree", "copy_from", "Copy another build's active tree into this build's tree list, as the Compare tab's copy does (titled \"(Compared)\"; jewels stay behind, they are the other build's items); `use` makes it the active tree.", z.object({ use: z.boolean().optional() }), z.looseObject({ index: z.number(), title: z.string(), active: z.number() })), ["use"]),
   readRoute("tree", "tree", "tattoo_options", "The tattoos a node can take, as the Replace Modifier of Node dialog lists them (right-click a small attribute, a +30 attribute notable, a keystone or an unallocated mastery): id, name, stats, legacy; with the node's current tattoo and the tree's tattoo count against the limit of 50. `legacy` shows legacy tattoos too.", z.object({ node: nodeRef, legacy: z.boolean().optional().describe("Show Legacy Tattoos") }), z.looseObject({ node: z.looseObject({ id: z.number(), name: z.string() }), current: z.string().nullable(), tattoos: z.number(), limit: z.number(), options: z.array(z.looseObject({ id: z.string(), name: z.string(), stats: z.array(z.string()), legacy: z.boolean() })) }), ["node", "legacy"]),
   mutateRoute("tree", "tree", "tattoo", "Tattoo a node, as the dialog's Add button does: the tattoo by name or id (exact, or one unique part). Over 50 tattoos is allowed, as in the application; `tattoos` says how many there are.", z.object({ node: nodeRef, tattoo: z.string().trim().min(1).max(100), legacy: z.boolean().optional().describe("Allow legacy tattoos") }), z.looseObject({ nodeId: z.number(), tattoo: z.string().nullable(), tattoos: z.number(), limit: z.number() }), ["node", "tattoo", "legacy"]),
   mutateRoute("tree", "tree", "untattoo", "Remove one node's tattoo (the dialog's Reset Node button): the node's own passive comes back.", z.object({ node: nodeRef }), z.looseObject({ nodeId: z.number(), name: z.string(), tattoos: z.number(), limit: z.number() }), ["node"]),
@@ -384,6 +393,7 @@ export const routes: Route[] = [
   mutateRoute("items", "items", "edit", "Replace an item's text (the Edit... button); the item keeps its id and slot. Text Path of Building cannot read fails.", z.object({ item: itemRef, text: z.string().min(1).max(20000) }), itemDetail, ["item", "text"]),
   mutateRoute("items", "items", "anoint", "Anoint an amulet (or another anointable item) with notables, one per anoint slot, in order; an empty list removes the anoints.", z.object({ item: itemRef, notables: z.array(itemName).max(4) }), itemDetail, ["item", "notables"]),
   mutateRoute("items", "items", "enchant", "Enchant an item from the Enchant popup (helmet, gloves, boots, weapon and similar). The enchantment is matched by its text, exactly or by one unique part of it.", z.object({ item: itemRef, enchantment: z.string().trim().min(1).max(300), source: z.string().trim().min(1).max(100).optional().describe("Where it comes from, e.g. Eternal Labyrinth (the default is the first listed)"), skill: z.string().trim().min(1).max(100).optional().describe("For skill enchantments (helmets), the skill") }), itemDetail, ["item", "enchantment", "source", "skill"]),
+  withOther(mutateRoute("items", "items", "copy_from", "Copy the item another build has in a slot into this build's items, as the Compare tab's copy does; `use` equips it in the same slot.", z.object({ slot: z.string().trim().min(1).max(60).describe("Slot in the other build, e.g. Body Armour, Ring 1"), use: z.boolean().optional() }), itemDetail), ["slot", "use"]),
   mutateRoute("items", "items", "craft", "Craft a new item from a base (the Craft item... popup), pick crafting bench mods in its affix boxes, and add it. A mod is matched by the text of its affix box entry, e.g. `+# to maximum Life`.", z.object({ base: z.string().trim().min(1).max(200).describe("Base type name, e.g. Astral Plate"), rarity: z.enum(["NORMAL", "MAGIC", "RARE"]).optional().describe("Default RARE"), title: z.string().trim().min(1).max(100).optional(), affixes: z.array(z.object({ slot: z.number().int().min(1).max(6).describe("Affix box, from 1 (prefixes first)"), mod: z.string().trim().min(1).max(300), roll: z.number().min(0).max(1).optional().describe("0 to 1 across the mod's tiers and range; default 1") })).max(6).optional(), equip: itemEquip }), itemDetail, ["base", "rarity", "title", "affixes", "equip"]),
   extended(route<z.ZodObject<Shape>, { id: string }>({
     name: "items.affix_options", domain: "items", method: "POST", path: "/v1/items/:id/affix-options",
@@ -428,6 +438,7 @@ export const routes: Route[] = [
   mutateRoute("config", "config", "set_activate", "Make a config set the active one.", z.object({ index: setIndex }), setsResult, ["index"]),
   readRoute("config", "config", "custom_mods", "The custom modifier groups of the active config set (Configuration tab, Custom Modifiers): title, enabled, text, and each line with `supported` (Path of Building parses it whole; other lines are ignored by the calculation, as the box shows them in red).", z.object({}), customModsResult),
   mutateRoute("config", "config", "set_custom_mods", "Replace the custom modifier groups of the active config set, as editing the boxes does: each group's lines add to the build's calculation while it is enabled. Answers the groups with each line's `supported`.", z.object({ groups: z.array(z.object({ title: z.string().trim().min(1).max(100).optional(), enabled: z.boolean().optional().describe("Default true"), text: z.string().max(20000).describe("One modifier per line, as the item text writes it") })).min(1).max(20) }), customModsResult, ["groups"]),
+  withOther(mutateRoute("config", "config", "copy_from", "Copy another build's Configuration tab inputs onto this build, as the Compare tab's Copy config does (inputs only this build has stay).", z.object({}), z.looseObject({ copied: z.number() })), []),
   readRoute("config", "config", "notes", "The build notes (Notes tab), with colour codes.", z.object({}), z.looseObject({ text: z.string() })),
   mutateRoute("config", "config", "set_notes", "Replace the build notes.", z.object({ text: z.string().max(100000) }), nothing, ["text"]),
 
@@ -528,6 +539,7 @@ export const routes: Route[] = [
     workerOp: "stats.sidebar (stats.output with `fields`) on each build, diffed by the server",
     run: (svc, i) => svc.compareBuilds(i.id, i.other, i.fields),
   }), { id: buildId }),
+  withOther(evalRoute("compare_power", "The Compare tab's power report against another build: what each passive the other build has and this one lacks, each item it wears, each skill group and support gem of its main skill it adds, and each config option it sets differently would change on this build, one at a time, best first. `impact` is the change in the stat (`percent` of this build's value); passives also give `pathDist` and `perPoint`.", z.object({ stat: z.string().trim().min(1).max(60).optional().describe("Power stat by its label (default Full DPS), e.g. Life, Effective Hit Pool"), categories: z.object({ tree: z.boolean().optional(), items: z.boolean().optional(), gems: z.boolean().optional(), supports: z.boolean().optional(), config: z.boolean().optional() }).optional().describe("Which parts to measure (default all)"), limit }), z.looseObject({ other: z.string(), stat: z.string(), total: z.number(), results: z.array(z.looseObject({ category: z.string(), name: z.string(), impact: z.number(), percent: z.number() })) })), ["stat", "categories", "limit"]),
 
   // trade
   route({

@@ -252,6 +252,19 @@ function W.clickPopup(label)
 	end
 	W.fail("worker_error", "dialog has no " .. label .. " button")
 end
+-- Loads another build (its XML, from the store) into the Compare tab as the compared build for fn(tab, entry), then takes
+-- it out again, so the compare list is as it was.
+function W.compared(xml, label, fn)
+	local tab = W.build().compareTab
+	local keep = { index = tab.activeCompareIndex, results = tab.comparePowerResults, n = #tab.compareEntries }
+	if type(xml) ~= "string" or not tab:ImportBuild(xml, label or "Compared") then W.fail("invalid_input", "the other build could not be loaded for comparison") end
+	local ok, out = pcall(fn, tab, tab.compareEntries[#tab.compareEntries])
+	while #tab.compareEntries > keep.n do tab:RemoveBuild(#tab.compareEntries) end
+	tab.activeCompareIndex, tab.comparePowerResults = keep.index, keep.results
+	tab:UpdateBuildSelector()
+	if not ok then error(out, 0) end
+	return out
+end
 -- Opens a list manager's rename/new dialog through its button, types the name, and saves it.
 function W.listAction(list, button, index, title)
 	if index then

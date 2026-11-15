@@ -275,6 +275,15 @@ return function(W)
 		return function(nb) return { nodeId = node.id, name = nb.spec.nodes[node.id].dn, tattoos = tattooCount(nb.spec), limit = 50 } end
 	end)
 
+	-- args: xml, label (the other build, filled in by the server), use?. The Compare tab's copy of the compared build's active tree
+	-- into this build's tree list (jewels stay behind; they are the other build's items); `use` makes it the active tree.
+	ops.copy_from = W.mutation(function(args, b)
+		local before = #b.treeTab.specList
+		W.compared(args.xml, args.label, function(tab) tab:CopyCompareSpecToPrimary(args.use == true) end)
+		if #b.treeTab.specList == before then W.fail("invalid_input", "the other build has no tree to copy") end
+		return { index = #b.treeTab.specList, title = b.treeTab.specList[#b.treeTab.specList].title, active = b.treeTab.activeSpec }
+	end)
+
 	-- The Remove All Tattoos button (TreeTab.lua:143).
 	ops.remove_tattoos = W.mutation(function(_, b)
 		local tab = b.treeTab

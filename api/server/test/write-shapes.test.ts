@@ -87,6 +87,7 @@ void test("tree writes", async () => {
   await write("tree.spec_delete", id, { index: 1 });
   await write("tree.convert", id, { version: "3_28", keepOld: true });
   await write("tree.convert_all", id, { version: "3_30" });
+  await write("tree.copy_from", id, { other: await newWitch(), use: true });
 });
 
 void test("skills writes", async () => {
@@ -142,6 +143,9 @@ void test("items writes", async () => {
   await write("items.set_active", id, { slot: "Flask 1", active: true });
   await write("items.weapon_set", id, { set: 2 });
   await write("items.delete", id, { item: flask });
+  const donor = await newWitch();
+  await write("items.add", donor, { text: "Rarity: RARE\nDonor Ring\nRuby Ring\n+40 to maximum Life", equip: "auto" });
+  await write("items.copy_from", id, { other: donor, slot: "Ring 1", use: true });
   assert.ok(goldrim >= 1);
   await write("items.set_new", id, { title: "Two" });
   await write("items.set_copy", id, { index: 1 });
@@ -160,6 +164,7 @@ void test("config and party writes", async () => {
   await write("config.set_activate", id, { index: 2 });
   await write("config.set_delete", id, { index: 3 });
   await write("config.set_custom_mods", id, { groups: [{ title: "Extra", enabled: true, text: "+10 to maximum Life" }] });
+  await write("config.copy_from", id, { other: await newWitch() });
   // A party member's code, exported with Export support on.
   const member = await newWitch();
   await write("skills.add_group", member, { gems: [{ name: "Determination" }] });
@@ -194,5 +199,5 @@ void test("build writes: imports, loadouts, settings, history; delete and restor
 void test("every write route was called, and none is declared without a result shape", () => {
   const writes = routes.filter((r) => !r.readOnly).map((r) => r.name).sort();
   assert.deepEqual([...called].sort(), writes, "a write route has no call in this file");
-  assert.equal(called.size, 88);
+  assert.equal(called.size, 91);
 });

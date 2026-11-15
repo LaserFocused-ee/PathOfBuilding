@@ -180,5 +180,16 @@ return function(W)
 		return function(built) return { configSet = built.configTab.activeConfigSetId, groups = customGroups(built) } end
 	end)
 
+	-- args: xml, label (the other build, filled in by the server). The Compare tab's Copy config: every Configuration tab
+	-- input of the compared build set on this build (inputs this build has and the other does not stay as they are).
+	ops.copy_from = W.mutation(function(args, b)
+		local count = 0
+		W.compared(args.xml, args.label, function(tab, entry)
+			for _ in pairs(entry.configTab.input) do count = count + 1 end
+			tab:CopyCompareConfig()
+		end)
+		return { copied = count }
+	end)
+
 	return ops
 end
