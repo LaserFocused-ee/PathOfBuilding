@@ -22,9 +22,9 @@ entry here: which file, what and why, its upstream status and how to drop it.
   not_for_sale, no implicit, no attribute requirement), added to the base export list and the generated base file. Its
   effect (grows four random passives when anointed) is not something Path of Building can simulate; the item is there
   so it can be equipped and imported.
-- Not added: Broken Elegy, Lash of Retribution, Kitava's Hunger and Arohongui's Tending. The game files name them, but
-  at old row numbers, with only an item class and no link to their mods; poedb.tw has no page for any of them (15 Nov
-  2026), so there is no text to add and no sign they drop in 3.30.
+- Broken Elegy, Lash of Retribution, Kitava's Hunger, Arohongui's Tending: in game tables, no mod link, not added. The
+  game files name them at old row numbers with only an item class; poedb.tw has no page for any of them (15 Nov 2026),
+  so there is no text to add and no sign they drop in 3.30.
 - Checked, not changed: ten existing unique lines whose values no game mod carries (Hyperboreus, Martyr's Crown, Ngamahu
   Tiki, Replica Dragonfang's Flight, Thirst for Horrors twice, Timetwist, Vivinsect twice, Wall of Brambles). None is in
   the 3.30 patch notes' unique changes; most are no-longer-obtainable or variant lines, and the same-shaped game mods
