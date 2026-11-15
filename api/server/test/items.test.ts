@@ -311,5 +311,9 @@ void test("warnings: more suffixes than a rare can have, eldritch implicits with
   assert.deepEqual(await add(ring(["+40% to Fire Resistance", "+40% to Cold Resistance", "+40% to Lightning Resistance", "+30% to Chaos Resistance"])), ["4 suffixes, more than the 3 a rare Ring can have"]);
   assert.equal(await add(ring(["+70 to maximum Life", "+40% to Fire Resistance", "+40% to Cold Resistance", "+300 to Accuracy Rating", "15% increased Light Radius"])), undefined, "the accuracy and light radius hybrid is one suffix");
   assert.deepEqual(await add("Rarity: RARE\nT Gloves\nSorcerer Gloves\nHunter Item\nSearing Exarch Item\nImplicits: 1\n{exarch}+1 to Maximum Power Charges\n+80 to maximum Energy Shield"), ["an item with eldritch implicits (Searing Exarch / Eater of Worlds) cannot also have Shaper, Elder or conqueror influence"]);
-  assert.equal((await list(id)).items.filter((i) => (i as { warnings?: string[] }).warnings).length, 2, "the list carries them");
+  // a bench craft of two lines (ModMaster, no spawn weight) is one prefix, next to a rolled line of the same stat
+  const belt = ["Rarity: RARE", "Budget Girdle", "Crystal Belt", "Item Level: 84", "Implicits: 1", "+70 to maximum Energy Shield", "+45 to maximum Energy Shield", "+60 to maximum Mana", "+53 to Strength", "+42% to Cold Resistance", "+42% to Lightning Resistance"];
+  assert.equal(await add([...belt, "{crafted}+285 to Armour", "{crafted}+25 to maximum Energy Shield"].join("\n")), undefined, "the Armour and Energy Shield craft is one prefix");
+  assert.deepEqual(await add([...belt, "+285 to Armour", "{crafted}+25 to maximum Energy Shield"].join("\n")), ["4 prefixes, more than the 3 a rare Belt can have"], "a rolled Armour line is not part of the craft");
+  assert.equal((await list(id)).items.filter((i) => (i as { warnings?: string[] }).warnings).length, 3, "the list carries them");
 });

@@ -46,8 +46,8 @@ return function(W)
 
 	-- Items the game cannot make, which Path of Building reads without a word. Prefixes and suffixes are Path of Building's
 	-- own split when it has one (crafted in it); otherwise each explicit line is matched, numbers aside, to the mods the base
-	-- rolls (a mod of two lines counts once when both are there), and lines no mod or both kinds match are left out, so the
-	-- count is a lower bound. ponytail: text match on the base's pool; a mod the pool lacks (veiled, essence-only) is not counted.
+	-- rolls (a mod of two lines counts once when both are there; crafted lines are matched to the bench crafts first), and
+	-- lines no mod or both kinds match are left out, so the count is a lower bound. ponytail: text match on the base's pool; a mod the pool lacks (veiled, essence-only) is not counted.
 	local conquerors = { "shaper", "elder", "adjudicator", "basilisk", "crusader", "eyrie" }
 	local function norm(line) return (W.strip(line):gsub("%([%-%d%.]+%-[%-%d%.]+%)", "0"):gsub("[%-+]?[%d%.]+", "#")) end
 	local function warningsOf(item)
@@ -72,9 +72,23 @@ return function(W)
 				for _, a in ipairs(list) do if a.modId and a.modId ~= "None" then counts[kind] = counts[kind] + 1 end end
 			end
 		elseif item.affixes then
-			local left = {}
+			local left, crafted = {}, {}
 			for _, l in ipairs(item.explicitModLines or {}) do
-				if l.line and l.line:match("%S") then local k = norm(l.line); left[k] = (left[k] or 0) + 1 end
+				if l.line and l.line:match("%S") then
+					local pool, k = l.crafted and crafted or left, norm(l.line)
+					pool[k] = (pool[k] or 0) + 1
+				end
+			end
+			-- a mod of several lines counts once when all its lines are left in `pool`
+			local function takeMulti(mods, pool)
+				for _, mod in ipairs(mods) do
+					local keys, all = {}, true
+					for i, line in ipairs(mod) do keys[i] = norm(line); if (pool[keys[i]] or 0) == 0 then all = false end end
+					if all then
+						for _, k in ipairs(keys) do pool[k] = pool[k] - 1 end
+						counts[mod.type] = counts[mod.type] + 1
+					end
+				end
 			end
 			local single, multi = {}, {}
 			for id, mod in pairs(item.affixes) do
@@ -87,15 +101,23 @@ return function(W)
 				end
 			end
 			table.sort(multi, function(x, y) return x.id < y.id end)
-			for _, entry in ipairs(multi) do
-				local mod = entry.mod
-				local keys, all = {}, true
-				for i, line in ipairs(mod) do keys[i] = norm(line); if (left[keys[i]] or 0) == 0 then all = false end end
-				if all then
-					for _, k in ipairs(keys) do left[k] = left[k] - 1 end
-					counts[mod.type] = counts[mod.type] + 1
+			for i, entry in ipairs(multi) do multi[i] = entry.mod end
+			-- Bench crafts (ModMaster, no spawn weights) for the item's type: crafted lines are matched to them first, so a
+			-- two-line craft (+# to Armour, +# to maximum Energy Shield) is one prefix; what is left joins the other lines.
+			local bench = {}
+			for _, mod in ipairs(data.masterMods) do
+				if (mod.type == "Prefix" or mod.type == "Suffix") and mod.types and mod.types[item.type] then
+					if #mod > 1 then
+						bench[#bench + 1] = mod
+					elseif #mod == 1 then
+						local k = norm(mod[1])
+						if single[k] == nil then single[k] = mod.type end
+					end
 				end
 			end
+			takeMulti(bench, crafted)
+			for k, n in pairs(crafted) do left[k] = (left[k] or 0) + n end
+			takeMulti(multi, left)
 			for k, n in pairs(left) do
 				if n > 0 and single[k] then counts[single[k]] = counts[single[k]] + n end
 			end
