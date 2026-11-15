@@ -518,6 +518,109 @@ return function(W)
 		return { socket = socket.id, allocated = spec.allocNodes[socket.id] ~= nil, radii = radii }
 	end
 
+	-- The unique's text for one conqueror and seed: its variant line with the seed in place of the "(min-max)" range, the
+	-- other variant lines, the Variant lines and the item limit left out (a second copy in the build must not be disabled).
+	local function timelessText(jewel, conqueror, seed)
+		local lines = { "Rarity: UNIQUE" }
+		for line in (jewel.raw .. "\n"):gmatch("(.-)\n") do
+			local tag, text = line:match("^{variant:([%d,]+)}(.*)$")
+			local keep = not (line:match("^Variant:") or line:match("^Limited to") or line:match("^Has Alt Variant") or line:match("^Selected Variant")) and line ~= ""
+			if tag then
+				keep = false
+				for n in tag:gmatch("%d+") do keep = keep or tonumber(n) == conqueror.variant end
+			end
+			if keep then lines[#lines + 1] = (tostring(text or line):gsub("%(%d+%-%d+%)", tostring(seed))) end
+		end
+		return table.concat(lines, "\n")
+	end
+
+	-- args: jewel (timeless jewel name, any case), conqueror, seed (an integer within the item's range), socket (jewel socket node id).
+	-- What that jewel with that seed and conqueror would do to the passives, as if socketed there: the passives it changes, before
+	-- and after. The jewel goes into the socket through the same PassiveSpec rebuild a socketed jewel does (BuildAllDependsAndPaths),
+	-- an unallocated socket counts as allocated for it, and the build is put back as it was (also when that fails).
+	function ops.timeless_nodes(args)
+		local b = W.build()
+		local spec, tab = b.spec, b.itemsTab
+		local jewel, names = nil, {}
+		for _, j in ipairs(W.timelessJewels()) do
+			names[#names + 1] = j.name
+			if type(args.jewel) == "string" and j.name:lower() == args.jewel:lower() then jewel = j end
+		end
+		if not jewel then W.fail("invalid_input", "unknown timeless jewel " .. tostring(args.jewel) .. "; jewels: " .. table.concat(names, ", ")) end
+		local conqueror, conquerors = nil, {}
+		for _, c in ipairs(jewel.conquerors) do
+			conquerors[#conquerors + 1] = c.name
+			if type(args.conqueror) == "string" and c.name:lower() == args.conqueror:lower() then conqueror = c end
+		end
+		if not conqueror then W.fail("invalid_input", "unknown conqueror " .. tostring(args.conqueror) .. " for " .. jewel.name .. "; conquerors: " .. table.concat(conquerors, ", ")) end
+		local seed = tonumber(args.seed)
+		if not seed or seed ~= math.floor(seed) or seed < jewel.seedMin or seed > jewel.seedMax then
+			W.fail("invalid_input", ("seed is an integer from %d to %d for %s"):format(jewel.seedMin, jewel.seedMax, jewel.name))
+		end
+		if jewel.name == "Elegant Hubris" and seed % 20 ~= 0 then W.fail("invalid_input", "Elegant Hubris seeds go in steps of 20") end
+		local socket = nodeRef(spec, args.socket)
+		if socket.type ~= "Socket" or (socket.expansionJewel and socket.expansionJewel.parent) then
+			W.fail("invalid_input", "node " .. socket.id .. " is not a jewel socket of the tree (a cluster jewel's own sockets are not previewed)")
+		end
+		local item = new("Item"):Item(timelessText(jewel, conqueror, seed))
+		item:BuildModList()
+		local given = item.jewelData and item.jewelData.conqueredBy
+		if not item.base or not given then W.fail("worker_error", "Path of Building could not read the " .. jewel.name .. " text") end
+		local allocated = spec.allocNodes[socket.id] ~= nil
+		if not allocated and given.conqueror.type == "abyss_special" then W.fail("invalid_input", "allocate the socket first: " .. jewel.name .. " reads the allocated path from the socket to the class start") end
+
+		local function snapshot()
+			local all = {}
+			for id, node in pairs(spec.nodes) do
+				local sd = {}
+				for i, line in ipairs(node.sd or {}) do sd[i] = W.strip(line) end
+				all[id] = { name = W.strip(node.dn), type = node.type, stats = sd, text = table.concat(sd, "\n") }
+			end
+			return all
+		end
+		local keep = { jewel = spec.jewels[socket.id], alloc = spec.allocNodes[socket.id], flag = b.modFlag, build = b.buildFlag }
+		local nodeAlloc = socket.alloc
+		-- An unallocated socket is allocated for the rebuild; the rebuild drops it again as an orphan once it has read the jewels.
+		local function rebuild()
+			if not allocated then
+				spec.allocNodes[socket.id] = socket
+				socket.alloc = true
+			end
+			spec:BuildAllDependsAndPaths()
+		end
+		local ok, out = pcall(function()
+			spec.jewels[socket.id] = 0
+			rebuild()
+			local before = snapshot()
+			tab:AddItem(item, true)
+			spec.jewels[socket.id] = item.id
+			rebuild()
+			local nodes = {}
+			for id, now in pairs(snapshot()) do
+				local was = before[id]
+				if was and (was.name ~= now.name or was.text ~= now.text) then
+					nodes[#nodes + 1] = { id = id, type = was.type, name = was.name, becomes = now.name, stats = setmetatable(now.stats, { __jsontype = "array" }), allocated = spec.allocNodes[id] ~= nil }
+				end
+			end
+			table.sort(nodes, function(x, y) return x.id < y.id end)
+			return { jewel = jewel.name, seed = seed, conqueror = conqueror.name, socket = socket.id, radius = jewel.radius or W.json.null, nodes = setmetatable(nodes, { __jsontype = "array" }) }
+		end)
+		if item.id then
+			tab.items[item.id] = nil
+			for i, id in ipairs(tab.itemOrderList) do
+				if id == item.id then table.remove(tab.itemOrderList, i) break end
+			end
+		end
+		spec.jewels[socket.id], spec.allocNodes[socket.id], socket.alloc = keep.jewel, keep.alloc, nodeAlloc
+		spec:BuildAllDependsAndPaths()
+		b.modFlag, b.buildFlag = keep.flag, keep.build
+		-- ponytail: the seed tables (Glorious Vanity is over 1 GB unpacked) are dropped after each call, as evaluate.timeless does.
+		for k in pairs(data.timelessJewelLUTs) do data.timelessJewelLUTs[k] = nil end
+		collectgarbage()
+		if not ok then error(out, 0) end
+		return out
+	end
+
 	function ops.path(args)
 		local spec = W.build().spec
 		local target = nodeRef(spec, args.to)

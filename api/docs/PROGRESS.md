@@ -97,7 +97,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `tree.node_power` | S | done | `evaluate.node_power`; evaluate.test.ts |
 | `tree.power_report` | H | done | `evaluate.node_power` (ranked, paged list); per-candidate stat differences with paths: `evaluate.passives`; evaluate.test.ts |
 | `tree.timeless.search` | S | done | `evaluate.timeless` (the Find Timeless Jewel dialog driven through its controls, league list given so it fetches nothing); evaluate-jewels.test.ts |
-| `tree.timeless.read_seed` | H | F3 | Data lookup, not yet routed |
+| `tree.timeless.read_seed` | H | done | `tree.timeless_nodes` (what a seed and conqueror do around a socket, read through the same PassiveSpec rebuild as a socketed jewel, the build left as it was); tree-timeless.test.ts |
 | `tree.timeless.trade_url` | S | done | `evaluate.timeless` `search` / `link` (Open Trade URL captured, not opened); run it with `trade.search` |
 | `tree.radius_nodes` | H | done | `tree.radius_nodes`; evaluate-jewels.test.ts |
 
@@ -250,7 +250,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `data.support_compatible` | H | done | `skills.support_compatible` (on a build holding the skill); lookup-computed.test.ts |
 | `data.tree.search` | S | done | `lookup.nodes`; engine.test.ts |
 | `data.cluster_notables` | H | done | `lookup.data` (`table`: `cluster_notables`); lookup-data.test.ts |
-| `data.timeless` | H | F3 | Data lookup, not yet routed |
+| `data.timeless` | H | done | `lookup.data` (`table`: `timeless`); lookup-data.test.ts |
 | `data.anoint_recipes` | S | done | `lookup.data` (`table`: `anoint_recipes`); lookup-data.test.ts |
 | `data.keystones` / `pantheons` / `map_mods` / `minions` / `bosses` | H | done | `lookup.data` (`table`: `keystones`, `pantheons`, `map_mods`, `minions`, `bosses`); lookup-data.test.ts |
 | `data.spectres` | H | done | `lookup.data` (`table`: `spectres`); lookup-data.test.ts |
@@ -263,7 +263,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | builds | 30 | 17 | 0 | 9 | 2 | 0 | 2 |
 | import / export | 14 | 9 | 1 | 0 | 0 | 0 | 4 |
-| tree | 27 | 26 | 0 | 0 | 0 | 1 | 0 |
+| tree | 27 | 27 | 0 | 0 | 0 | 0 | 0 |
 | skills | 17 | 17 | 0 | 0 | 0 | 0 | 0 |
 | items and crafting | 30 | 29 | 0 | 0 | 1 | 0 | 0 |
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
@@ -271,8 +271,8 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | compare and power | 12 | 7 | 0 | 0 | 4 | 1 | 0 |
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 |
-| data | 17 | 16 | 0 | 0 | 0 | 1 | 0 |
-| **Total** | 187 | 151 | 1 | 9 | 9 | 11 | 6 |
+| data | 17 | 17 | 0 | 0 | 0 | 0 | 0 |
+| **Total** | 187 | 153 | 1 | 9 | 9 | 9 | 6 |
 
 ## MCP tools
 

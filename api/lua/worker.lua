@@ -294,6 +294,34 @@ function W.compared(args, fn)
 	if not ok then error(out, 0) end
 	return out
 end
+-- The timeless jewels (Legion and Abyss uniques: the ones whose text says "Conquered by"), as the unique list holds them, by
+-- name: { name, base, raw, radius (label, none for the Abyss jewels), seedMin, seedMax (as written on the item; Elegant Hubris
+-- 2000-160000), conquerors = [{ name, keystone?, variant? }] }. The seed line is the one with a "(min-max)" range; its
+-- {variant:n} tags name the Variant line that gives the keystone ("Kaom (Strength of Blood)").
+function W.timelessJewels()
+	local out = {}
+	for _, item in pairs(main.uniqueDB.list) do
+		if item.raw:find("onquered by", 1, true) then
+			local variants, jewel = {}, { name = item.title, base = item.baseName, raw = item.raw, conquerors = {},
+				radius = item.jewelRadiusIndex and data.jewelRadius[item.jewelRadiusIndex].label or nil }
+			for line in (item.raw .. "\n"):gmatch("(.-)\n") do
+				local variant = line:match("^Variant: (.+)$")
+				if variant then variants[#variants + 1] = variant end
+				local tag, text = line:match("^{variant:([%d,]+)}(.*)$")
+				local min, max = (text or line):match("%((%d+)%-(%d+)%)")
+				if min then
+					jewel.seedMin, jewel.seedMax = tonumber(min), tonumber(max)
+					local first = tag and tonumber(tag:match("%d+"))
+					local keystone = first and variants[first] and variants[first]:match("^%S+ %((.-)%)")
+					jewel.conquerors[#jewel.conquerors + 1] = { name = (text or line):match("(%S+)$"), keystone = keystone, variant = first }
+				end
+			end
+			out[#out + 1] = jewel
+		end
+	end
+	table.sort(out, function(a, b) return a.name < b.name end)
+	return out
+end
 -- Opens a list manager's rename/new dialog through its button, types the name, and saves it.
 function W.listAction(list, button, index, title)
 	if index then

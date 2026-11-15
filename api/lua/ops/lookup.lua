@@ -327,6 +327,17 @@ return function(W)
 		spectres = function(add)
 			for id, minion in pairs(data.spectres) do add(minionRow(id, minion), id) end
 		end,
+		-- One row per timeless jewel type: the seed range as written on the item, the conquerors and the keystone each variant line names.
+		timeless = function(add)
+			for _, jewel in ipairs(W.timelessJewels()) do
+				local names, keystones = {}, setmetatable({}, { __jsontype = "object" })
+				for i, c in ipairs(jewel.conquerors) do
+					names[i] = c.name
+					keystones[c.name] = c.keystone
+				end
+				add({ name = jewel.name, base = jewel.base, radius = jewel.radius, seedMin = jewel.seedMin, seedMax = jewel.seedMax, conquerors = names, keystones = keystones }, jewel.name)
+			end
+		end,
 		bosses = function(add)
 			for id, boss in pairs(data.bosses) do add({ name = id, armourMult = boss.armourMult, evasionMult = boss.evasionMult, isUber = boss.isUber or false }, id) end
 		end,

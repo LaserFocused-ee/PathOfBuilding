@@ -310,6 +310,16 @@ const firstRows: Record<string, Row> = {
     "isUber": false,
     "name": "AlHezmin"
   },
+  timeless: {
+    "base": "Hypnotic Eye Jewel",
+    "conquerors": [
+      "Kurgal"
+    ],
+    "keystones": {},
+    "name": "Baleful Dominion",
+    "seedMax": 8000,
+    "seedMin": 100
+  },
 };
 
 void test("every data table answers rows, the first one exactly, in its declared shape", async () => {
@@ -323,6 +333,25 @@ void test("every data table answers rows, the first one exactly, in its declared
     assert.deepEqual(result.rows[0], first, table);
     assert.ok(schema.safeParse(result).success, `${table} matches the declared output`);
   }
+});
+
+void test("timeless: one row per timeless jewel type, seed range as written on the item, conquerors with the keystone their variant line names", async () => {
+  const all = await page("timeless", "?limit=50");
+  assert.equal(all.total, 11);
+  assert.deepEqual(all.rows.map((r) => r.name), ["Baleful Dominion", "Brutal Restraint", "Destructive Aspiration", "Elegant Hubris", "Extinguishing Grasp", "Festering Vengeance", "Glorious Vanity", "Heroic Tragedy", "Lethal Pride", "Militant Faith", "Reclaimed Malevolence"]);
+  const row = (name: string) => all.rows.find((r) => r.name === name);
+  assert.deepEqual(row("Lethal Pride"), {
+    name: "Lethal Pride", base: "Timeless Jewel", radius: "Large", seedMin: 10000, seedMax: 18000,
+    conquerors: ["Kaom", "Kiloava", "Rakiata", "Akoya"],
+    keystones: { Kaom: "Strength of Blood", Kiloava: "Glancing Blows", Rakiata: "Tempered by War", Akoya: "Chainbreaker" },
+  });
+  // Elegant Hubris is written 2000-160000 on the item (the engine's own tables hold that divided by 20)
+  assert.deepEqual([row("Elegant Hubris")?.seedMin, row("Elegant Hubris")?.seedMax, row("Elegant Hubris")?.conquerors], [2000, 160000, ["Cadiro", "Chitus", "Victario", "Caspiro"]]);
+  assert.deepEqual([row("Militant Faith")?.seedMin, row("Militant Faith")?.seedMax, row("Militant Faith")?.conquerors], [2000, 10000, ["Avarius", "Dominus", "Venarius", "Maxarius"]]);
+  assert.deepEqual([row("Glorious Vanity")?.conquerors, row("Heroic Tragedy")?.conquerors, row("Brutal Restraint")?.conquerors], [["Doryani", "Xibaqua", "Zerphi", "Ahuana"], ["Vorana", "Uhtred", "Medved"], ["Asenath", "Deshret", "Nasima", "Balbala"]]);
+  // the Abyss jewels name one conqueror, no keystone and have no radius
+  assert.deepEqual(row("Reclaimed Malevolence"), { name: "Reclaimed Malevolence", base: "Assembled Eye Jewel", seedMin: 100, seedMax: 8000, conquerors: ["Zorath"], keystones: {} });
+  assert.deepEqual(row("Festering Vengeance")?.conquerors, ["Tecrod"]);
 });
 
 void test("the route names exactly the tables checked here", () => {
