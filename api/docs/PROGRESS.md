@@ -210,10 +210,10 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | --- | --- | --- | --- |
 | `trade.leagues` | S | F3 | `pob_trade` |
 | `trade.currency_rates` | S | F3 | `pob_trade` |
-| `trade.stat_weights` | S | F3 | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Other slots: `pob_trade` |
-| `trade.query.generate` | S | F3 | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Other slots: `pob_trade` |
+| `trade.stat_weights` | S | done | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Gear slots: `evaluate.item_mods` (weights, search, link); evaluate-items-trade.test.ts |
+| `trade.query.generate` | S | done | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Gear slots: `evaluate.item_mods` (weights, search, link); evaluate-items-trade.test.ts |
 | `trade.search` | S | done | `trade.search` (on request only; limits in its summary); trade.test.ts |
-| `trade.search_url` | S | F3 | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Other slots: `pob_trade` |
+| `trade.search_url` | S | done | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Gear slots: `evaluate.item_mods` (weights, search, link); evaluate-items-trade.test.ts |
 | `trade.evaluate` | S | done | `trade.search` with `buildId` scores each listing in its slot; trade.test.ts |
 | `trade.sort` / `total_price` | S | F3 | `pob_trade` |
 | `trade.price_all_slots` | X | F3 | `pob_trade` |
@@ -269,10 +269,10 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
 | calcs | 13 | 13 | 0 | 0 | 0 | 0 | 0 |
 | compare and power | 12 | 7 | 0 | 0 | 4 | 1 | 0 |
-| trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
+| trade | 11 | 6 | 0 | 0 | 0 | 5 | 0 |
 | notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 |
 | data | 17 | 17 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | 187 | 153 | 1 | 9 | 9 | 9 | 6 |
+| **Total** | 187 | 156 | 1 | 9 | 9 | 6 | 6 |
 
 ## MCP tools
 
@@ -304,7 +304,7 @@ Routes for the tree, skills, items, config, party, evaluate domains, character i
 
 ## F3. Import and trade query: in progress
 
-In: character import from a public profile, jewel finding (`evaluate.jewel_mods`, jewels in `evaluate.compare_item`), and trade search from the server (`trade.search`) under the limits in `SPEC.md`. The one live check against the trade site after deploy is the orchestrator's; until then the link form and the site's mod-line shape without an account are unverified (both shapes are read).
+In: character import from a public profile, jewel finding (`evaluate.jewel_mods`, jewels in `evaluate.compare_item`), gear finding for every slot (`evaluate.item_mods`), and trade search from the server (`trade.search`) under the limits in `SPEC.md`. The one live check against the trade site after deploy is the orchestrator's; until then the link form and the site's mod-line shape without an account are unverified (both shapes are read).
 
 ## F4. Web view: separate owner
 

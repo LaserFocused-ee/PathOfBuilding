@@ -644,6 +644,114 @@ return function(W)
 	-- ExecuteQuery's order: a trade id weighed under the first of these is the one it reports
 	local modTypeOrder = { "WatchersEye", "Explicit", "Implicit", "Corrupted", "Enchant", "Scourge", "Eater", "Exarch" }
 
+	-- The inputs jewel_mods and item_mods share: the weights, the quality a mod is tested at, and the trade search's league, status and price.
+	local function tradeOptions(args)
+		local o = { statWeights = statWeightsOf(args) }
+		o.quality = args.quality == nil and (main.defaultItemAffixQuality or 0.5) or tonumber(args.quality)
+		if not o.quality or o.quality < 0 or o.quality > 1 then bad("quality is from 0 to 1") end
+		o.realm = args.realm or "pc"
+		if not realms[o.realm] then bad("realm is pc, xbox or sony") end
+		if args.league ~= nil and (type(args.league) ~= "string" or not args.league:match("^[%w][%w '%-]*$") or #args.league > 64) then bad("league is a league name, e.g. Standard") end
+		o.tradeIndex = indexOf(tradeTypeList, args.tradeType or tradeTypeList[1]) or bad("tradeType is one of " .. table.concat(tradeTypeList, ", "))
+		if args.priceCurrency ~= nil and not currencyIds[args.priceCurrency] then bad("priceCurrency is a trade currency id, e.g. chaos or divine") end
+		o.maxPrice = args.maxPrice ~= nil and (tonumber(args.maxPrice) or bad("maxPrice is a number")) or nil
+		return o
+	end
+
+	-- The trade API's body for a query (the sort the popup's search uses).
+	local function searchOf(query)
+		return query ~= json.null and { query = query, sort = { ["statgroup.0"] = "desc" }, engine = "new" } or json.null
+	end
+
+	-- The generator run as its Execute button runs it: StartQuery against `slot`, every mod weighed (ExecuteQuery, to the end),
+	-- FinishQuery's search, then the weighed mods best first with where the generator found each (text at `quality`, range, kind).
+	-- `rollable(modType, key)` ranks, among entries of one trade stat, the ones that can be rolled; `decorate(m, found)` adds a family's fields to each mod;
+	-- `steady` rounds each gain and weight to 1e-9 before the search is built (the calculator's last digits differ with the order the mods were weighed in,
+	-- which changes from process to process, and would order mods that gain the same differently), so equal mods are ordered by trade id on every run.
+	local function weigh(gen, slot, options, quality, rollable, decorate, steady)
+		-- One entry per trade id and mod type for the category: the generator takes whichever its pairs() meets first, which
+		-- changes from process to process; here the one that can be rolled, then the widest range, then the key.
+		local function oneEach(modData, category)
+			local out = {}
+			for modType, entries in pairs(modData) do
+				local best = {}
+				for key, entry in pairs(entries) do
+					if entry.tradeMod and entry[category] then
+						local id, cur = entry.tradeMod.id, best[entry.tradeMod.id]
+						local function rank(k)
+							local e = entries[k]
+							return (rollable and rollable(modType, k)) and 1 or 0, e[category].max, k
+						end
+						if not cur then best[id] = key else
+							local r1, m1, k1 = rank(key)
+							local r2, m2, k2 = rank(cur)
+							if r1 > r2 or (r1 == r2 and (m1 > m2 or (m1 == m2 and k1 < k2))) then best[id] = key end
+						end
+					end
+				end
+				local kept = {}
+				for _, key in pairs(best) do kept[key] = entries[key] end
+				out[modType] = kept
+			end
+			return out
+		end
+
+		local prevQuality, popups = main.defaultItemAffixQuality, #main.popups
+		local query, queryErr
+		gen.requesterCallback = function(_, q, e) query, queryErr = q, e end
+		main.defaultItemAffixQuality = quality
+		local ok, err = pcall(function()
+			gen:StartQuery(slot, options)
+			if not gen.calcContext.co then bad("Path of Building does not generate a weighted search for " .. slot.slotName) end
+			gen.calcContext.co = nil
+			gen.modData = oneEach(gen.modData, gen.calcContext.itemCategory) -- a copy: the loaded QueryMods table is shared
+			drain(gen.ExecuteQuery, gen)
+			if steady then
+				for _, w in ipairs(gen.modWeights) do
+					w.meanStatDiff, w.weight = math.floor(w.meanStatDiff * 1e9 + 0.5) / 1e9, math.floor(w.weight * 1e9 + 0.5) / 1e9
+				end
+			end
+			-- FinishQuery's sort leaves ties in the order the weighing met them (pairs order); give it a fixed one
+			table.sort(gen.modWeights, function(x, y) return x.tradeModId < y.tradeModId end)
+			gen:FinishQuery()
+		end)
+		main.defaultItemAffixQuality = prevQuality
+		while #main.popups > popups do main:ClosePopup() end
+		if not ok then error(err, 0) end
+
+		-- trade id -> where the generator found it (QueryMods entry), for text, range and kind
+		local ctx = gen.calcContext
+		local found = {}
+		for _, modType in ipairs(modTypeOrder) do
+			for key, entry in pairs(gen.modData[modType] or {}) do
+				if entry.tradeMod and entry[ctx.itemCategory] and not found[entry.tradeMod.id] then found[entry.tradeMod.id] = { key = key, entry = entry, modType = modType } end
+			end
+		end
+		local weighed = {}
+		for i, w in ipairs(gen.modWeights) do weighed[i] = w end
+		table.sort(weighed, function(x, y) -- FinishQuery's order, ties by trade id (its sort leaves ties in any order)
+			if x.meanStatDiff ~= y.meanStatDiff then return x.meanStatDiff > y.meanStatDiff end
+			if math.abs(x.weight) ~= math.abs(y.weight) then return math.abs(x.weight) > math.abs(y.weight) end
+			return x.tradeModId < y.tradeModId
+		end)
+		local mods = {}
+		for _, w in ipairs(weighed) do
+			local f = found[w.tradeModId]
+			local m = { id = w.tradeModId, weight = rounded(w.weight), gain = rounded(w.meanStatDiff), invert = w.invert, kind = f and f.modType or json.null, text = json.null }
+			if f then
+				local range = f.entry[ctx.itemCategory]
+				local value = math.ceil((range.max - range.min) * quality + range.min)
+				local line = (value == 1 and f.entry.specialCaseData.overrideModLineSingular) or f.entry.specialCaseData.overrideModLine or f.entry.tradeMod.text
+				m.text = line:gsub("#", (f.entry.sign or "") .. tostring(value))
+				m.range = { min = range.min, max = range.max }
+			end
+			if decorate then decorate(m, f) end
+			mods[#mods + 1] = m
+		end
+		if queryErr or query == nil then query = json.null end
+		return { ctx = ctx, mods = mods, query = query, queryError = queryErr or json.null }
+	end
+
 	-- Cluster jewels: the notables a cluster of this size and enchant can roll, weighted the way the generator weighs Megalomaniac's
 	-- notables (GeneratePassiveNodeWeights: each notable added to the tree on its own), and a weighted search for that base and
 	-- enchant (Path of Building has no cluster search; this one follows FinishQuery's shape and filters).
@@ -773,18 +881,10 @@ return function(W)
 		local b = W.build()
 		local tab = b.itemsTab
 		local family = args.family
-		local statWeights = statWeightsOf(args)
+		local o = tradeOptions(args)
+		local statWeights, quality, realm, tradeIndex, maxPrice = o.statWeights, o.quality, o.realm, o.tradeIndex, o.maxPrice
 		local limit = math.min(tonumber(args.limit) or 30, 200)
 		local wantCombos = math.min(tonumber(args.combinations) or 5, 20)
-		local quality = args.quality == nil and (main.defaultItemAffixQuality or 0.5) or tonumber(args.quality)
-		if not quality or quality < 0 or quality > 1 then bad("quality is from 0 to 1") end
-		local realm = args.realm or "pc"
-		if not realms[realm] then bad("realm is pc, xbox or sony") end
-		if args.league ~= nil and (type(args.league) ~= "string" or not args.league:match("^[%w][%w '%-]*$") or #args.league > 64) then bad("league is a league name, e.g. Standard") end
-		local tradeType = args.tradeType or tradeTypeList[1]
-		local tradeIndex = indexOf(tradeTypeList, tradeType) or bad("tradeType is one of " .. table.concat(tradeTypeList, ", "))
-		if args.priceCurrency ~= nil and not currencyIds[args.priceCurrency] then bad("priceCurrency is a trade currency id, e.g. chaos or divine") end
-		local maxPrice = args.maxPrice ~= nil and (tonumber(args.maxPrice) or bad("maxPrice is a number")) or nil
 
 		local gen = new("TradeQueryGenerator"):TradeQueryGenerator({ itemsTab = tab })
 		gen.tradeTypeIndex = tradeIndex
@@ -834,83 +934,15 @@ return function(W)
 				affix = (types.Prefix and types.Suffix) and "Either" or types.Prefix and "Prefix" or types.Suffix and "Suffix" or json.null }
 			return affixCache[key]
 		end
-		-- One entry per trade id and mod type for the category: the generator takes whichever its pairs() meets first, which
-		-- changes from process to process; here the one a base of the family rolls, then the widest range, then the key.
-		local function oneEach(modData, category)
-			local out = {}
-			for modType, entries in pairs(modData) do
-				local best = {}
-				for key, entry in pairs(entries) do
-					if entry.tradeMod and entry[category] then
-						local id, cur = entry.tradeMod.id, best[entry.tradeMod.id]
-						local function rank(k)
-							local e = entries[k]
-							return (listName and modType == "Explicit" and affixOf(k).rollable) and 1 or 0, e[category].max, k
-						end
-						if not cur then best[id] = key else
-							local r1, m1, k1 = rank(key)
-							local r2, m2, k2 = rank(cur)
-							if r1 > r2 or (r1 == r2 and (m1 > m2 or (m1 == m2 and k1 < k2))) then best[id] = key end
-						end
-					end
-				end
-				local kept = {}
-				for _, key in pairs(best) do kept[key] = entries[key] end
-				out[modType] = kept
+		local weighed = weigh(gen, slot, options, quality, listName and function(modType, key) return modType == "Explicit" and affixOf(key).rollable end, function(m, f)
+			m.affix, m.group, m.bases = json.null, json.null, {}
+			if f and listName and f.modType == "Explicit" then
+				local a = affixOf(f.key)
+				m.group, m.affix = a.group, a.affix
+				for name in pairs(a.bases) do m.bases[name] = true end
 			end
-			return out
-		end
-
-		local prevQuality, popups = main.defaultItemAffixQuality, #main.popups
-		local query, queryErr
-		gen.requesterCallback = function(_, q, e) query, queryErr = q, e end
-		main.defaultItemAffixQuality = quality
-		local ok, err = pcall(function()
-			gen:StartQuery(slot, options)
-			if not gen.calcContext.co then bad("Path of Building does not generate a weighted search for " .. slot.slotName) end
-			gen.calcContext.co = nil
-			gen.modData = oneEach(gen.modData, gen.calcContext.itemCategory) -- a copy: the loaded QueryMods table is shared
-			drain(gen.ExecuteQuery, gen)
-			gen:FinishQuery()
 		end)
-		main.defaultItemAffixQuality = prevQuality
-		while #main.popups > popups do main:ClosePopup() end
-		if not ok then error(err, 0) end
-
-		-- trade id -> where the generator found it (QueryMods entry), for text, range, affix and group
-		local ctx = gen.calcContext
-		local found = {}
-		for _, modType in ipairs(modTypeOrder) do
-			for key, entry in pairs(gen.modData[modType] or {}) do
-				if entry.tradeMod and entry[ctx.itemCategory] and not found[entry.tradeMod.id] then found[entry.tradeMod.id] = { key = key, entry = entry, modType = modType } end
-			end
-		end
-		local weighed = {}
-		for i, w in ipairs(gen.modWeights) do weighed[i] = w end
-		table.sort(weighed, function(x, y) -- FinishQuery's order, ties by trade id (its sort leaves ties in any order)
-			if x.meanStatDiff ~= y.meanStatDiff then return x.meanStatDiff > y.meanStatDiff end
-			if math.abs(x.weight) ~= math.abs(y.weight) then return math.abs(x.weight) > math.abs(y.weight) end
-			return x.tradeModId < y.tradeModId
-		end)
-		local mods = {}
-		for _, w in ipairs(weighed) do
-			local f = found[w.tradeModId]
-			local m = { id = w.tradeModId, weight = rounded(w.weight), gain = rounded(w.meanStatDiff), invert = w.invert, kind = f and f.modType or json.null,
-				affix = json.null, group = json.null, text = json.null, bases = {} }
-			if f then
-				local range = f.entry[ctx.itemCategory]
-				local value = math.ceil((range.max - range.min) * quality + range.min)
-				local line = (value == 1 and f.entry.specialCaseData.overrideModLineSingular) or f.entry.specialCaseData.overrideModLine or f.entry.tradeMod.text
-				m.text = line:gsub("#", (f.entry.sign or "") .. tostring(value))
-				m.range = { min = range.min, max = range.max }
-				if listName and f.modType == "Explicit" then
-					local a = affixOf(f.key)
-					m.group, m.affix = a.group, a.affix
-					for name in pairs(a.bases) do m.bases[name] = true end
-				end
-			end
-			mods[#mods + 1] = m
-		end
+		local ctx, mods, query, queryErr = weighed.ctx, weighed.mods, weighed.query, weighed.queryError
 
 		-- the best legal sets, measured together on one test item (their sum is only an estimate: stats multiply)
 		local combos = {}
@@ -945,11 +977,114 @@ return function(W)
 			if m.kind == "Explicit" and listName then m.rollable = #names > 0 end -- the generator also weighs mods no base of the family rolls
 			out[i] = m
 		end
-		if queryErr or query == nil then query = json.null end
-		local search = query ~= json.null and { query = query, sort = { ["statgroup.0"] = "desc" }, engine = "new" } or json.null
 		return { family = family, socket = slot.slotName, category = ctx.itemCategoryQueryStr, quality = quality, weights = weightsOut(statWeights),
-			total = #mods, mods = out, combinations = combos, query = query, search = search, queryError = queryErr or json.null,
+			total = #mods, mods = out, combinations = combos, query = query, search = searchOf(query), queryError = queryErr,
 			link = query ~= json.null and tradeLink(realm, args.league, query) or json.null }
+	end
+
+	-- The gear slots of the Trade tab's rows that are driven here (weapon swap sets and jewels are not: jewel_mods takes jewels), and the
+	-- popup's per-slot controls (RequestQuery): eldritch implicits on armour and the amulet, talisman mods on the amulet, empty
+	-- sockets on all but flasks, links on all but flasks, belts, rings and the amulet.
+	local gearSlots = { "Weapon 1", "Weapon 2", "Helmet", "Body Armour", "Gloves", "Boots", "Amulet", "Ring 1", "Ring 2", "Ring 3", "Belt",
+		"Flask 1", "Flask 2", "Flask 3", "Flask 4", "Flask 5" }
+	local eldritchSlots = { ["Body Armour"] = true, Helmet = true, Gloves = true, Boots = true, Amulet = true }
+	local eldritchChoices = { "Copy Current", "Keep regular", "Keep regular+presence", "Remove" } -- the popup's list, first is its default
+	local ignoredPseudo = { "^pseudo.lake", "^pseudo.pseudo_lake", "^pseudo.pseudo_logbook", "^pseudo.pseudo_temple", "^pseudo.pseudo_map", "^pseudo.pseudo_ritual" }
+	local maxSelectors = 5 -- the popup's required and blocked stat rows
+
+	-- The popup's stat list for a category: explicit, implicit and corrupted mods the generator has for it, and the pseudo stats.
+	local function selectableStats(gen, category)
+		local valid = {}
+		for _, modType in ipairs({ "Explicit", "Implicit", "Corrupted" }) do
+			for _, entry in pairs(gen.modData[modType]) do
+				if entry[category] ~= nil then valid[entry.tradeMod.id] = true end
+			end
+		end
+		for _, cat in ipairs(require("Classes.TradeHelpers").getTradeStats()) do
+			if cat.id == "pseudo" then
+				for _, entry in ipairs(cat.entries) do
+					local skip = false
+					for _, pattern in ipairs(ignoredPseudo) do if entry.id:find(pattern) then skip = true end end
+					if not skip then valid[entry.id] = true end
+				end
+			end
+		end
+		return valid
+	end
+
+	local function statRows(list, what, valid)
+		if list == nil then return nil end
+		if type(list) ~= "table" or #list > maxSelectors then bad(what .. " is a list of at most " .. maxSelectors .. " { id, min } (the popup's rows)") end
+		local out = {}
+		for _, row in ipairs(list) do
+			local id = type(row) == "table" and row.id or nil
+			if type(id) ~= "string" or not valid[id] then bad(what .. " id " .. tostring(id) .. " is not in the popup's stat list for this slot (an explicit, implicit or corrupted trade stat id of its category, or a pseudo stat)") end
+			-- the popup's Min box may be left empty, which makes the generator write an empty value object; a row here always has a lowest value
+			local min = tonumber(row.min) or bad(what .. " rows need min, the lowest value (a number)")
+			out[#out + 1] = { tradeId = id, value = min }
+		end
+		return #out > 0 and out or nil
+	end
+
+	local function wholeNumber(v, what, lo, hi)
+		local n = tonumber(v)
+		if not n or n ~= math.floor(n) or n < lo or n > hi then bad(what .. " is a whole number from " .. lo .. " to " .. hi) end
+		return n
+	end
+
+	-- Gear for this build through Path of Building's trade weighting (TradeQueryGenerator.lua), as "Find best" on the Trade tab's row for
+	-- the slot does it: the base of the item in the slot is the test item's base (the popup's StartQuery takes it from the slot; an empty
+	-- slot makes it test an amulet base in any slot, so an empty slot is refused here), each mod alone on a blank item of that base in the
+	-- slot, weighed as jewel_mods weighs. Options are the popup's, and an option a slot's popup does not show is refused for that slot.
+	-- args: slot, weights?, quality?, includeCorrupted?, includeMirrored?, includeScourge?, includeTalisman?, includeEldritch?, sockets?,
+	-- links?, maxLevel?, requiredMods?, blockedMods?, maxPrice?, priceCurrency?, tradeType?, league?, realm?, limit?.
+	function ops.item_mods(args)
+		local b = W.build()
+		local tab = b.itemsTab
+		local name = args.slot
+		if type(name) ~= "string" or not indexOf(gearSlots, name) then bad("slot is one of " .. table.concat(gearSlots, ", ") .. " (jewels: jewel_mods)") end
+		local o = tradeOptions(args)
+		local limit = math.min(tonumber(args.limit) or 30, 200)
+		local slot = tab.slots[name]
+		if not slot or not slotInUse(tab, slot) then bad(name .. " is not in use (weapon set, or no such slot in this build)") end
+		local item = tab.items[slot.selItemId]
+		if not item then bad(name .. " holds no item; the generator takes the base of the item in the slot (equip one first)") end
+
+		local flask, amulet = name:find("^Flask") ~= nil, name == "Amulet"
+		local scourgeShown = args.league == "Standard" or args.league == "Hardcore" -- the popup's Scourge Mods box shows in these leagues only
+		if args.includeTalisman ~= nil and not amulet then bad("includeTalisman is not in the popup for " .. name .. " (Amulet only)") end
+		if args.includeEldritch ~= nil and not eldritchSlots[name] then bad("includeEldritch is not in the popup for " .. name .. " (Body Armour, Helmet, Gloves, Boots, Amulet)") end
+		if args.includeEldritch ~= nil and not indexOf(eldritchChoices, args.includeEldritch) then bad("includeEldritch is one of " .. table.concat(eldritchChoices, ", ")) end
+		if args.includeScourge ~= nil and not scourgeShown then bad("includeScourge is not in the popup for " .. name .. " unless league is Standard or Hardcore") end
+		if args.sockets ~= nil and flask then bad("sockets is not in the popup for " .. name) end
+		if args.links ~= nil and (flask or name == "Belt" or name:find("^Ring") or amulet) then bad("links is not in the popup for " .. name) end
+
+		local helpers = require("Classes.TradeHelpers")
+		local _, category = helpers.getTradeCategory(name, item)
+		local gen = new("TradeQueryGenerator"):TradeQueryGenerator({ itemsTab = tab })
+		gen.tradeTypeIndex = o.tradeIndex
+		local options = { statWeights = o.statWeights, includeCorrupted = args.includeCorrupted ~= false, includeMirrored = args.includeMirrored ~= false,
+			maxPrice = o.maxPrice, maxPriceType = args.priceCurrency }
+		if scourgeShown then options.includeScourge = args.includeScourge ~= false end
+		if amulet then options.includeTalisman = args.includeTalisman == true end
+		if eldritchSlots[name] then options.includeEldritch = args.includeEldritch or eldritchChoices[1] end
+		if args.maxLevel ~= nil then options.maxLevel = wholeNumber(args.maxLevel, "maxLevel", 1, 100) end
+		if args.sockets ~= nil then options.sockets = wholeNumber(args.sockets, "sockets", 1, 6) end
+		if args.links ~= nil then options.links = wholeNumber(args.links, "links", 1, 6) end
+		local valid = (args.requiredMods ~= nil or args.blockedMods ~= nil) and selectableStats(gen, category) or nil
+		options.requiredMods = statRows(args.requiredMods, "requiredMods", valid)
+		options.blockedMods = statRows(args.blockedMods, "blockedMods", valid)
+
+		local weighed = weigh(gen, slot, options, o.quality, nil, nil, true)
+		local mods = {}
+		for i = 1, math.min(limit, #weighed.mods) do mods[i] = weighed.mods[i] end
+		local query = weighed.query
+		return { slot = name, item = item.title or item.name, base = item.baseName, category = weighed.ctx.itemCategoryQueryStr, quality = o.quality, weights = weightsOut(o.statWeights),
+			options = object({ includeCorrupted = options.includeCorrupted, includeMirrored = options.includeMirrored, includeScourge = options.includeScourge,
+				includeTalisman = options.includeTalisman, includeEldritch = options.includeEldritch, sockets = options.sockets, links = options.links,
+				maxLevel = options.maxLevel, maxPrice = options.maxPrice, priceCurrency = options.maxPriceType }),
+			total = #weighed.mods, mods = mods, query = query, search = searchOf(query), queryError = weighed.queryError,
+			link = query ~= json.null and tradeLink(o.realm, args.league, query) or json.null }
 	end
 
 	-- args: entries (trade fetch entries, seller fields already left out by the server), score (a build to score against),
