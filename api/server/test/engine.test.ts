@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { LOOKUP_SESSION } from "../src/pool.js";
+import { routes } from "../src/routes.js";
 import { FIXTURES, ROOT, startServer, TOKEN, type TestServer } from "./helpers.js";
 
 type Stat = { stat: string; value: number; text: string };
@@ -188,4 +189,38 @@ void test("auth, health, errors and boundary log lines", async () => {
   assert.ok(srv.lines.some((l) => l.event === "http.request" && l.route === "/v1/stats/:id/sidebar" && l.status === 200));
   assert.ok(srv.lines.some((l) => l.event === "worker.command" && l.op === "stats.sidebar" && l.ok === true));
   assert.ok(!JSON.stringify(srv.lines).includes(TOKEN), "the token never reaches the log");
+});
+
+type Area = { areaLevel: number; tier?: number; percent: number };
+const newWitch = async (level: number) => ok(await srv.call<Created>("POST", "/v1/builds", { className: "Witch", ascendancy: "Elementalist", level, treeVersion: "3_30" })).build.id;
+
+void test("stats.xp is the character level box's multiplier table, with the level 95 penalty", async () => {
+  const at90 = ok(await srv.call<{ level: number; areas: Area[] }>("GET", `/v1/stats/${await newWitch(90)}/xp`));
+  assert.equal(at90.level, 90);
+  assert.equal(at90.areas.length, 26);
+  assert.deepEqual(at90.areas.slice(0, 3), [{ areaLevel: 62, percent: 1.1 }, { areaLevel: 63, percent: 1.4 }, { areaLevel: 64, percent: 1.6 }]);
+  assert.deepEqual(at90.areas.slice(-3), [{ areaLevel: 85, tier: 18, percent: 61.6 }, { areaLevel: 86, tier: 19, percent: 62.3 }, { areaLevel: 87, tier: 20, percent: 62 }]);
+  const at95 = ok(await srv.call<{ level: number; areas: Area[] }>("GET", `/v1/stats/${await newWitch(95)}/xp`));
+  assert.equal(at95.level, 95);
+  assert.deepEqual(at95.areas.at(-1), { areaLevel: 87, tier: 20, percent: 12.7 });
+  assert.ok(at95.areas.at(-1)!.percent < at90.areas.at(-1)!.percent);
+});
+
+void test("stats.sections lists the Calcs tab's sections as displayed and filters by id or label", async () => {
+  const all = ok(await srv.call<{ sections: { id: string; label: string }[] }>("GET", `/v1/stats/${fresh}/sections`));
+  assert.ok(all.sections.length > 10);
+  assert.ok(routes.find((r) => r.name === "stats.sections")?.output.safeParse(all).success);
+  const life = ok(await srv.call("GET", `/v1/stats/${fresh}/sections?section=Life`));
+  assert.deepEqual(life, {
+    sections: [{ id: "Life", label: "Life", subsections: [{ label: "Life", extra: "1,328/1,328", rows: [
+      { label: "Base from Gear", values: ["0"] }, { label: "Inc. from Tree", values: ["18%"] }, { label: "Total Base", values: ["1,125"] },
+      { label: "Total Increased", values: ["18%"] }, { label: "Total More", values: ["0%"] }, { label: "Total", values: ["1,328"] },
+      { label: "Reserved", values: ["0 (0%)"] }, { label: "Unreserved", values: ["1,328 (100%)"] }, { label: "Recovery", values: ["0 (0%)"] },
+    ] }] }],
+  });
+  const byLabel = ok(await srv.call<{ sections: { id: string }[] }>("GET", `/v1/stats/${fresh}/sections?section=utility%20flasks`));
+  assert.deepEqual(byLabel.sections.map((x) => x.id), ["Flasks"]);
+  const none = await srv.call("GET", `/v1/stats/${fresh}/sections?section=zzzz`);
+  assert.deepEqual([none.status, none.body.error?.code], [404, "not_found"]);
+  assert.match(none.body.error?.message ?? "", /sections: View Skill Details, Skill Hit Damage/);
 });

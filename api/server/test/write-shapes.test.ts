@@ -201,3 +201,16 @@ void test("every write route was called, and none is declared without a result s
   assert.deepEqual([...called].sort(), writes, "a write route has no call in this file");
   assert.equal(called.size, 91);
 });
+
+void test("config.party_export shows what Export Support would export and leaves the build as it was", async () => {
+  const id = await newWitch();
+  await write("skills.add_group", id, { gems: [{ name: "Determination" }] });
+  const codeBefore = (await get(`/v1/builds/${id}/code`)).code;
+  const revisionBefore = await revisionOf(id);
+  const out = (await get(`/v1/config/${id}/party-export`)) as { enabled: boolean; exports: Record<string, string> };
+  assert.equal(out.enabled, false);
+  assert.ok(route("config.party_export").output.safeParse(out).success);
+  assert.equal(out.exports.Aura, "Determination\n100\n1026|Skill:Determination|Armour|BASE|-|-|type=GlobalEffect/effectType=Aura\n49|Skill:Determination|Armour|MORE|-|-|type=GlobalEffect/effectType=Aura\n---");
+  assert.equal(out.exports.Warcry, "");
+  assert.deepEqual([(await get(`/v1/builds/${id}/code`)).code, await revisionOf(id)], [codeBefore, revisionBefore]);
+});

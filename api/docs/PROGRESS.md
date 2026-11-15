@@ -45,7 +45,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `builds.set_main_skill` | S | done | `skills.set_main`, `skills.set_skill_options`; skills.test.ts, skills2.test.ts |
 | `builds.spectre_library` | S | done | `skills.set_spectres`; skills2.test.ts |
 | `builds.progress_estimate` | X | done | `stats.points` (points, ascendancy, required level, act); engine.test.ts |
-| `builds.xp_multiplier` | X | open | No route yet |
+| `builds.xp_multiplier` | X | done | `stats.xp`; engine.test.ts |
 | `builds.similar` | S | open | Calls a third-party recommendation service; not routed |
 | `builds.public_latest_trending` | S | open | Calls a third-party build archive; not routed |
 | `builds.undo` / `redo` | H | store | `build.history`, `build.revert`; edit.test.ts |
@@ -177,7 +177,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `calcs.output` | H | done | `stats.output`; engine.test.ts |
 | `calcs.full_dps` | H | done | `stats.skills`; engine.test.ts |
 | `calcs.output_for_skill` | S | done | `stats.skills`; engine.test.ts |
-| `calcs.sections` | S | open | No route; `stats.output` returns the raw table |
+| `calcs.sections` | S | done | `stats.sections`; engine.test.ts |
 | `calcs.breakdown` | S | done | `stats.breakdown`; engine.test.ts |
 | `calcs.warnings` | S | done | `stats.warnings`; settings.test.ts |
 | `calcs.requirements` | H | done | `stats.defences`; engine.test.ts |
@@ -230,7 +230,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `party.get` | S | done | `config.party_get`; settings.test.ts |
 | `party.set` | S | done | `config.party_set`; settings.test.ts |
 | `party.clear` / `rebuild` / `remove_effects` | S | done | `config.party_clear`, `config.party_effects`; settings.test.ts |
-| `party.export` | S | open | No route of its own |
+| `party.export` | S | done | `config.party_export`; write-shapes.test.ts |
 | `settings.get` / `set` | S | not needed | Application options (display, folders, updates) have no meaning for a server; build settings are `build.settings` and `config.set` |
 | `settings.user_path` | H | not needed | The server owns its data directory |
 | `app.version` / `help` | H | done | `stats.versions` (version); help text is not routed; engine.test.ts |
@@ -261,18 +261,18 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 
 | Domain | Total | done | ui | store | not needed | F3 | open |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| builds | 30 | 16 | 0 | 9 | 2 | 0 | 3 |
+| builds | 30 | 17 | 0 | 9 | 2 | 0 | 2 |
 | import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
 | tree | 27 | 25 | 0 | 0 | 0 | 1 | 1 |
 | skills | 17 | 16 | 0 | 0 | 0 | 1 | 0 |
 | items and crafting | 30 | 27 | 0 | 0 | 0 | 0 | 3 |
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
-| calcs | 13 | 12 | 0 | 0 | 0 | 0 | 1 |
+| calcs | 13 | 13 | 0 | 0 | 0 | 0 | 0 |
 | compare and power | 12 | 6 | 0 | 0 | 4 | 1 | 1 |
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
-| notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
+| notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 130 | 1 | 9 | 8 | 24 | 15 |
+| **Total** | 187 | 133 | 1 | 9 | 8 | 24 | 12 |
 
 ## MCP tools
 

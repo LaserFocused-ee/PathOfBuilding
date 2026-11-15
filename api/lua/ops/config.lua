@@ -180,6 +180,30 @@ return function(W)
 		return function(built) return { configSet = built.configTab.activeConfigSetId, groups = customGroups(built) } end
 	end)
 
+	-- What the build would export for party play with the Import tab's Export Support box on (PartyTab:exportBuffs).
+	-- The calculation only fills the exports while the flag is on, so it is switched on, recalculated, read, and put
+	-- back (and recalculated again) even when something fails; the build itself is not changed.
+	function ops.party_export()
+		local b = W.build()
+		local tab = b.partyTab
+		local was = tab.enableExportBuffs == true
+		local exports = setmetatable({}, { __jsontype = "object" })
+		local ok, err = pcall(function()
+			tab.enableExportBuffs = true
+			b.buildFlag = true
+			W.pump()
+			for _, kind in ipairs({ "PlayerMods", "Aura", "Curse", "Warcry", "Link", "EnemyConditions", "EnemyMods" }) do
+				exports[kind] = W.strip(tab:exportBuffs(kind) or "")
+			end
+		end)
+		tab.enableExportBuffs = was
+		b.buildFlag = true
+		local okPump, errPump = pcall(W.pump)
+		if not ok then error(err, 0) end
+		if not okPump then error(errPump, 0) end
+		return { enabled = was, exports = exports }
+	end
+
 	-- args: xml, label (the other build, filled in by the server). The Compare tab's Copy config: every Configuration tab
 	-- input of the compared build set on this build (inputs this build has and the other does not stay as they are).
 	ops.copy_from = W.mutation(function(args, b)

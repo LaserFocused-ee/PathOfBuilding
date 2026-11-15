@@ -13,11 +13,11 @@ GET inputs go in the query string (lists comma-separated); POST and PUT inputs a
 | Tool | Read-only | Actions |
 | --- | --- | --- |
 | `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `loadout_list`, `loadout_activate`, `loadout_new`, `ui_controls`, `ui_invoke`, `export_xml`, `replace_code`, `export_code`, `save_point`, `history` |
-| `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `versions` |
+| `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `xp`, `sections`, `versions` |
 | `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `copy_from`, `tattoo_options`, `tattoo`, `untattoo`, `export_url`, `import_url`, `radius_nodes`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `spec_move`, `convert`, `convert_all` |
 | `pob_skills` | no | `get`, `group_text`, `group_tooltip`, `gem_tooltip`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_skill_options`, `set_spectres`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_items` | no | `list`, `get`, `add`, `add_unique`, `add_rare`, `modify`, `edit`, `anoint`, `enchant`, `copy_from`, `craft`, `affix_options`, `influence`, `corrupt`, `add_implicit`, `custom_mod`, `crucible_mod`, `cluster_jewel`, `equip`, `unequip`, `set_active`, `delete`, `weapon_set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
-| `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `custom_mods`, `set_custom_mods`, `copy_from`, `notes`, `set_notes`, `party_get`, `party_import`, `party_clear`, `party_set`, `party_effects` |
+| `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `custom_mods`, `set_custom_mods`, `copy_from`, `party_export`, `notes`, `set_notes`, `party_get`, `party_import`, `party_clear`, `party_set`, `party_effects` |
 | `pob_evaluate` | yes | `what_if`, `passives`, `node_power`, `compare_item`, `jewel_mods`, `timeless`, `gem_rank`, `anoint_rank`, `unique_rank`, `compare_specs`, `compare_item_sets`, `compare_builds`, `compare_power` |
 | `pob_lookup` | yes | `gems`, `uniques`, `bases`, `nodes`, `node`, `config` |
 | `pob_trade` | yes | `search` |
@@ -320,6 +320,24 @@ Passive and ascendancy points used and available, required level.
 - Read-only: yes; worker: `stats.points`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"used":{"type":"number"},"max":{"type":"number"},"ascendancyUsed":{"type":"number"},"ascendancyMax":{"type":"number"},"secondaryAscendancyUsed":{"type":"number"},"jewelSockets":{"type":"number"},"requiredLevel":{"type":"number"},"act":{"type":"string"}},"additionalProperties":{}}`
+
+### `GET /v1/stats/:id/xp`
+
+The experience multiplier table of the character level box's hover: for each area level (with its map tier from 68) the percent of experience earned at the build's level.
+
+- Name: `stats.xp` (MCP `pob_stats` action `xp`)
+- Read-only: yes; worker: `stats.xp`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"level":{"type":"number"},"areas":{"type":"array","items":{"type":"object","properties":{"areaLevel":{"type":"number"},"tier":{"type":"number"},"percent":{"type":"number"}},"required":["areaLevel","percent"],"additionalProperties":{}}}},"required":["level","areas"],"additionalProperties":{}}`
+
+### `GET /v1/stats/:id/sections`
+
+The Calcs tab's sections as displayed for the shown actor: subsections with their visible rows and cell texts; `section` keeps the section with that id, else the sections whose subsection label contains it.
+
+- Name: `stats.sections` (MCP `pob_stats` action `sections`)
+- Read-only: yes; worker: `stats.sections`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"section":{"description":"Section id (e.g. Life), else part of a subsection label (any case)","type":"string","minLength":1,"maxLength":100},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"sections":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"label":{"type":"string"},"subsections":{"type":"array","items":{"type":"object","properties":{"label":{"type":"string"},"extra":{"type":"string"},"rows":{"type":"array","items":{"type":"object","properties":{"label":{"type":"string"},"values":{"type":"array","items":{"type":"string"}}},"required":["label","values"],"additionalProperties":{}}}},"required":["label","rows"],"additionalProperties":{}}}},"required":["id","label","subsections"],"additionalProperties":{}}}},"required":["sections"],"additionalProperties":{}}`
 
 ### `GET /v1/stats/:id/versions`
 
@@ -1094,6 +1112,15 @@ Copy another build's Configuration tab inputs onto this build, as the Compare ta
 - Read-only: no; worker: `config.copy_from, with the other build in the Compare tab`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"},"baseRevision":{"description":"Refuse the change unless the build is at this revision","type":"integer","minimum":1,"maximum":9007199254740991},"other":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"The other build, loaded as the Compare tab's compared build"}},"required":["id","other"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"result":{"type":"object","properties":{"copied":{"type":"number"}},"required":["copied"],"additionalProperties":{}},"changed":{"type":"object","propertyNames":{"type":"string"},"additionalProperties":{"type":"object","properties":{"before":{"type":["number","null"]},"after":{"type":["number","null"]}},"required":["before","after"]},"description":"Sidebar stats that changed"},"revision":{"type":"number"}},"required":["result","changed","revision"]}`
+
+### `GET /v1/config/:id/party-export`
+
+What the build would export for party play with the Import tab's Export Support box on, as the Party tab shows it (own modifiers, auras, curses, warcries, links, enemy conditions and modifiers); `enabled` is the box's current state. The build does not change.
+
+- Name: `config.party_export` (MCP `pob_config` action `party_export`)
+- Read-only: yes; worker: `config.party_export`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"enabled":{"type":"boolean"},"exports":{"type":"object","properties":{"PlayerMods":{"type":"string"},"Aura":{"type":"string"},"Curse":{"type":"string"},"Warcry":{"type":"string"},"Link":{"type":"string"},"EnemyConditions":{"type":"string"},"EnemyMods":{"type":"string"}},"required":["PlayerMods","Aura","Curse","Warcry","Link","EnemyConditions","EnemyMods"],"additionalProperties":{}}},"required":["enabled","exports"],"additionalProperties":{}}`
 
 ### `GET /v1/config/:id/notes`
 

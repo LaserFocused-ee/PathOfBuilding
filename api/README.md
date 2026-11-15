@@ -139,6 +139,8 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `GET /v1/stats/:id/warnings` | `pob_stats` `warnings` | Build warnings (unmet requirements, over-allocated points, and the like). |
 | `GET /v1/stats/:id/defences` | `pob_stats` `defences` | Attribute totals and requirements; resistances with total, overcap and maximum. |
 | `GET /v1/stats/:id/points` | `pob_stats` `points` | Passive and ascendancy points used and available, required level. |
+| `GET /v1/stats/:id/xp` | `pob_stats` `xp` | The experience multiplier table of the character level box's hover: for each area level (with its map tier from 68) the percent of experience earned at the build's level. |
+| `GET /v1/stats/:id/sections` | `pob_stats` `sections` | The Calcs tab's sections as displayed for the shown actor: subsections with their visible rows and cell texts; `section` keeps the section with that id, else the sections whose subsection label contains it. |
 | `GET /v1/stats/:id/versions` | `pob_stats` `versions` | Path of Building version, the build's tree version and the latest tree version. |
 | `GET /v1/tree/:id/get` | `pob_tree` `get` | The allocated tree: class, ascendancy, bloodline, nodes, masteries, tattoos, jewel sockets, tree list. |
 | `POST /v1/tree/:id/set-class` | `pob_tree` `set_class` | Change class. If the tree is not connected to the new start, `onDisconnected` decides: fail (default), reset the tree, or connect it by the shortest path. |
@@ -225,6 +227,7 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `GET /v1/config/:id/custom-mods` | `pob_config` `custom_mods` | The custom modifier groups of the active config set (Configuration tab, Custom Modifiers): title, enabled, text, and each line with `supported` (Path of Building parses it whole; other lines are ignored by the calculation, as the box shows them in red). |
 | `POST /v1/config/:id/set-custom-mods` | `pob_config` `set_custom_mods` | Replace the custom modifier groups of the active config set, as editing the boxes does: each group's lines add to the build's calculation while it is enabled. Answers the groups with each line's `supported`. |
 | `POST /v1/config/:id/copy-from` | `pob_config` `copy_from` | Copy another build's Configuration tab inputs onto this build, as the Compare tab's Copy config does (inputs only this build has stay). |
+| `GET /v1/config/:id/party-export` | `pob_config` `party_export` | What the build would export for party play with the Import tab's Export Support box on, as the Party tab shows it (own modifiers, auras, curses, warcries, links, enemy conditions and modifiers); `enabled` is the box's current state. The build does not change. |
 | `GET /v1/config/:id/notes` | `pob_config` `notes` | The build notes (Notes tab), with colour codes. |
 | `POST /v1/config/:id/set-notes` | `pob_config` `set_notes` | Replace the build notes. |
 | `GET /v1/party/:id/get` | `pob_config` `party_get` | The Party tab inputs: the import destination and toggles, the text boxes (auras, curses, warcries, links, party member stats, enemy conditions, enemy modifiers) and what Path of Building parsed from them. |
