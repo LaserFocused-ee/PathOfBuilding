@@ -303,3 +303,13 @@ void test("MCP: pob_items is listed and reads the item list", async () => {
     await client.close();
   }
 });
+
+void test("warnings: more suffixes than a rare can have, eldritch implicits with conqueror influence; a legal ring with a hybrid mod has none", async () => {
+  const id = await newWitch();
+  const add = async (text: string) => ok(await post<Brief & { warnings?: string[] }>(id, "add", { text, equip: "none" })).result.warnings;
+  const ring = (lines: string[]) => ["Rarity: RARE", "T Ring", "Amethyst Ring", "Implicits: 1", "+15% to Chaos Resistance", ...lines].join("\n");
+  assert.deepEqual(await add(ring(["+40% to Fire Resistance", "+40% to Cold Resistance", "+40% to Lightning Resistance", "+30% to Chaos Resistance"])), ["4 suffixes, more than the 3 a rare Ring can have"]);
+  assert.equal(await add(ring(["+70 to maximum Life", "+40% to Fire Resistance", "+40% to Cold Resistance", "+300 to Accuracy Rating", "15% increased Light Radius"])), undefined, "the accuracy and light radius hybrid is one suffix");
+  assert.deepEqual(await add("Rarity: RARE\nT Gloves\nSorcerer Gloves\nHunter Item\nSearing Exarch Item\nImplicits: 1\n{exarch}+1 to Maximum Power Charges\n+80 to maximum Energy Shield"), ["an item with eldritch implicits (Searing Exarch / Eater of Worlds) cannot also have Shaper, Elder or conqueror influence"]);
+  assert.equal((await list(id)).items.filter((i) => (i as { warnings?: string[] }).warnings).length, 2, "the list carries them");
+});

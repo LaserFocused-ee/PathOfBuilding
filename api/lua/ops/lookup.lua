@@ -41,12 +41,34 @@ return function(W)
 			local level = math.floor(tonumber(args.level) or g.naturalMaxLevel or 20)
 			local lv = ge and ge.levels and ge.levels[level]
 			local reqLevel = lv and lv.levelRequirement or nil
+			-- The level's reservation and its stats as the game words them (the gem's stat description scope); stats that
+			-- scale with effectiveness (statInterpolation 3) or come as ranges are left out: their numbers are not final.
+			local reservation, statLines
+			if lv then
+				for _, k in ipairs({ "manaReservationPercent", "manaReservationFlat", "lifeReservationPercent", "lifeReservationFlat", "spiritReservationFlat", "manaMultiplier" }) do
+					if lv[k] then reservation = reservation or {}; reservation[k] = lv[k] end
+				end
+				local stats, any = {}, false
+				for si, statId in ipairs(ge.stats or {}) do
+					local interp = lv.statInterpolation and lv.statInterpolation[si] or 1
+					if interp == 1 and type(lv[si]) == "number" then stats[statId] = lv[si]; any = true end
+				end
+				for _, c in ipairs(ge.constantStats or {}) do stats[c[1]] = (stats[c[1]] or 0) + (c[2] or 0); any = true end
+				if any then
+					local ok, described = pcall(data.describeStats, stats, ge.statDescriptionScope or "skill_stat_descriptions")
+					if ok and described then
+						statLines = {}
+						for li, line in ipairs(described) do statLines[li] = strip(line) end
+					end
+				end
+			end
 			local tags = {}
 			for t in pairs(g.tags or {}) do tags[#tags + 1] = t end
 			table.sort(tags)
 			out[#out + 1] = {
 				id = list[i].id, name = g.name, support = list[i].support, tags = tags, tagString = g.tagString,
 				naturalMaxLevel = g.naturalMaxLevel, legacy = ge and ge.legacy == true, description = ge and strip(ge.description) or nil,
+				reservation = reservation, stats = statLines,
 				requirements = reqLevel and {
 					gemLevel = level, level = reqLevel,
 					str = calcLib.getGemStatRequirement(reqLevel, list[i].support, g.reqStr or 0),
@@ -355,9 +377,15 @@ return function(W)
 		local source = dataTables[args.table]
 		if not source then W.fail("not_found", "no data table " .. tostring(args.table) .. "; tables: " .. table.concat(sortedKeys(dataTables), ", ")) end
 		if args.slot ~= nil and args.table ~= "enchantments" then W.fail("invalid_input", "slot narrows the enchantments table only") end
+		if args.itemType ~= nil and args.table ~= "bench_crafts" then W.fail("invalid_input", "itemType narrows the bench_crafts table only") end
 		local list = {}
 		source(function(row, key)
 			if args.slot ~= nil and row.slot ~= args.slot then return end
+			if args.itemType ~= nil then
+				local fits = false
+				for _, t in ipairs(row.types or {}) do if t:lower() == args.itemType:lower() then fits = true end end
+				if not fits then return end
+			end
 			if has(row.name, args.query) then
 				list[#list + 1] = { row = row, key = key }
 				return
@@ -386,7 +414,7 @@ return function(W)
 		local item = new("Item"):Item("Rarity: RARE\nX\n" .. args.base)
 		if not item.base or not item.affixes then W.fail("not_found", args.base .. " has no mods to roll") end
 		local eldritchType
-		if args.influence ~= nil then
+		if args.influence ~= nil and args.influence:lower() ~= "none" then
 			-- The Influence dropdowns' entries for this item (ItemsTab.lua:2133).
 			local eldritch = item.canHaveEldritchInfluence or item.type == "Helmet" or item.type == "Body Armour" or item.type == "Gloves" or item.type == "Boots"
 			local key

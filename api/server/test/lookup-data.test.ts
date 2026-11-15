@@ -370,6 +370,10 @@ void test("a query narrows a table to the rows whose name or text line holds it,
   const flask = await page("enchantments", "?slot=UtilityFlask&limit=100");
   assert.ok(flask.total === 21 && flask.rows.every((r) => r.slot === "UtilityFlask" && typeof r.text === "string"), `total ${flask.total}`);
   fails(await srv.call("GET", "/v1/lookup/data/keystones?slot=Helmet"), 400, "invalid_input");
+  const ringCrafts = await page("bench_crafts", "?itemType=ring&limit=200");
+  assert.ok(ringCrafts.total > 10 && ringCrafts.rows.every((r) => (r.types as string[]).includes("Ring")), `total ${ringCrafts.total}`);
+  assert.ok(ringCrafts.total < (await page("bench_crafts")).total);
+  fails(await srv.call("GET", "/v1/lookup/data/essences?itemType=Ring"), 400, "invalid_input");
 });
 
 void test("paging: offset and limit take the same rows as the whole list", async () => {

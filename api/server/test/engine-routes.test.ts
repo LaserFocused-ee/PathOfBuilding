@@ -60,6 +60,10 @@ void test("lookups page with offset and limit; the whole config catalogue fits a
   type Gem = { name: string; legacy: boolean; requirements?: { gemLevel: number } };
   const swift = ok(await srv.call<{ gems: Gem[] }>("GET", "/v1/lookup/gems?query=Swift%20Affliction%20Support&level=21")).gems;
   assert.deepEqual(swift.map((g) => [g.name, g.legacy, g.requirements?.gemLevel ?? null]), [["Swift Affliction", false, 21], ["Awakened Swift Affliction", true, null]]);
+  // reservation and the gem's own lines at the level
+  type Aura = { reservation?: Record<string, number>; stats?: string[] };
+  const det = ok(await srv.call<{ gems: Aura[] }>("GET", "/v1/lookup/gems?query=Determination&level=21")).gems[0];
+  assert.deepEqual([det?.reservation, det?.stats?.includes("You and nearby allies gain 50% more Armour")], [{ manaReservationPercent: 50 }, true]);
   const c1 = ok(await srv.call<Page>("GET", "/v1/lookup/config"));
   assert.ok(c1.total > 100 && c1.options?.length === 100, `total ${c1.total}`);
   assert.ok(JSON.stringify(c1).length < srv.runtime.svc.cfg.mcpMaxResultChars, "a default page fits one MCP result");

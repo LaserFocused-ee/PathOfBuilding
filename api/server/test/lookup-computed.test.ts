@@ -65,6 +65,7 @@ void test("mods_for_base: the prefixes Vaal Regalia rolls at item level 86, page
   const eater = await mods("&ilvl=86&influence=Eater%20of%20Worlds&query=all%20Elemental%20Resistances");
   assert.ok(eater.mods.some((m) => m.type === "Eater" && m.id === "AllResistancesEldritchImplicit1"));
   assert.equal((await mods("&ilvl=86&type=Prefix&influence=Searing%20Exarch")).total, 62);
+  assert.equal((await mods("&ilvl=86&type=Prefix&influence=none")).total, 62, "none is no influence");
   fails(await srv.call("GET", "/v1/lookup/mods-for-base?base=Vaal%20Regalia&influence=Nope"), 400, "invalid_input");
 });
 

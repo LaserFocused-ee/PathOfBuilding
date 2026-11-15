@@ -44,12 +44,75 @@ return function(W)
 		return table.concat(parts)
 	end
 
+	-- Items the game cannot make, which Path of Building reads without a word. Prefixes and suffixes are Path of Building's
+	-- own split when it has one (crafted in it); otherwise each explicit line is matched, numbers aside, to the mods the base
+	-- rolls (a mod of two lines counts once when both are there), and lines no mod or both kinds match are left out, so the
+	-- count is a lower bound. ponytail: text match on the base's pool; a mod the pool lacks (veiled, essence-only) is not counted.
+	local conquerors = { "shaper", "elder", "adjudicator", "basilisk", "crusader", "eyrie" }
+	local function norm(line) return (W.strip(line):gsub("%([%-%d%.]+%-[%-%d%.]+%)", "0"):gsub("[%-+]?[%d%.]+", "#")) end
+	local function warningsOf(item)
+		local out = {}
+		if item.rarity ~= "MAGIC" and item.rarity ~= "RARE" and item.rarity ~= "NORMAL" then return out end
+		local eldritch = item.cleansing or item.tangle
+		for _, l in ipairs(item.implicitModLines or {}) do if l.exarch or l.eater then eldritch = true end end
+		if eldritch then
+			for _, key in ipairs(conquerors) do
+				if item[key] then
+					out[#out + 1] = "an item with eldritch implicits (Searing Exarch / Eater of Worlds) cannot also have Shaper, Elder or conqueror influence"
+					break
+				end
+			end
+		end
+		if item.rarity == "NORMAL" then return out end
+		local half = item.rarity == "MAGIC" and 1 or ((item.type == "Jewel" or item.type == "Graft") and 2 or 3)
+		local prefixLimit, suffixLimit = item.prefixes and item.prefixes.limit or half, item.suffixes and item.suffixes.limit or half
+		local counts = { Prefix = 0, Suffix = 0 }
+		if item.crafted and item.affixLimit and item.affixLimit > 0 then
+			for kind, list in pairs({ Prefix = item.prefixes, Suffix = item.suffixes }) do
+				for _, a in ipairs(list) do if a.modId and a.modId ~= "None" then counts[kind] = counts[kind] + 1 end end
+			end
+		elseif item.affixes then
+			local left = {}
+			for _, l in ipairs(item.explicitModLines or {}) do
+				if l.line and l.line:match("%S") then local k = norm(l.line); left[k] = (left[k] or 0) + 1 end
+			end
+			local single, multi = {}, {}
+			for id, mod in pairs(item.affixes) do
+				if (mod.type == "Prefix" or mod.type == "Suffix") and item:GetModSpawnWeight(mod) > 0 then
+					if #mod == 1 then
+						local k = norm(mod[1]); single[k] = (single[k] == nil or single[k] == mod.type) and mod.type or false
+					elseif #mod > 1 then
+						multi[#multi + 1] = { id = id, mod = mod }
+					end
+				end
+			end
+			table.sort(multi, function(x, y) return x.id < y.id end)
+			for _, entry in ipairs(multi) do
+				local mod = entry.mod
+				local keys, all = {}, true
+				for i, line in ipairs(mod) do keys[i] = norm(line); if (left[keys[i]] or 0) == 0 then all = false end end
+				if all then
+					for _, k in ipairs(keys) do left[k] = left[k] - 1 end
+					counts[mod.type] = counts[mod.type] + 1
+				end
+			end
+			for k, n in pairs(left) do
+				if n > 0 and single[k] then counts[single[k]] = counts[single[k]] + n end
+			end
+		end
+		if counts.Prefix > prefixLimit then out[#out + 1] = string.format("%d prefixes, more than the %d a %s %s can have", counts.Prefix, prefixLimit, item.rarity:lower(), item.type) end
+		if counts.Suffix > suffixLimit then out[#out + 1] = string.format("%d suffixes, more than the %d a %s %s can have", counts.Suffix, suffixLimit, item.rarity:lower(), item.type) end
+		return out
+	end
+
 	local function describe(tab, item, full)
 		local out = {
 			id = item.id, name = W.strip(item.name or ""), title = item.title, baseName = item.baseName, rarity = item.rarity,
 			type = item.type, quality = item.quality, sockets = item.sockets and #item.sockets > 0 and sockets(item) or nil,
 			equipped = equippedIn(tab, item.id), corrupted = item.corrupted == true,
 		}
+		local warnings = warningsOf(item)
+		if #warnings > 0 then out.warnings = warnings end
 		if full then
 			out.raw = item:BuildRaw()
 			out.enchants, out.implicits, out.explicits = lines(item, item.enchantModLines), lines(item, item.implicitModLines), lines(item, item.explicitModLines)
