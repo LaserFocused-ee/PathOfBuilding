@@ -137,6 +137,10 @@ void test("trade client: a search with no match (result and total left out or nu
     const r = await client.search(search());
     assert.deepEqual([r.searchId, r.total, r.entries.length, sent.length], [body.id ?? "", 0, 0, 1], JSON.stringify(body));
   }
+  // an id with other printable characters is taken and goes into the fetch URL encoded
+  const odd = site((x) => (x.method === "POST" ? { headers: generous, body: { id: "Ab-3_x/9", result: ids(1), total: 1 } } : { headers: generous, body: { result: [entry(ids(1)[0] ?? "")] } }));
+  const got = await new TradeClient({ fetchTimeoutMs: 1000, fetchMaxBytes: 1_000_000 }, memoryLogger().log, odd.fetch).search(search());
+  assert.deepEqual([got.searchId, got.entries.length, odd.sent[1]?.url.endsWith("?query=Ab-3_x%2F9")], ["Ab-3_x/9", 1, true]);
   // results without an id cannot be fetched: still a stop
   const { fetch } = site(() => ({ headers: generous, body: { id: "", result: ids(2), total: 2 } }));
   await assert.rejects(new TradeClient({ fetchTimeoutMs: 1000, fetchMaxBytes: 1_000_000 }, memoryLogger().log, fetch).search(search()), /expected shape \(id: custom\)/);
@@ -150,7 +154,7 @@ void test("trade client: a 429, any 4xx, a redirect or a malformed answer stops 
     [{ status: 403, headers: { "retry-after": "120", "x-rate-limit-rules": "Ip", "x-rate-limit-ip-state": "1:10:0", "set-cookie": "a=b" }, body: { error: { message: "blocked: the client string is not allowed" } } }, "upstream_fetch_failed", /answered 403$/, { status: 403, retryAfterSeconds: 120, headers: { "retry-after": "120", "x-rate-limit-rules": "Ip", "x-rate-limit-ip-state": "1:10:0" } }],
     [{ status: 404 }, "upstream_fetch_failed", /answered 404$/, { status: 404, headers: {} }],
     [{ status: 302, headers: { location: "https://elsewhere.example/" } }, "upstream_fetch_failed", /redirects are not followed/, { status: 302 }],
-    [{ body: { id: "a/b", result: [], total: 0 } }, "upstream_fetch_failed", /expected shape \(id: invalid_format\)$/, {}],
+    [{ body: { id: "a b", result: [], total: 0 } }, "upstream_fetch_failed", /expected shape \(id: invalid_format\)$/, {}],
     [{ body: { id: "ok", result: ["../x"], total: 1 } }, "upstream_fetch_failed", /expected shape \(result\.0: invalid_format\)$/, {}],
   ];
   for (const [reply, code, message, details] of cases) {

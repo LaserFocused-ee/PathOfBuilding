@@ -40,6 +40,9 @@ const EXCHANGE_MAX_BYTES = 8_000_000;
 const CACHE_ENTRIES = 100; // ponytail: oldest-first eviction; an LRU only if repeated asks show it matters
 const FETCH_BLOCK = 10;
 const ID = /^[A-Za-z0-9]{1,128}$/;
+/** A search id: any printable ASCII without spaces (the site's form has changed; Path of Building does not check it) or empty
+ * when nothing is found. It only goes into URLs encoded. */
+const SEARCH_ID = /^[\x21-\x7e]{0,128}$/;
 /** A league name as the trade routes take it. */
 export const LEAGUE_NAME = /^[A-Za-z0-9][A-Za-z0-9 '-]*$/;
 /** The leagues that last, in the order Path of Building lists them after the current ones (TradeQuery.lua). */
@@ -228,7 +231,7 @@ export interface TradeLeagues {
 
 /** A search with no match may leave `result` out or null, `total` out and `id` empty (TradeQueryRequests.lua:245 reads all as none). */
 const searchReply = z
-  .object({ id: z.union([z.string().regex(ID), z.literal("")]).nullish().transform((i) => i ?? ""), result: z.array(z.string().regex(ID)).nullish().transform((r) => r ?? []), total: z.number().int().min(0).nullish().transform((t) => t ?? 0) })
+  .object({ id: z.string().regex(SEARCH_ID).nullish().transform((i) => i ?? ""), result: z.array(z.string().regex(ID)).nullish().transform((r) => r ?? []), total: z.number().int().min(0).nullish().transform((t) => t ?? 0) })
   .refine((r) => r.id !== "" || r.result.length === 0, { path: ["id"], message: "a search with results has an id" });
 /** Where an answer left the expected shape: field paths and zod's issue text, never a value of the body. */
 const shapeOf = (e: z.ZodError) => e.issues.slice(0, 3).map((i) => `${i.path.join(".") || "answer"}: ${i.code}`).join("; ");
@@ -324,13 +327,20 @@ export class TradeClient {
 
   /** One search and the fetches for its first `listings` results. Throws ApiError on any stop (the caller stops its batch). */
   async search(s: TradeSearch): Promise<TradeResult> {
-    const found = searchReply.safeParse(await this.send("search", s, tradeUrl("api/trade/search", s.realm, s.league), "POST", JSON.stringify(s.body)));
-    if (!found.success) throw new ApiError("upstream_fetch_failed", `the trade site's search answer was not in the expected shape (${shapeOf(found.error)})`);
+    const reply: unknown = await this.send("search", s, tradeUrl("api/trade/search", s.realm, s.league), "POST", JSON.stringify(s.body));
+    const found = searchReply.safeParse(reply);
+    if (!found.success) {
+      // the id's form only (length, kinds of character), never its value
+      const id: unknown = (reply as { id?: unknown } | null)?.id;
+      const form = typeof id === "string" ? { length: id.length, letters: /[A-Za-z]/.test(id), digits: /\d/.test(id), others: [...new Set(id.replace(/[A-Za-z0-9]/g, ""))].filter((c) => c >= "!" && c <= "~").join("") } : { type: typeof id };
+      this.log.warn({ event: "trade.search.shape", issues: shapeOf(found.error), id: form }, "search answer not in the expected shape");
+      throw new ApiError("upstream_fetch_failed", `the trade site's search answer was not in the expected shape (${shapeOf(found.error)})`);
+    }
     const ids = found.data.result.slice(0, s.listings);
     const entries: TradeEntry[] = [];
     let dropped = 0;
     for (let i = 0; i < ids.length; i += FETCH_BLOCK) {
-      const url = `${ORIGIN}api/trade/fetch/${ids.slice(i, i + FETCH_BLOCK).join(",")}?query=${found.data.id}`;
+      const url = `${ORIGIN}api/trade/fetch/${ids.slice(i, i + FETCH_BLOCK).join(",")}?query=${encodeURIComponent(found.data.id)}`;
       const block = fetchReply.safeParse(await this.send("fetch", s, url, "GET"));
       if (!block.success) throw new ApiError("upstream_fetch_failed", `the trade site's fetch answer was not in the expected shape (${shapeOf(block.error)})`);
       for (const raw of block.data.result) {
