@@ -321,3 +321,12 @@ void test("warnings: more suffixes than a rare can have, eldritch implicits with
   assert.equal(await add(cluster(["Overshock", "Thunderstruck", "Widespread Destruction"])), undefined, "Widespread Destruction is a suffix");
   assert.equal((await list(id)).items.filter((i) => (i as { warnings?: string[] }).warnings).length, 4, "the list carries them");
 });
+
+void test("tooltip: an item's hover text, a flask's effective stats and uptime", async () => {
+  const id = await newWitch();
+  const flask = ok(await post<Brief>(id, "add", { text: "Rarity: MAGIC\nQuicksilver Flask", equip: "Flask 1" })).result.id;
+  const t = ok(await srv.call<{ item: number; name: string; lines: string[] }>("GET", `/v1/items/${id}/tooltip?item=${flask}`));
+  assert.deepEqual([t.item, t.name], [flask, "Quicksilver Flask"]);
+  assert.deepEqual(t.lines.slice(t.lines.indexOf("Effective flask stats:")), ["Effective flask stats:", "Flask uptime: 0% average, 0% minimum", "Activating this flask will give you:", "+39% Movement Speed Modifier"], "no charges generated per second: uptime 0");
+  fails(await srv.call("GET", `/v1/items/${id}/tooltip?item=99`), 404, "not_found");
+});

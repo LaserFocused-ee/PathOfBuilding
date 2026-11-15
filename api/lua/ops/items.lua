@@ -195,6 +195,14 @@ return function(W)
 		return describe(tab, itemOf(tab, args.item), true)
 	end
 
+	-- The hover text of an item in the Items tab's list (AddItemTooltip): its lines, a flask's effective stats with its
+	-- uptime, and what equipping it in each slot it fits would change.
+	function ops.tooltip(args)
+		local tab = W.build().itemsTab
+		local item = itemOf(tab, args.item)
+		return { item = item.id, name = W.strip(item.name), lines = W.tooltip(function(t) tab:AddItemTooltip(t, item) end) }
+	end
+
 	-- Saves the display item with the Save / Add to build button; a new item goes where `equip` says.
 	local function save(tab, equip)
 		local item = tab.displayItem
@@ -217,7 +225,7 @@ return function(W)
 
 	local function fromRaw(tab, raw)
 		tab:SetDisplayItem()
-		tab:CreateDisplayItemFromRaw(raw, true)
+		tab:CreateDisplayItemFromRaw(W.withUniqueRadius(raw), true)
 		if not tab.displayItem then W.fail("invalid_input", "Path of Building could not read this item (unknown base?)") end
 		return tab.displayItem
 	end

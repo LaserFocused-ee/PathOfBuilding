@@ -270,3 +270,9 @@ void test("MCP: pob_skills is listed and reads the socket groups", async () => {
     await client.close();
   }
 });
+
+void test("add_group takes a gem line without the copy format's count", async () => {
+  const id = await newWitch();
+  assert.deepEqual(ok(await post(id, "add-group", { text: "Slot: Gloves\nEnfeeble 20/20" })).result, { group: 1 });
+  assert.equal(ok(await srv.call<{ text: string }>("GET", `/v1/skills/${id}/group-text?group=1`)).text, "Slot: Gloves\nEnfeeble 20/20  1\n");
+});

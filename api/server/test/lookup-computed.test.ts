@@ -69,6 +69,12 @@ void test("mods_for_base: the prefixes Vaal Regalia rolls at item level 86, page
   fails(await srv.call("GET", "/v1/lookup/mods-for-base?base=Vaal%20Regalia&influence=Nope"), 400, "invalid_input");
 });
 
+void test("mods_for_base: a wand (its pool holds mods with no affix type) lists only prefixes and suffixes", async () => {
+  const wand = ok(await srv.call<Mods>("GET", "/v1/lookup/mods-for-base?base=Opal%20Wand&limit=200"));
+  assert.ok(wand.total > 0);
+  assert.ok(wand.mods.every((m) => m.type === "Prefix" || m.type === "Suffix"));
+});
+
 void test("mods_for_base: an unknown base is 404", async () => {
   fails(await srv.call("GET", "/v1/lookup/mods-for-base?base=Nope"), 404, "not_found");
 });

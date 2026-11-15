@@ -169,6 +169,21 @@ end
 function W.strip(s)
 	return type(s) == "string" and StripEscapes(s) or s
 end
+-- The nodes allocating `node` takes, as PassiveSpec:AllocNode does: the node alone when a Thread of Hope or Impossible
+-- Escape lets it be allocated without a connection (intuitiveLeapLikesAffecting), otherwise its path.
+function W.allocPath(node)
+	if node.intuitiveLeapLikesAffecting and #node.intuitiveLeapLikesAffecting > 0 then return { node } end
+	return node.path
+end
+-- Item text from the trade site can leave out a unique jewel's "Radius:" line. Without it Path of Building gives the
+-- jewel no radius, so a timeless or radius jewel changes nothing. The line is taken from the unique list's own item.
+function W.withUniqueRadius(text)
+	if type(text) ~= "string" or text:match("\nRadius: ") then return text end
+	local _, at, title, base = text:find("Rarity: [Uu][Nn][Ii][Qq][Uu][Ee]\r?\n([^\r\n]+)\r?\n([^\r\n]+)")
+	local unique = title and main.uniqueDB.list[title .. ", " .. base]
+	if not unique or not unique.jewelRadiusLabel then return text end
+	return text:sub(1, at) .. "\nRadius: " .. unique.jewelRadiusLabel .. text:sub(at + 1)
+end
 -- The lines a Tooltip would draw, colour codes stripped; a separator becomes one "" between two text lines.
 function W.tooltip(fn)
 	local t = new("Tooltip"):Tooltip()

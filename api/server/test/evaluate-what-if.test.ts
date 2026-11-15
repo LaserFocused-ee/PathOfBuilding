@@ -133,6 +133,20 @@ void test("what_if conditions equal the configuration option; a flask toggle equ
   assert.deepEqual(flask.changed, (await mutate("items", await dup(base), "set-active", { slot: "Flask 1", active: true })).changed);
 });
 
+void test("what_if a socket and its jewel in one call equals allocating the socket and socketing the jewel for real", async () => {
+  const jewel = "Rarity: RARE\nTest Jewel\nCobalt Jewel\nImplicits: 0\n15% increased Fire Damage\n9% increased Damage\n4% increased Cast Speed with Fire Skills\n11% increased Projectile Damage";
+  const wi = await ev<{ withPaths: { changed: Changed; points: number } }>(base, "what-if", { addNodes: [41263], slot: "Jewel 41263", text: jewel, fields: ["CombinedDPS", "Life"] });
+  const real = await dup(base);
+  await mutate("tree", real, "allocate", { nodes: [41263] });
+  await mutate("items", real, "add", { text: jewel, equip: "Jewel 41263" });
+  const now = await output(real, "CombinedDPS,Life");
+  assert.deepEqual([wi.withPaths.points, wi.withPaths.changed.CombinedDPS?.after, wi.withPaths.changed.Life?.after ?? now.Life], [4, now.CombinedDPS, now.Life]);
+  const off = await srv.call("POST", `/v1/evaluate/${base}/what-if`, { slot: "Jewel 41263", text: jewel });
+  assert.deepEqual([off.status, off.body.error?.code], [400, "invalid_input"], "the socket is not allocated");
+  const foreign = await srv.call("POST", `/v1/evaluate/${base}/what-if`, { addNodes: ["Unflinching"] });
+  assert.deepEqual([foreign.status, foreign.body.error?.message], [400, "Unflinching (1734) cannot be reached from the tree: it is a node of Juggernaut, not of this build's ascendancy"]);
+});
+
 void test("what_if an item in a slot equals equipping it for real, by text and by item id", async () => {
   const wi = await ev<{ changed: Changed }>(base, "what-if", { slot: "Helmet", text: helmet });
   assert.deepEqual(wi.changed, {

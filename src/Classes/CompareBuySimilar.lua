@@ -21,6 +21,32 @@ local function getStats()
 	return _existingStats
 end
 
+-- Fork only (api/docs/UPSTREAM-PATCHES.md): a line no stat description words (the eldritch implicits' "While a Pinnacle
+-- Atlas Boss is in your Presence, ..." forms) is matched against the trade texts QueryMods carries, by mod type.
+local _queryModTexts
+local function queryModTradeId(line, modType)
+	if not _queryModTexts then
+		_queryModTexts = {}
+		for _, group in pairs(LoadModule("Data/QueryMods")) do
+			for _, entry in pairs(group) do
+				local t = entry.tradeMod
+				if t and t.text and t.id and t.type then
+					local pat = "^" .. t.text:lower():gsub("[%(%)%.%%%+%-%*%?%[%]%^%$]", "%%%0"):gsub("#", "([%%d%%.]+)") .. "$"
+					_queryModTexts[#_queryModTexts + 1] = { pat = pat, id = t.id, type = t.type }
+				end
+			end
+		end
+		table.sort(_queryModTexts, function(a, b) return a.id < b.id end)
+	end
+	local lower = line:lower()
+	for _, q in ipairs(_queryModTexts) do
+		if q.type == modType then
+			local v = lower:match(q.pat)
+			if v then return q.id, tonumber(v) end
+		end
+	end
+end
+
 local M = {}
 
 -- Realm display name to API id mapping
@@ -269,6 +295,12 @@ function M.addModEntries(item, modTypeSources)
 							entry.tradeIds = resultIds
 							entry.value = value
 							entry.invert = invert
+							if #resultIds == 0 then
+								local id, v = queryModTradeId(resolvedLine, source.type)
+								if id and getStats()[id] then
+									entry.tradeIds, entry.value, entry.invert = { id }, v, false
+								end
+							end
 						end
 						insertOrAddToExisting(entry)
 					end

@@ -18,12 +18,13 @@ return function(W)
 		return out
 	end
 
-	-- Values on the active config set that differ from their default.
+	-- Values on the active config set that differ from their default. A countAllowZero option set to 0 is listed:
+	-- its default reads 0 too, but an empty box means "maximum" and a 0 applies (ConfigTab.lua:1146).
 	function W.configValues(b)
 		local tab = b.configTab
 		local values = {}
 		for var, value in pairs(tab.input) do
-			if byVar[var] and value ~= tab.defaultState[var] and not (value == false and tab.defaultState[var] == nil) then
+			if byVar[var] and (value ~= tab.defaultState[var] or byVar[var].type == "countAllowZero" and value == 0) and not (value == false and tab.defaultState[var] == nil) then
 				values[var] = W.plain(value)
 			end
 		end
@@ -77,7 +78,12 @@ return function(W)
 		local tab = b.configTab
 		for _, var in ipairs(reset) do
 			if not byVar[var] then W.fail("invalid_input", "unknown config option " .. tostring(var)) end
-			setOne(tab, var, tab.defaultState[var])
+			local t = byVar[var].type
+			if (t == "count" or t == "integer" or t == "countAllowZero" or t == "float") and tab.varControls[var] then
+				tab.varControls[var]:SetText("", true) -- an empty box, as a new build has it: a countAllowZero 0 would still apply
+			else
+				setOne(tab, var, tab.defaultState[var])
+			end
 		end
 		for var, value in pairs(values) do setOne(tab, var, value) end
 		local out = {}

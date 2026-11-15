@@ -148,10 +148,15 @@ return function(W)
 				lines[#lines + 1] = string.format("%s %d/%d %s %d", g.name, g.level or 20, g.quality or 0, g.enabled == false and "DISABLED" or "", g.count or 1)
 			end
 			text = table.concat(lines, "\n")
+		else
+			-- the copy format ends each gem line with a count; a line without one ("Enfeeble 20/20") counts once
+			text = tostring(text):gsub("[^\r\n]+", function(line)
+				if line:match("%d+/%d+ ?%a*%s*$") then return (line:gsub("%s*$", "")) .. " 1" end
+			end)
 		end
 		local before = #tab.socketGroupList
 		tab:PasteSocketGroup(text)
-		if #tab.socketGroupList ~= before + 1 then W.fail("invalid_input", "no gems found in the text") end
+		if #tab.socketGroupList ~= before + 1 then W.fail("invalid_input", "no gems found in the text; each gem line reads <name> <level>/<quality>, as Copy on the Skills tab writes it (Fireball 20/20)") end
 		local g = tab.socketGroupList[#tab.socketGroupList]
 		tab:ProcessSocketGroup(g)
 		for _, gem in ipairs(g.gemList) do

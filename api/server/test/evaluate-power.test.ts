@@ -113,8 +113,11 @@ void test("passives: each candidate scored with its path, sorted by gain; equals
   assert.equal(await stat(copy, "CombinedDPS"), far.candidates[0]?.changed.CombinedDPS?.after);
 
   assert.deepEqual([await revisionOf(base), await code(base)], [rev, before]);
-  fails(await evaluate(base, "passives", { candidates: [2292] }), 400, "invalid_input"); // allocated
+  fails(await evaluate(base, "passives", { candidates: [2292] }), 400, "invalid_input"); // allocated, and nothing else to score
   fails(await evaluate(base, "passives", { candidates: [5726] }), 400, "invalid_input"); // a mastery
+  // one candidate that cannot be scored does not fail the others
+  const mixed = await ev<{ total: number; candidates: Candidate[]; skipped: Array<{ id: number; reason: string }> }>(base, "passives", { candidates: [12852, 2292, 5726], fields: ["CombinedDPS"] });
+  assert.deepEqual([mixed.total, mixed.candidates.map((c) => c.id), mixed.skipped.map((x) => [x.id, x.reason.split(":")[0]])], [1, [12852], [[2292, "allocated already"], [5726, "a mastery"]]]);
   fails(await evaluate(base, "passives", { fields: ["Life"], sortBy: "CombinedDPS" }), 400, "invalid_input");
 });
 

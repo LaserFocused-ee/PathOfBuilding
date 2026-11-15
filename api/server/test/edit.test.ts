@@ -111,6 +111,7 @@ void test("tree: masteries and the tree list (new, copy, rename, activate, delet
   assert.deepEqual(opts.effects.find((e) => e.effectId === 61534)?.stats, ["You take 30% reduced Extra Damage from Critical Strikes"]);
   fails(await srv.call("POST", `/v1/tree/${id}/set-mastery`, { nodeId: 46842, effectId: 61534 }), 400, "invalid_input");
   fails(await srv.call("POST", `/v1/tree/${id}/set-mastery`, { nodeId: 16123, effectId: 1 }), 400, "invalid_input");
+  fails(await srv.call("POST", `/v1/tree/${id}/allocate`, { nodes: [16123] }), 400, "invalid_input"); // a mastery takes an effect
   const ms = ok(await srv.call<Mutated>("POST", `/v1/tree/${id}/set-mastery`, { nodeId: 16123, effectId: 61534 }));
   assert.ok((ms.changed.TotalEHP?.after ?? 0) > (ms.changed.TotalEHP?.before ?? Infinity), "less crit damage taken raises effective hit pool");
   let t = await tree(id);
@@ -211,6 +212,11 @@ void test("config: options by their controls, config sets, notes, level settings
   assert.deepEqual(low.result.values, { conditionLowLife: true, enemyIsBoss: "Pinnacle" });
   let cfg = ok(await srv.call<{ values: Record<string, unknown>; sets: Array<{ title: string; active: boolean }>; level: number; autoLevel: boolean }>("GET", `/v1/config/${id}/get`));
   assert.equal(cfg.values.conditionLowLife, true);
+  // a countAllowZero box set to 0 applies (no Inspiration Charges) though its default reads 0: get lists it, reset empties it
+  ok(await srv.call("POST", `/v1/config/${id}/set`, { values: { overrideInspirationCharges: 0 } }));
+  assert.equal(ok(await srv.call<{ values: Record<string, unknown> }>("GET", `/v1/config/${id}/get`)).values.overrideInspirationCharges, 0);
+  ok(await srv.call("POST", `/v1/config/${id}/set`, { reset: ["overrideInspirationCharges"] }));
+  assert.equal("overrideInspirationCharges" in ok(await srv.call<{ values: Record<string, unknown> }>("GET", `/v1/config/${id}/get`)).values, false);
   fails(await srv.call("POST", `/v1/config/${id}/set`, { values: { conditionLowLife: 3 } }), 400, "invalid_input");
   fails(await srv.call("POST", `/v1/config/${id}/set`, { values: { enemyIsBoss: "Nonsense" } }), 400, "invalid_input");
   fails(await srv.call("POST", `/v1/config/${id}/set`, { values: { noSuchOption: true } }), 400, "invalid_input");

@@ -150,7 +150,7 @@ return function(W)
 	local function itemOf(tab, args)
 		if args.text ~= nil then
 			if type(args.text) ~= "string" or not args.text:match("%S") then bad("text is the item's text") end
-			local item = new("Item"):Item(args.text)
+			local item = new("Item"):Item(W.withUniqueRadius(args.text))
 			if not item.base then bad("Path of Building could not read this item (unknown base?)") end
 			item:NormaliseQuality()
 			item:BuildModList()
@@ -170,19 +170,39 @@ return function(W)
 		return item and W.strip(item.name) or json.null
 	end
 
+	-- ItemsTab.lua itemChangesPassiveTree (the tooltip then rebuilds the tree to compare), and cluster jewels, whose passives are
+	-- a part of the tree the calculator's override does not build.
+	local function changesTree(item)
+		return item and item.type == "Jewel" and (item.clusterJewel or (item.jewelData and (item.jewelData.conqueredBy
+			or item.jewelRadiusIndex and (item.jewelData.intuitiveLeapLike or item.jewelData.impossibleEscapeKeystone)))) and true or false
+	end
+
 	-- args: addNodes?, removeNodes? (node ids or exact names), slot? with item? (id) or text?, toggleFlask? / toggleTincture? (slot),
 	-- conditions? (names), fields?. The calculator's override with all of them at once.
 	function ops.what_if(args)
 		local b = W.build()
 		local tab = b.itemsTab
 		local override = {}
-		if args.addNodes ~= nil then override.addNodes = nodeSet(b.spec, args.addNodes) end
+		if args.addNodes ~= nil then
+			override.addNodes = nodeSet(b.spec, args.addNodes)
+			-- another ascendancy's (or class's) node has no path; the calculator would leave it out and answer nothing
+			for node in pairs(override.addNodes) do
+				if not node.alloc and not node.path then
+					bad(W.strip(node.dn) .. " (" .. node.id .. ") cannot be reached from the tree" .. (node.ascendancyName and (": it is a node of " .. node.ascendancyName .. ", not of this build's ascendancy") or ""))
+				end
+			end
+		end
 		if args.removeNodes ~= nil then override.removeNodes = nodeSet(b.spec, args.removeNodes) end
 		if args.slot ~= nil then
-			local slot = slotOf(tab, args.slot)
+			local slot = slotOf(tab, args.slot, true)
 			local item = itemOf(tab, args)
 			if not tab:IsItemValidForSlot(item, args.slot) then bad("this item does not fit " .. args.slot) end
-			if not slotInUse(tab, slot) then bad(args.slot .. " is not in use (weapon set or socket not active)") end
+			-- a jewel goes in an allocated socket or one addNodes allocates; one that rebuilds the tree is compare_item's
+			local added = slot.nodeId and override.addNodes and override.addNodes[b.spec.nodes[slot.nodeId]]
+			if not (slotInUse(tab, slot) or added) then bad(args.slot .. " is not in use (weapon set or socket not active; a socket can be allocated with addNodes)") end
+			if slot.nodeId and (changesTree(item) or changesTree(slot.selItemId and tab.items[slot.selItemId])) then
+				bad("a cluster, timeless or radius-changing jewel rebuilds the tree: compare_item measures it in its socket")
+			end
 			override.repSlotName, override.repItem = args.slot, item
 		elseif args.item ~= nil or args.text ~= nil then
 			bad("an item needs the slot it goes in")
@@ -212,7 +232,7 @@ return function(W)
 				if override[key] then
 					wide[key] = {}
 					for node in pairs(override[key]) do
-						local chain = (key == "addNodes" and not node.alloc and node.path) or (key == "removeNodes" and node.alloc and node.depends) or { node }
+						local chain = (key == "addNodes" and not node.alloc and W.allocPath(node)) or (key == "removeNodes" and node.alloc and node.depends) or { node }
 						local names = {}
 						for _, n in ipairs(chain) do
 							wide[key][n] = true
@@ -289,16 +309,17 @@ return function(W)
 	function ops.passives(args)
 		local b = W.build()
 		local spec = b.spec
-		local list = {}
+		local list, skipped = {}, setmetatable({}, { __jsontype = "array" })
 		if args.candidates ~= nil then
 			if type(args.candidates) ~= "table" or #args.candidates == 0 then bad("candidates is a list of node ids or exact names") end
+			-- a candidate that cannot be scored is listed in skipped with the reason; the others are scored
 			for _, ref in ipairs(args.candidates) do
 				local node = nodeOf(spec, ref)
-				if node.alloc then bad(W.strip(node.dn) .. " is allocated already") end
-				if node.type == "Mastery" then bad(W.strip(node.dn) .. " is a mastery: score its effects with node_power or what_if") end
-				if not node.path or #node.path == 0 then bad(W.strip(node.dn) .. " cannot be reached from the allocated tree") end
-				list[#list + 1] = node
+				local reason = (node.alloc and "allocated already") or (node.type == "Mastery" and "a mastery: score its effects with node_power or what_if")
+					or ((not node.path or #node.path == 0) and "cannot be reached from the allocated tree") or nil
+				if reason then skipped[#skipped + 1] = { id = node.id, name = W.strip(node.dn), reason = reason } else list[#list + 1] = node end
 			end
+			if #list == 0 then bad("no candidate can be scored: " .. skipped[1].name .. " is " .. skipped[1].reason .. (#skipped > 1 and (", and " .. (#skipped - 1) .. " more") or "")) end
 		else
 			for _, node in pairs(spec.nodes) do
 				if not node.alloc and not node.ascendancyName and node.pathDist == 1 and node.path
@@ -317,12 +338,13 @@ return function(W)
 		local scored = {}
 		for _, node in ipairs(list) do
 			local add = {}
-			for _, n in ipairs(node.path) do add[n] = true end
+			local path = W.allocPath(node)
+			for _, n in ipairs(path) do add[n] = true end
 			local changed = diff(base, values(b, calcFunc({ addNodes = add }), fields))
 			local gain = 0
 			local c = sortBy and changed[sortBy]
 			if c and type(c.after) == "number" then gain = c.after - (type(c.before) == "number" and c.before or 0) end
-			scored[#scored + 1] = { id = node.id, name = W.strip(node.dn), type = node.type, points = #node.path, changed = changed, gain = sortBy and gain or nil }
+			scored[#scored + 1] = { id = node.id, name = W.strip(node.dn), type = node.type, points = #path, changed = changed, gain = sortBy and gain or nil }
 		end
 		table.sort(scored, function(x, y)
 			if sortBy and x.gain ~= y.gain then return x.gain > y.gain end
@@ -331,16 +353,10 @@ return function(W)
 		local limit, offset = math.min(tonumber(args.limit) or 50, maxCandidates), math.max(tonumber(args.offset) or 0, 0)
 		local page = {}
 		for i = offset + 1, math.min(offset + limit, #scored) do page[#page + 1] = scored[i] end
-		return { total = #scored, offset = offset, sortBy = sortBy, candidates = page }
+		return { total = #scored, offset = offset, sortBy = sortBy, candidates = page, skipped = #skipped > 0 and skipped or nil }
 	end
 
 	-- args: item (id) or text, slot? (default every slot it fits), fields?. The item in each slot in place of what it holds.
-	-- ItemsTab.lua itemChangesPassiveTree (the tooltip then rebuilds the tree to compare), and cluster jewels, whose passives are
-	-- a part of the tree the calculator's override does not build.
-	local function changesTree(item)
-		return item and item.type == "Jewel" and (item.clusterJewel or (item.jewelData and (item.jewelData.conqueredBy
-			or item.jewelRadiusIndex and (item.jewelData.intuitiveLeapLike or item.jewelData.impossibleEscapeKeystone)))) and true or false
-	end
 
 	-- Equips a copy of `item` in the socket for real (a cluster jewel's passives built and all allocated, the path to them too),
 	-- recalculates, and loads the build back from its own XML so it is left as it was. Answers measure(build, output) and the

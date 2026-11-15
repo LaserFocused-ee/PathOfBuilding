@@ -53,6 +53,9 @@ export interface TradeSearchInput {
 export type TradeOrder = "site" | "gain" | "price" | "gainPrice";
 const byPrice = (o: TradeOrder): boolean => o === "price" || o === "gainPrice";
 const divs = (n: number): number => Math.round(n * 1e6) / 1e6;
+/** The warning a trade call carries when searches were left unrun: how many, why, and when to try again. */
+const notRunWarning = (notRun: number, of: number, stop: Record<string, unknown>): string =>
+  `${notRun} of ${of} searches not run: ${String(stop.message)}${typeof stop.retryAfterSeconds === "number" ? `; run them again after ${stop.retryAfterSeconds}s` : ""}`;
 
 /** How long an interactive trade call may wait for the pace, in total. */
 const TRADE_CALL_MS = 60_000; // ponytail: one budget per call; per-search budgets if long batches need them
@@ -481,7 +484,7 @@ export class Service {
       listed = await this.trade.leagues(i.realm, { priority: i.priority, deadline, userAgent });
     } catch (e) {
       if (!(e instanceof ApiError)) throw e;
-      return { result: { searches, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, total: null, rates: null, transport: this.trade.transport, limiter: this.trade.limiter.state() }, warnings };
+      return { result: { searches, complete: false, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, total: null, rates: null, transport: this.trade.transport, limiter: this.trade.limiter.state() }, warnings: [...warnings, notRunWarning(i.searches.length, i.searches.length, { message: e.message, ...e.details })] };
     }
     if (!listed.leagues.includes(league)) {
       throw new ApiError("invalid_input", `the configured trade league ${league} is not on the trade site's list for ${i.realm} (current: ${listed.current ?? "none listed"}); set POB_API_TRADE_LEAGUE to the league being played`, { league, current: listed.current });
@@ -493,7 +496,7 @@ export class Service {
         rates = await this.rates(i.realm, league, { priority: i.priority, deadline, userAgent });
       } catch (e) {
         if (!(e instanceof ApiError)) throw e;
-        return { result: { searches, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, total: null, rates: null, transport: this.trade.transport, limiter: this.trade.limiter.state() }, warnings };
+        return { result: { searches, complete: false, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, total: null, rates: null, transport: this.trade.transport, limiter: this.trade.limiter.state() }, warnings: [...warnings, notRunWarning(i.searches.length, i.searches.length, { message: e.message, ...e.details })] };
       }
     }
     const rateOf = (currency: string): number | undefined => (rates && Object.hasOwn(rates.rates, currency) ? rates.rates[currency] : undefined);
@@ -551,8 +554,10 @@ export class Service {
     });
     const priced = rates !== undefined && prices.every((p) => rateOf(p.currency) !== undefined);
     const total = { prices, divines: priced ? divs(prices.reduce((n, p) => n + p.amount * (rateOf(p.currency) ?? 0), 0)) : null };
+    const notRun = i.searches.length - searches.length;
+    if (notRun > 0 && stopped) warnings.push(notRunWarning(notRun, i.searches.length, stopped));
     return {
-      result: { searches, notRun: i.searches.length - searches.length, stopped, total, rates: rates ? { hour: rates.hour, cached: rates.cached } : null, transport: this.trade.transport, limiter: this.trade.limiter.state() },
+      result: { searches, complete: notRun === 0, notRun, stopped, total, rates: rates ? { hour: rates.hour, cached: rates.cached } : null, transport: this.trade.transport, limiter: this.trade.limiter.state() },
       warnings,
     };
   }

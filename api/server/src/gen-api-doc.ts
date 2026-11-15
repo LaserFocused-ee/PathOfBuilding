@@ -17,6 +17,8 @@ export function apiDoc(): string {
     "",
     "Replies are `{ \"ok\": true, \"result\": ..., \"warnings\": [...] }` or `{ \"ok\": false, \"error\": { \"code\", \"message\" } }`. Error codes: `not_found` 404, `invalid_input` 400, `unauthorized` 401, `stale_revision` 409, `payload_too_large` 413, `rate_limited` 429, `worker_error` 500, `unsupported` 501, `upstream_fetch_failed` 502, `worker_timeout` 504.",
     "",
+    "A write that changes a build answers `{ \"result\": <the operation's own answer>, \"changed\": <sidebar stats before and after>, \"revision\": <new revision> }` inside the reply's `result`, so its own fields sit at `.result.result` (the new item's `id`, a copy's `sets`, a group's index); the reply's `.result.id` or `.result.sets` is always absent. Each route's Result below shows this shape.",
+    "",
     "GET inputs go in the query string (lists comma-separated); POST and PUT inputs are a JSON body only (a query string on them is refused); path parameters are part of the input.",
     "",
     "## MCP tools",

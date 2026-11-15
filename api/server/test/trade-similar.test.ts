@@ -203,6 +203,15 @@ void test("buy_similar other: the item is the other build's; neither build chang
   await refused(`/v1/items/${base}/buy-similar`, { slot: "Ring 1", league: "Settlers", other: "0123456789abcdef" }, 404, "not_found", /./);
 });
 
+void test("buy_similar on eldritch implicits: the presence lines no stat description words get their trade ids from QueryMods", async () => {
+  const id = ok(await post<{ build: { id: string } }>("/v1/builds", { name: "eldritch", className: "Witch" })).build.id;
+  const text = "Rarity: RARE\nT Helm\nHubris Circlet\nSearing Exarch Item\nEater of Worlds Item\nImplicits: 2\n{exarch}While a Pinnacle Atlas Boss is in your Presence, 48% increased Spell Damage\n{eater}While a Unique Enemy is in your Presence, 10% increased Cast Speed\n+80 to maximum Energy Shield";
+  ok(await post(`/v1/items/${id}/add`, { text, equip: "Helmet" }));
+  const r = await similar({ slot: "Helmet", league: "Settlers", select: [{ index: 1 }] }, id);
+  assert.deepEqual(r.mods.slice(0, 2).map((m) => [m.type, m.tradeId, m.value, m.canSearch]), [["implicit", "implicit.stat_817495383", 48, true], ["implicit", "implicit.stat_2016247664", 10, true]]);
+  assert.deepEqual(filtersOf(r.query), [["and", undefined, [["implicit.stat_817495383", { min: 48 }]]]]);
+});
+
 void test("buy_similar refusals", async () => {
   const path = `/v1/items/${base}/buy-similar`;
   const ask = { slot: "Body Armour", league: "Settlers" };

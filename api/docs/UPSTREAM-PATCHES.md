@@ -178,6 +178,19 @@ nothing):
   (a worker error without the change).
 - Upstream status: not offered.
 
+### Buy Similar on eldritch implicits: `src/Classes/CompareBuySimilar.lua`
+
+- What: `addModEntries` found no trade stat for the eldritch presence implicits ("While a Pinnacle Atlas Boss is in
+  your Presence, 48% increased Spell Damage"): no stat description in `stat_descriptions.lua` words them, so
+  `findTradeHash` matched nothing and the rows could not be ticked. A line with no match is now compared with the
+  trade texts `Data/QueryMods.lua` carries for its mod type (`#` as the number), and takes that id when the trade
+  site lists it.
+- Why: Buy Similar (API `items.buy_similar`) could not search an item's eldritch implicits, which carry much of an
+  eldritch helmet's or glove's price.
+- Test: `api/server/test/trade-similar.test.ts`, "buy_similar on eldritch implicits" (rows not searchable without
+  the change).
+- Upstream status: not offered.
+
 ### Open upstream pull requests merged ahead of upstream
 
 Each was fetched read-only (`git fetch upstream pull/<n>/head`) and merged with its own commit, in the order below;

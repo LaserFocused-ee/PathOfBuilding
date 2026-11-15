@@ -157,6 +157,8 @@ void test("metadata ops: list, rename with stale check, save point, history, dup
 void test("lookup: gems, uniques, bases, tree nodes, node detail, config catalogue", async () => {
   const gems = ok(await srv.call<{ gems: Array<{ name: string; tags: unknown }> }>("GET", "/v1/lookup/gems?query=fireball&limit=5"));
   assert.ok(gems.gems.some((g) => g.name === "Fireball"));
+  const banner = ok(await srv.call<{ gems: Array<{ name: string; cost?: unknown; reservation?: unknown }> }>("GET", "/v1/lookup/gems?query=Defiance%20Banner&limit=1")).gems[0];
+  assert.deepEqual([banner?.name, banner?.cost, banner?.reservation], ["Defiance Banner", { Mana: 19 }, undefined], "a banner costs mana and reserves nothing");
   const uniq = ok(await srv.call<{ uniques: Array<{ name: string; text: string }> }>("GET", "/v1/lookup/uniques?query=Headhunter"));
   assert.ok(uniq.uniques[0]?.text.includes("Headhunter"));
   const bases = ok(await srv.call<{ bases: Array<{ name: string }> }>("GET", "/v1/lookup/bases?query=Vaal%20Regalia"));

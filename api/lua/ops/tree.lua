@@ -205,6 +205,8 @@ return function(W)
 		local done, before = {}, allocated(spec)
 		for _, ref in ipairs(args.nodes) do
 			local node = nodeRef(spec, ref)
+			-- a mastery with no effect chosen is half-allocated: the calculator's counts skip it and a later removal fails
+			if node.type == "Mastery" and not node.alloc then W.fail("invalid_input", (node.dn or node.id) .. " (" .. node.id .. ") is a mastery: allocate it with set_mastery and an effect (mastery_options lists them)") end
 			if not node.alloc then
 				local foreign = foreignAscendancy(spec, node)
 				if foreign and switch == "switch" then switchFor(b, node, how) end
@@ -661,7 +663,8 @@ return function(W)
 		if args.from == nil then
 			if target.alloc then return { length = 0, nodes = {} } end
 			if not target.path then W.fail("invalid_input", "node " .. target.id .. " cannot be reached from the tree") end
-			for i = #target.path, 1, -1 do list[#list + 1] = brief(spec, target.path[i]) end
+			local path = W.allocPath(target)
+			for i = #path, 1, -1 do list[#list + 1] = brief(spec, path[i]) end
 			return { length = #list, nodes = list }
 		end
 		local start = nodeRef(spec, args.from)

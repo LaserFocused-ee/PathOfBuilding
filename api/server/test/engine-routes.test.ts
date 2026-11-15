@@ -107,7 +107,7 @@ void test("no read-only route changes the build: the session's code is the same 
     const before = ok(await srv.call<{ code: string }>("GET", `/v1/builds/${id}/code`)).code;
     for (const r of reads) {
       const res = await srv.call("GET", readUrl(r, id));
-      if (!(id === occ && r.name === "tree.mastery_options") && !(id === fresh && r.name === "items.get")) assert.equal(res.status, 200, `${r.name} on ${id}: ${JSON.stringify(res.body.error)}`);
+      if (!(id === occ && r.name === "tree.mastery_options") && !(id === fresh && (r.name === "items.get" || r.name === "items.tooltip"))) assert.equal(res.status, 200, `${r.name} on ${id}: ${JSON.stringify(res.body.error)}`);
       const after = ok(await srv.call<{ code: string }>("GET", `/v1/builds/${id}/code`)).code;
       assert.equal(after, before, `${r.name} changed the build`);
     }
@@ -119,7 +119,7 @@ void test("every read-only route's output matches its declared schema, and none 
   // build.characters asks the game site, trade.leagues the trade site and trade.currency_rates the trade site and the exchange, which a
   // test must not (this server is offline); trade.test.ts and trade-rates.test.ts check theirs against their schemas with recorded answers.
   for (const r of routes.filter((x) => x.method === "GET" && x.readOnly && !x.stream && !["build.characters", "trade.leagues", "trade.currency_rates"].includes(x.name))) {
-    const res = await srv.call("GET", readUrl(r, r.name === "items.get" ? occ : fresh)); // the fresh build has no items
+    const res = await srv.call("GET", readUrl(r, r.name === "items.get" || r.name === "items.tooltip" ? occ : fresh)); // the fresh build has no items
     assert.equal(res.status, 200, `${r.name}: ${JSON.stringify(res.body.error)}`);
     const parsed = r.output.safeParse(res.body.result);
     assert.ok(parsed.success, `${r.name} output does not match its schema: ${parsed.success ? "" : JSON.stringify(parsed.error.issues.slice(0, 5))}`);

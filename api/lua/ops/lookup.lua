@@ -68,7 +68,7 @@ return function(W)
 			out[#out + 1] = {
 				id = list[i].id, name = g.name, support = list[i].support, tags = tags, tagString = g.tagString,
 				naturalMaxLevel = g.naturalMaxLevel, legacy = ge and ge.legacy == true, description = ge and strip(ge.description) or nil,
-				reservation = reservation, stats = statLines,
+				reservation = reservation, cost = lv and lv.cost, stats = statLines,
 				requirements = reqLevel and {
 					gemLevel = level, level = reqLevel,
 					str = calcLib.getGemStatRequirement(reqLevel, list[i].support, g.reqStr or 0),
@@ -156,7 +156,7 @@ return function(W)
 		local out = nodeBrief(spec, node)
 		out.linked = {}
 		for _, other in ipairs(node.linked or {}) do out.linked[#out.linked + 1] = other.id end
-		if node.path and not out.allocated then out.pathLength = #node.path end
+		if node.path and not out.allocated then out.pathLength = #W.allocPath(node) end
 		out.reminderText = node.reminderText and W.plain(node.reminderText) or nil
 		out.flavourText = node.flavourText and W.plain(node.flavourText) or nil
 		if node.masteryEffects then
@@ -430,7 +430,7 @@ return function(W)
 		local ilvl = tonumber(args.ilvl) or 100
 		local list = {}
 		for id, mod in pairs(item.affixes) do
-			if (mod.type == "Prefix" or mod.type == "Suffix" or mod.type == eldritchType) and (args.type == nil or mod.type == args.type) and (mod.level or 0) <= ilvl
+			if (mod.type == "Prefix" or mod.type == "Suffix" or (eldritchType and mod.type == eldritchType)) and (args.type == nil or mod.type == args.type) and (mod.level or 0) <= ilvl
 				and not item:CheckIfModIsDelve(mod) and item:CanHaveMod(mod) then
 				local row = modRow(id, mod)
 				row.weight, row.tags = item:GetModSpawnWeight(mod), nil

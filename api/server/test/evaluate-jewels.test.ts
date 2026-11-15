@@ -268,3 +268,27 @@ void test("timeless: the Find Timeless Jewel dialog's search, seeds scored for t
   }
   assert.equal(await state(base), before, "refusals leave the build as it was");
 });
+
+void test("a node a socketed Thread of Hope reaches costs one point in tree/path and lookup", async () => {
+  const id = await dup(base);
+  const length = async () => [
+    ok(await srv.call<{ length: number }>("GET", `/v1/tree/${id}/path?to=6785`)).length,
+    ok(await srv.call<{ pathLength?: number }>("GET", `/v1/lookup/nodes/6785?buildId=${id}`)).pathLength,
+  ];
+  assert.deepEqual(await length(), [3, 3], "Fire Damage 6785 is 3 points away without the jewel");
+  ok(await post(`/v1/items/${id}/add-unique`, { name: "Thread of Hope", equip: "Jewel 41263" }));
+  assert.deepEqual(await length(), [1, 1], "in the ring it is allocated alone");
+});
+
+// After the timeless test, which counts the seed table's refused writes from a cold worker.
+void test("a Lethal Pride pasted from the trade site, without its Radius line, conquers as the full text does", async () => {
+  const s0 = await state(base);
+  const pride = (leader: string) => `Rarity: Unique\nLethal Pride\nTimeless Jewel\nLimited to: 1 Historic\nRadius: Large\nCommanded leadership over 10000 warriors under ${leader}\nPassives in radius are Conquered by the Karui\nHistoric`;
+  // Trade-site text leaves out "Radius: Large"; the unique list's radius fills it in, so the jewel conquers as the full text does.
+  const fields = ["CombinedDPS", "Life", "TotalEHP", "Str", "Dex", "Int"];
+  const full = (await compare(base, { slot: "Jewel 41263", text: pride("Kaom"), fields }))[0]?.changed;
+  const short = (await compare(base, { slot: "Jewel 41263", text: pride("Kaom").replace("Radius: Large\n", ""), fields }))[0]?.changed;
+  assert.ok(full && Object.keys(full).length > 0, "the full text changes the build");
+  assert.deepEqual(short, full);
+  assert.equal(await state(base), s0, "compare_item changed the build");
+});

@@ -285,7 +285,7 @@ before(async () => {
 after(() => srv.close());
 
 type Listing = { id: string; price: unknown; indexed: string | null; text: string | null; score: { slot: string; gain: number; points?: number; changed: Record<string, { before: number; after: number }> } | null; error?: string };
-type Answer = { searches: Array<{ searchId: string; total: number; cached: boolean; link: string; listings: Listing[] }>; notRun: number; stopped: Record<string, unknown> | null; limiter: Array<{ policy: string; remaining: Record<string, number> }> };
+type Answer = { searches: Array<{ searchId: string; total: number; cached: boolean; link: string; listings: Listing[] }>; complete: boolean; notRun: number; stopped: Record<string, unknown> | null; limiter: Array<{ policy: string; remaining: Record<string, number> }> };
 const trade = async (body: Record<string, unknown>) => {
   const r = await srv.call<Answer>("POST", "/v1/trade/search", body);
   assert.equal(r.status, 200, JSON.stringify(r.body.error));
@@ -308,6 +308,7 @@ void test("trade.search: listings read by Path of Building's conversion and scor
     [hex("f"), null, "Path of Building could not read this listing"],
   ], "sorted by gain; the delisted entry is left out with a warning");
   assert.deepEqual(warnings, ["search 1: 1 fetched entries were not listings and were left out"]);
+  assert.equal(r.complete, true);
   const best = jewels?.listings[0];
   assert.deepEqual(best?.score, { slot: "Jewel 41263", gain: 233.68, changed: { CombinedDPS: { before: 7672.7473304598, after: 9465.7168820134 } } }, "the same values compare_item gives for this jewel");
   assert.equal(best?.text, "Rarity: Rare\nGale Spark\nCobalt Jewel\nItem Level: 84\nImplicits: 0\n15% increased Fire Damage\n9% increased Damage\n4% increased Cast Speed with Fire Skills\n11% increased Projectile Damage");
@@ -335,7 +336,7 @@ void test("trade.search: a 4xx stops the call; the searches done are answered an
     const before = requests.length;
     const { result: r } = await trade({ league, priority: "background", searches: [{ query: { type: "first" } }, { query: { type: "second" } }, { query: { type: "third" } }] });
     assert.equal(requests.length - before, 3, "search, fetch, refused search; nothing retried");
-    assert.deepEqual([r.searches.length, r.notRun, r.stopped], [1, 2, { code: "invalid_input", message: "the trade site answered 400: Unknown stat provided", status: 400, headers: {} }]);
+    assert.deepEqual([r.searches.length, r.complete, r.notRun, r.stopped], [1, false, 2, { code: "invalid_input", message: "the trade site answered 400: Unknown stat provided", status: 400, headers: {} }]);
   } finally {
     mode = "ok";
   }
@@ -481,7 +482,8 @@ void test("trade.search: a stopped league list stops the call as a search stop d
   await withSite({ tradeLeague: league }, recorded, async (s) => {
     const r = await s.call<Answer>("POST", "/v1/trade/search", searchBody);
     assert.equal(r.status, 200, JSON.stringify(r.body.error));
-    assert.deepEqual([r.body.result.searches, r.body.result.notRun], [[], 1]);
+    assert.deepEqual([r.body.result.searches, r.body.result.complete, r.body.result.notRun], [[], false, 1]);
+    assert.deepEqual(r.body.warnings, ["1 of 1 searches not run: the trade site is limiting requests; stopped; run them again after 30s"]);
     assert.deepEqual(r.body.result.stopped, { code: "rate_limited", message: "the trade site is limiting requests; stopped", status: 429, retryAfterSeconds: 30, headers: { "retry-after": "30" } });
     assert.deepEqual(recorded.sent.map((x) => x.url), [LEAGUES_URL]);
   });
