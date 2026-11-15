@@ -715,11 +715,11 @@ export const routes: Route[] = [
     }),
     output: z.looseObject({
       searches: z.array(z.looseObject({
-        searchId: z.string(),
+        searchId: z.string().describe("Empty when the site found nothing and gave no id"),
         total: z.number(),
         cached: z.boolean(),
         order: z.enum(["site", "gain", "price", "gainPrice"]).describe("The order used (a price order falls back when a listing has no rate)"),
-        link: z.string(),
+        link: z.string().nullable().describe("null when the search has no id"),
         listings: z.array(z.looseObject({
           id: z.string().describe("Listing id, stable across searches"),
           price: z.looseObject({ amount: z.number(), currency: z.string(), type: z.string() }).nullable(),

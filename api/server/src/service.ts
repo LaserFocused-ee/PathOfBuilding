@@ -535,7 +535,7 @@ export class Service {
       }
       const pick = listings[0]?.price;
       if (pick) picks.push(pick);
-      searches.push({ searchId: r.searchId, total: r.total, cached, order: used, link: `${tradeUrl("trade/search", i.realm, league)}/${r.searchId}`, listings });
+      searches.push({ searchId: r.searchId, total: r.total, cached, order: used, link: r.searchId ? `${tradeUrl("trade/search", i.realm, league)}/${r.searchId}` : null, listings });
     }
     // The Trade tab's Total Price: the first listing of each search, summed per currency, most valuable currency first.
     const sums = new Map<string, number>();

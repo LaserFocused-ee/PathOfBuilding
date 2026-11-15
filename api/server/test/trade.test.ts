@@ -130,13 +130,16 @@ void test("trade client: Path of Building's request shapes, fetch blocks of 10, 
   assert.deepEqual([r.entries[0]?.indexed, r.entries[0]?.price], ["2026-11-14T20:00:00Z", { type: "~price", amount: 5, currency: "chaos" }]);
 });
 
-void test("trade client: a search with no match (result and total left out or null) answers no listings and fetches nothing", async () => {
-  for (const body of [{ id: "AbC123" }, { id: "AbC123", result: null, total: null }, { id: "AbC123", result: [], total: 0, inexact: true }]) {
+void test("trade client: a search with no match (result and total left out or null, id empty) answers no listings and fetches nothing", async () => {
+  for (const body of [{ id: "AbC123" }, { id: "AbC123", result: null, total: null }, { id: "AbC123", result: [], total: 0, inexact: true }, { id: "", result: [], total: 0 }, { result: [] }]) {
     const { fetch, sent } = site(() => ({ headers: generous, body }));
     const client = new TradeClient({ fetchTimeoutMs: 1000, fetchMaxBytes: 1_000_000 }, memoryLogger().log, fetch);
     const r = await client.search(search());
-    assert.deepEqual([r.searchId, r.total, r.entries.length, sent.length], ["AbC123", 0, 0, 1], JSON.stringify(body));
+    assert.deepEqual([r.searchId, r.total, r.entries.length, sent.length], [body.id ?? "", 0, 0, 1], JSON.stringify(body));
   }
+  // results without an id cannot be fetched: still a stop
+  const { fetch } = site(() => ({ headers: generous, body: { id: "", result: ids(2), total: 2 } }));
+  await assert.rejects(new TradeClient({ fetchTimeoutMs: 1000, fetchMaxBytes: 1_000_000 }, memoryLogger().log, fetch).search(search()), /expected shape \(id: custom\)/);
 });
 
 void test("trade client: a 429, any 4xx, a redirect or a malformed answer stops at once and nothing is retried", async () => {

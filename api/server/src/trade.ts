@@ -226,8 +226,10 @@ export interface TradeLeagues {
   current: string | null;
 }
 
-/** A search with no match may leave `result` out or null and `total` out (TradeQueryRequests.lua:245 reads both as none). */
-const searchReply = z.object({ id: z.string().regex(ID), result: z.array(z.string().regex(ID)).nullish().transform((r) => r ?? []), total: z.number().int().min(0).nullish().transform((t) => t ?? 0) });
+/** A search with no match may leave `result` out or null, `total` out and `id` empty (TradeQueryRequests.lua:245 reads all as none). */
+const searchReply = z
+  .object({ id: z.union([z.string().regex(ID), z.literal("")]).nullish().transform((i) => i ?? ""), result: z.array(z.string().regex(ID)).nullish().transform((r) => r ?? []), total: z.number().int().min(0).nullish().transform((t) => t ?? 0) })
+  .refine((r) => r.id !== "" || r.result.length === 0, { path: ["id"], message: "a search with results has an id" });
 /** Where an answer left the expected shape: field paths and zod's issue text, never a value of the body. */
 const shapeOf = (e: z.ZodError) => e.issues.slice(0, 3).map((i) => `${i.path.join(".") || "answer"}: ${i.code}`).join("; ");
 const fetchReply = z.object({ result: z.array(z.unknown()) });
