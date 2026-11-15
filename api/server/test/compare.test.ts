@@ -99,7 +99,7 @@ void test("otherSets compares and copies another of the other build's sets, as t
 });
 
 void test("bad compares are refused and change nothing", async () => {
-  const r0 = await revisionOf(base);
+  const [r0, c0] = [await revisionOf(base), await code(base)];
   fails(await post(`/v1/evaluate/${base}/compare-power`, { other: base }), 400, "invalid_input");
   fails(await post(`/v1/evaluate/${base}/compare-power`, { other: "0123456789abcdef" }), 404, "not_found");
   fails(await post(`/v1/evaluate/${base}/compare-power`, { other, stat: "Banana" }), 400, "invalid_input");
@@ -108,4 +108,19 @@ void test("bad compares are refused and change nothing", async () => {
   fails(await post(`/v1/tree/${base}/copy-from`, { other: base }), 400, "invalid_input");
   fails(await post(`/v1/config/${base}/copy-from`, { other: "0123456789abcdef" }), 404, "not_found");
   assert.equal(await revisionOf(base), r0);
+  assert.equal(await code(base), c0);
+
+  // A refusal keeps the build's session; a read that breaks inside the engine (here after the other build is loaded; the
+  // service is called directly, past the route's input check) drops it (pool.ts: an engine error kills the worker), so nothing
+  // it touched can stay behind.
+  await power(base, { other, stat: "Mana", limit: 1 });
+  const session = srv.runtime.svc.pool.workerFor(base);
+  assert.ok(session, "the build has a session");
+  fails(await post(`/v1/evaluate/${base}/compare-power`, { other, otherSets: { tree: 3 } }), 400, "invalid_input");
+  assert.equal(srv.runtime.svc.pool.workerFor(base), session, "a refusal keeps it");
+  const { xml } = ok(await srv.call<{ xml: string }>("GET", `/v1/builds/${other}/xml`));
+  const broke = await srv.runtime.svc.read(base, "evaluate.compare_power", { xml, label: "Other", categories: 5 }).then(() => null, (e: unknown) => e as { code: string });
+  assert.equal(broke?.code, "worker_error");
+  assert.equal(srv.runtime.svc.pool.workerFor(base), undefined, "the broken read dropped it");
+  assert.equal((await power(base, { other, stat: "Mana", limit: 1 })).total, 11);
 });
