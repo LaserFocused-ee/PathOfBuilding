@@ -151,6 +151,90 @@ void test("trade client: a 429, any 4xx, a redirect or a malformed answer stops 
   }
 });
 
+/** A recorded leagues answer: pc and xbox, permanent and challenge leagues, variants, and entries that are not leagues. */
+const leaguesAnswer = (...more: unknown[]) => ({
+  result: [
+    { id: "Standard", realm: "pc" }, { id: "Hardcore", realm: "pc" },
+    { id: "Bad/League!", realm: "pc" }, { id: 7, realm: "pc" }, null,
+    { id: "Hardcore Keepers of the Flame", realm: "pc" }, { id: "Keepers of the Flame", realm: "pc" }, { id: "SSF Keepers of the Flame", realm: "pc" },
+    { id: "Ruthless", realm: "pc" }, { id: "Ruthless Keepers of the Flame", realm: "pc" }, { id: "Hardcore Ruthless", realm: "pc" },
+    { id: "Standard", realm: "xbox" }, { id: "Hardcore", realm: "xbox" }, { id: "HC Mercenaries", realm: "xbox" }, { id: "Mercenaries", realm: "xbox" },
+    { id: "Standard", realm: "sony" },
+    ...more,
+  ],
+});
+const LEAGUES_URL = "https://www.pathofexile.com/api/trade/data/leagues";
+const ask = (c: { t: number }) => ({ priority: "interactive" as const, deadline: c.t + 60_000, userAgent: "Path of Building/2.67.2" });
+const leaguesClient = (answer: (s: Sent) => Reply) => {
+  const { c, now, sleep } = clock();
+  const { fetch, sent } = site(answer);
+  return { c, sent, client: new TradeClient({ fetchTimeoutMs: 1000, fetchMaxBytes: 1_000_000 }, memoryLogger().log, fetch, new TradeLimiter(now, sleep), now) };
+};
+
+void test("trade client leagues: the order Path of Building lists, the current league, entries that are not leagues dropped", async () => {
+  const { c, client, sent } = leaguesClient(() => ({ headers: generous, body: leaguesAnswer() }));
+  const pc = await client.leagues("pc", ask(c));
+  assert.deepEqual(pc, {
+    leagues: ["Hardcore Keepers of the Flame", "Keepers of the Flame", "SSF Keepers of the Flame", "Ruthless Keepers of the Flame", "Standard", "Hardcore", "Ruthless", "Hardcore Ruthless"],
+    current: "Keepers of the Flame",
+    cached: false,
+  }, "the site's order for the challenge leagues, then Standard, Hardcore, Ruthless, Hardcore Ruthless; the first that is none of Hardcore, HC, Ruthless, SSF");
+  const xbox = await client.leagues("xbox", ask(c));
+  assert.deepEqual(xbox, { leagues: ["HC Mercenaries", "Mercenaries", "Standard", "Hardcore"], current: "Mercenaries", cached: false }, "permanent leagues only as the site lists them for the realm");
+  assert.equal(sent.length, 2, "one request per realm");
+});
+
+void test("trade client leagues: the request is Path of Building's, with no cookie and no authorization", async () => {
+  const { c, client, sent } = leaguesClient(() => ({ headers: generous, body: leaguesAnswer() }));
+  await client.leagues("pc", ask(c));
+  assert.equal(sent.length, 1);
+  assert.deepEqual([sent[0]?.method, sent[0]?.url, sent[0]?.redirect, sent[0]?.body], ["GET", LEAGUES_URL, "manual", undefined]);
+  assert.deepEqual(sent[0]?.headers, { "content-type": "application/json", "user-agent": "Path of Building/2.67.2" }, "no cookie, no authorization, nothing else");
+});
+
+void test("trade client leagues: an hour's cache per realm; the 61st minute asks again", async () => {
+  const { c, client, sent } = leaguesClient(() => ({ headers: generous, body: leaguesAnswer() }));
+  const first = await client.leagues("pc", ask(c));
+  c.t += 59 * 60_000;
+  const again = await client.leagues("pc", ask(c));
+  assert.equal(sent.length, 1, "nothing sent within the hour");
+  assert.deepEqual([first.cached, again.cached, again.current], [false, true, "Keepers of the Flame"]);
+  await client.leagues("xbox", ask(c));
+  assert.equal(sent.length, 2, "another realm is its own entry");
+  c.t += 2 * 60_000; // 61 minutes after the first
+  assert.equal((await client.leagues("pc", ask(c))).cached, false);
+  assert.equal(sent.length, 3, "asked again after 61 minutes");
+  assert.equal((await client.leagues("xbox", ask(c))).cached, true, "the xbox entry is only 2 minutes old");
+  assert.equal(sent.length, 3);
+});
+
+void test("trade client leagues: a 429, any 4xx or a wrong answer stops, nothing is cached, and the next call asks again", async () => {
+  const replies: Reply[] = [
+    { status: 429, headers: { "retry-after": "45" } },
+    { status: 403 },
+    { body: { result: "none" } },
+    { body: { leagues: [] } },
+    { headers: generous, body: leaguesAnswer() },
+  ];
+  let n = 0;
+  const { c, client, sent } = leaguesClient(() => replies[n++] ?? {});
+  await assert.rejects(client.leagues("pc", ask(c)), (e: ApiError) => e.code === "rate_limited" && e.details?.retryAfterSeconds === 45 && e.details.status === 429);
+  assert.equal(sent.length, 1);
+  await assert.rejects(client.leagues("pc", ask(c)), (e: ApiError) => e.code === "upstream_fetch_failed" && e.details?.status === 403, "the next call asks again once the Retry-After has passed");
+  assert.equal(sent.length, 2);
+  await assert.rejects(client.leagues("pc", ask(c)), (e: ApiError) => e.code === "upstream_fetch_failed" && /expected shape/.test(e.message));
+  await assert.rejects(client.leagues("pc", ask(c)), (e: ApiError) => e.code === "upstream_fetch_failed" && /expected shape/.test(e.message));
+  assert.equal(sent.length, 4, "a failed request is not cached");
+  assert.equal((await client.leagues("pc", ask(c))).cached, false);
+  assert.equal(sent.length, 5);
+});
+
+void test("trade client leagues: with no current league listed, current is null", async () => {
+  const { c, client } = leaguesClient(() => ({ headers: generous, body: { result: [{ id: "Standard", realm: "pc" }, { id: "Hardcore", realm: "pc" }, { id: "Hardcore Spring", realm: "pc" }, { id: "SSF Spring", realm: "pc" }, { id: "HC SSF Spring", realm: "pc" }, { id: "Ruthless Spring", realm: "pc" }, { id: "Keepers", realm: "xbox" }] } }));
+  assert.deepEqual(await client.leagues("pc", ask(c)), { leagues: ["Hardcore Spring", "SSF Spring", "HC SSF Spring", "Ruthless Spring", "Standard", "Hardcore"], current: null, cached: false });
+  assert.deepEqual(await client.leagues("sony", ask(c)), { leagues: [], current: null, cached: false }, "a realm with no leagues listed");
+});
+
 let srv: TestServer;
 let build: string;
 let requests: Sent[] = [];
@@ -162,6 +246,7 @@ const unreadable = { id: hex("f"), listing: {}, item: { rarity: "Rare", name: ""
 
 before(async () => {
   const recorded = site((s) => {
+    if (s.url === LEAGUES_URL) return { headers: rules("20:10:60", "1:10:0"), body: leaguesAnswer() };
     if (s.method === "POST") {
       const q = (JSON.parse(s.body ?? "{}") as { query: { name?: string; type?: string } }).query;
       if (mode === "refuse second" && q.type === "second") return { status: 400, body: { error: { code: 2, message: "Unknown stat provided" } } };
@@ -252,5 +337,34 @@ void test("trade.search: input limits (8 searches, 30 listings, league text, que
   await bad({ league, searches: [{ query: { filler: "x".repeat(40_000) } }] }, /32 KB/);
   await bad({ league, searches: [q], cookie: "POESESSID=1" }, /unknown parameter cookie/);
   const tool = toolDefs().find((d) => d.name === "pob_trade");
-  assert.deepEqual([tool?.readOnly, tool?.routes.map((r) => r.name)], [true, ["trade.search"]]);
+  assert.deepEqual([tool?.readOnly, tool?.routes.map((r) => r.name)], [true, ["trade.search", "trade.leagues"]]);
+});
+
+void test("trade.leagues: the realm's leagues and the current one, from the cache after the first call; the answer matches its schema", async () => {
+  const before = requests.length;
+  const get = async (query: string) => {
+    const r = await srv.call<{ realm: string; leagues: string[]; current: string | null; cached: boolean; limiter: Array<{ policy: string; remaining: Record<string, number> }> }>("GET", `/v1/trade/leagues${query}`);
+    assert.equal(r.status, 200, JSON.stringify(r.body.error));
+    const parsed = routes.find((x) => x.name === "trade.leagues")?.output.safeParse(r.body.result);
+    assert.ok(parsed?.success, JSON.stringify(parsed?.error?.issues.slice(0, 3)));
+    return r.body.result;
+  };
+  const first = await get("?realm=xbox");
+  assert.deepEqual([first.realm, first.leagues, first.current, first.cached], ["xbox", ["HC Mercenaries", "Mercenaries", "Standard", "Hardcore"], "Mercenaries", false]);
+  assert.equal(requests.length - before, 1);
+  assert.deepEqual(requests.at(-1)?.url, LEAGUES_URL);
+  assert.deepEqual(first.limiter.map((p) => p.policy), ["search", "fetch", "leagues"]);
+  assert.deepEqual(first.limiter.find((p) => p.policy === "leagues")?.remaining, { interactive: 9, background: 4 });
+  const again = await get("?realm=xbox&priority=background");
+  assert.equal(requests.length - before, 1, "answered from the cache");
+  assert.deepEqual([again.cached, again.current], [true, "Mercenaries"]);
+  const rejected = [
+    await srv.call("GET", "/v1/trade/leagues?realm=moon"),
+    await srv.call("GET", "/v1/trade/leagues?league=Standard"),
+    await srv.call("GET", "/v1/trade/leagues", undefined, null),
+    await srv.call("GET", "/v1/trade/leagues", undefined, "wrong"),
+  ];
+  assert.deepEqual(rejected.map((r) => [r.status, r.body.error?.code]), [[400, "invalid_input"], [400, "invalid_input"], [401, "unauthorized"], [401, "unauthorized"]]);
+  assert.match(rejected[1]?.body.error?.message ?? "", /unknown parameter league; trade\.leagues takes realm, priority/);
+  assert.equal(requests.length - before, 1, "nothing sent for a refused call");
 });

@@ -14,17 +14,25 @@ const ORIGIN = `https://${TRADE_HOST}/`;
 
 export type Priority = "interactive" | "background";
 export type TradeRealm = "pc" | "xbox" | "sony";
-type Policy = "search" | "fetch";
-const POLICIES: readonly Policy[] = ["search", "fetch"];
+type Policy = "search" | "fetch" | "leagues";
+const POLICIES: readonly Policy[] = ["search", "fetch", "leagues"];
 
 /** Share of each stated window a caller may use. */
 const SHARE: Record<Priority, number> = { interactive: 0.5, background: 0.25 };
 /** Before the site has stated its windows: one request at a time, at most 1 per 10 s. */
 const FIRST_RULES = [{ limit: 2, period: 10, hits: 0 }];
 const CACHE_MS = 10 * 60_000;
+const LEAGUES_CACHE_MS = 60 * 60_000; // leagues change at league start only
+
 const CACHE_ENTRIES = 100; // ponytail: oldest-first eviction; an LRU only if repeated asks show it matters
 const FETCH_BLOCK = 10;
 const ID = /^[A-Za-z0-9]{1,128}$/;
+/** A league name as the trade routes take it. */
+export const LEAGUE_NAME = /^[A-Za-z0-9][A-Za-z0-9 '-]*$/;
+/** The leagues that last, in the order Path of Building lists them after the current ones (TradeQuery.lua). */
+const PERMANENT = ["Standard", "Hardcore", "Ruthless", "Hardcore Ruthless"];
+/** A league that is not the softcore trade league being played. */
+const VARIANT = /\b(Hardcore|HC|Ruthless|SSF)\b/;
 
 interface Window {
   limit: number;
@@ -66,7 +74,7 @@ export class TradeLimiter {
     private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
   ) {
     const fresh = (): PolicyState => ({ rules: FIRST_RULES.map((r) => ({ ...r })), siteAt: 0, sent: [], holdUntil: 0, queued: 0, lock: Promise.resolve() });
-    this.p = { search: fresh(), fetch: fresh() };
+    this.p = { search: fresh(), fetch: fresh(), leagues: fresh() };
   }
 
   /** Milliseconds until a request of this priority may go. */
@@ -176,19 +184,32 @@ export interface TradeResult {
   dropped: number;
 }
 
-export interface TradeSearch {
-  realm: TradeRealm;
-  league: string;
-  body: Record<string, unknown>;
-  listings: number;
+/** What every request to the trade site carries from its caller. */
+export interface TradeAsk {
   priority: Priority;
   /** ms since epoch: an interactive caller waits for the pace until then. */
   deadline: number;
   userAgent: string;
 }
 
+export interface TradeSearch extends TradeAsk {
+  realm: TradeRealm;
+  league: string;
+  body: Record<string, unknown>;
+  listings: number;
+}
+
+export interface TradeLeagues {
+  /** Not permanent ones first in the site's order, then Standard, Hardcore, Ruthless, Hardcore Ruthless (those the site lists). */
+  leagues: string[];
+  /** The first league that is not permanent and is not a Hardcore, HC, Ruthless or SSF one; null when the site lists none. */
+  current: string | null;
+}
+
 const searchReply = z.object({ id: z.string().regex(ID), result: z.array(z.string().regex(ID)), total: z.number().int().min(0) });
 const fetchReply = z.object({ result: z.array(z.unknown()) });
+const leaguesReply = z.object({ result: z.array(z.unknown()) });
+const leagueShape = z.object({ id: z.string().max(64).regex(LEAGUE_NAME), realm: z.string() });
 /**
  * A mod line as FetchResultBlock reads it ({ description, flags }); a plain string (the older answer shape, which also keeps
  * crafted and fractured mods in their own lists) is read as its description. Which shape the site sends without an account
@@ -223,6 +244,7 @@ export const tradeUrl = (root: string, realm: TradeRealm, league: string): strin
 
 export class TradeClient {
   private readonly cache = new Map<string, { at: number; value: TradeResult }>();
+  private readonly leagueCache = new Map<TradeRealm, { at: number; value: TradeLeagues }>();
 
   constructor(
     private readonly cfg: Pick<Config, "fetchTimeoutMs" | "fetchMaxBytes">,
@@ -269,7 +291,26 @@ export class TradeClient {
     return value;
   }
 
-  private async send(policy: Policy, s: TradeSearch, url: string, method: "GET" | "POST", body?: string): Promise<unknown> {
+  /**
+   * The realm's trade leagues as the Trade tab lists them (TradeQueryRequests:FetchLeagues, TradeQuery.lua), from a cache
+   * younger than an hour or one request. Throws ApiError on any stop; a failed request is not cached.
+   */
+  async leagues(realm: TradeRealm, ask: TradeAsk): Promise<TradeLeagues & { cached: boolean }> {
+    const hit = this.leagueCache.get(realm);
+    if (hit && this.now() - hit.at < LEAGUES_CACHE_MS) return { ...hit.value, cached: true };
+    const reply = leaguesReply.safeParse(await this.send("leagues", ask, `${ORIGIN}api/trade/data/leagues`, "GET"));
+    if (!reply.success) throw new ApiError("upstream_fetch_failed", "the trade site's leagues answer was not in the expected shape");
+    const listed = reply.data.result.flatMap((raw) => {
+      const e = leagueShape.safeParse(raw);
+      return e.success && e.data.realm === realm ? [e.data.id] : [];
+    });
+    const leagues = [...listed.filter((l) => !PERMANENT.includes(l)), ...PERMANENT.filter((l) => listed.includes(l))];
+    const value = { leagues, current: leagues.find((l) => !PERMANENT.includes(l) && !VARIANT.test(l)) ?? null };
+    this.leagueCache.set(realm, { at: this.now(), value });
+    return { ...value, cached: false };
+  }
+
+  private async send(policy: Policy, s: TradeAsk, url: string, method: "GET" | "POST", body?: string): Promise<unknown> {
     const started = this.now();
     const res = await this.limiter.run(policy, s.priority, s.deadline, async () => {
       try {

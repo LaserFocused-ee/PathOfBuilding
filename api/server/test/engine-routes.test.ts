@@ -108,8 +108,8 @@ void test("no read-only route changes the build: the session's code is the same 
 
 void test("every read-only route's output matches its declared schema, and none is declared as unknown", async () => {
   for (const r of routes.filter((x) => !x.stream)) assert.ok(!["unknown", "any"].includes(r.output.def.type), `${r.name} declares no output shape`);
-  // build.characters asks the game site, which a test must not.
-  for (const r of routes.filter((x) => x.method === "GET" && x.readOnly && !x.stream && x.name !== "build.characters")) {
+  // build.characters asks the game site and trade.leagues the trade site, which a test must not; trade.test.ts checks trade.leagues' output against its schema with a recorded answer.
+  for (const r of routes.filter((x) => x.method === "GET" && x.readOnly && !x.stream && x.name !== "build.characters" && x.name !== "trade.leagues")) {
     const res = await srv.call("GET", readUrl(r, r.name === "items.get" ? occ : fresh)); // the fresh build has no items
     assert.equal(res.status, 200, `${r.name}: ${JSON.stringify(res.body.error)}`);
     const parsed = r.output.safeParse(res.body.result);

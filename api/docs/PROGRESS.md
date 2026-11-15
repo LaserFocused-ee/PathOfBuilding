@@ -208,7 +208,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 
 | Operation | Tier | State | Route / note |
 | --- | --- | --- | --- |
-| `trade.leagues` | S | F3 | `pob_trade` |
+| `trade.leagues` | S | done | `trade.leagues` (on request only; the realm's leagues and the current one, cached an hour; limits in its summary); trade.test.ts |
 | `trade.currency_rates` | S | F3 | `pob_trade` |
 | `trade.stat_weights` | S | done | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Gear slots: `evaluate.item_mods` (weights, search, link); evaluate-items-trade.test.ts |
 | `trade.query.generate` | S | done | Jewel sockets: `evaluate.jewel_mods` (weights, search, link); evaluate-jewels.test.ts. Gear slots: `evaluate.item_mods` (weights, search, link); evaluate-items-trade.test.ts |
@@ -269,10 +269,10 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
 | calcs | 13 | 13 | 0 | 0 | 0 | 0 | 0 |
 | compare and power | 12 | 8 | 0 | 0 | 4 | 0 | 0 |
-| trade | 11 | 7 | 0 | 0 | 0 | 4 | 0 |
+| trade | 11 | 8 | 0 | 0 | 0 | 3 | 0 |
 | notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 |
 | data | 17 | 17 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | 187 | 158 | 1 | 9 | 9 | 4 | 6 |
+| **Total** | 187 | 159 | 1 | 9 | 9 | 3 | 6 |
 
 ## MCP tools
 

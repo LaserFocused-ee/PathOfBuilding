@@ -385,12 +385,8 @@ export class Service {
 
   private pobVersion?: Promise<string>;
 
-  /**
-   * Trade searches, one after another, each with the fetches for its first listings; each listing converted to item text by
-   * the worker and, with a build, scored in its slot. The first stop (limiter refusal, 429, any 4xx, a failed request) ends
-   * the call: the searches done so far are answered with `stopped` saying why and when to try again.
-   */
-  async tradeSearch(i: TradeSearchInput): Promise<Output> {
+  /** Launch.lua's client string, the version asked of the worker once. */
+  private async tradeUserAgent(): Promise<string> {
     this.pobVersion ??= this.pool.run<{ pobVersion: string }>(LOOKUP_SESSION, "worker.ping").then(
       (r) => r.result.pobVersion,
       (e: unknown) => {
@@ -398,7 +394,23 @@ export class Service {
         throw e;
       },
     );
-    const userAgent = `Path of Building/${await this.pobVersion}`; // Launch.lua's client string
+    return `Path of Building/${await this.pobVersion}`;
+  }
+
+  /** The realm's trade leagues (an hour's cache), asked of the trade site on request only. A stop is thrown, not answered. */
+  async tradeLeagues(i: { realm: TradeRealm; priority: Priority }): Promise<Output> {
+    const userAgent = await this.tradeUserAgent();
+    const r = await this.trade.leagues(i.realm, { priority: i.priority, deadline: Date.now() + TRADE_CALL_MS, userAgent });
+    return { result: { realm: i.realm, ...r, limiter: this.trade.limiter.state() }, warnings: [] };
+  }
+
+  /**
+   * Trade searches, one after another, each with the fetches for its first listings; each listing converted to item text by
+   * the worker and, with a build, scored in its slot. The first stop (limiter refusal, 429, any 4xx, a failed request) ends
+   * the call: the searches done so far are answered with `stopped` saying why and when to try again.
+   */
+  async tradeSearch(i: TradeSearchInput): Promise<Output> {
+    const userAgent = await this.tradeUserAgent();
     const deadline = Date.now() + TRADE_CALL_MS;
     const searches: unknown[] = [];
     const warnings: string[] = [];

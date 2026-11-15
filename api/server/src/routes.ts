@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { ApiError } from "./errors.js";
 import type { Output, Service } from "./service.js";
+import { LEAGUE_NAME } from "./trade.js";
 
 /** MCP tool names (fixed by the spec); a tool appears once it has routes. */
 export const TOOLS = {
@@ -267,7 +268,7 @@ const buySimilarRow = z.object({
   max: z.number().min(-1000000).max(1000000).optional(),
 });
 const tradeWeights = z.array(z.object({ stat: powerStatName, weight: z.number().min(0.01).max(1) })).min(1).max(20).optional().describe("Stat weights as the trade popup's list sets them (0.01 to 1 each; default Full DPS 1, Effective Hit Pool 0.5)");
-const tradeLeague = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9 '-]*$/, "a league name is letters, digits, spaces, ' and -").max(64);
+const tradeLeague = z.string().trim().regex(LEAGUE_NAME, "a league name is letters, digits, spaces, ' and -").max(64);
 const tradeQuery = z.looseObject({}).refine((q) => JSON.stringify(q).length <= 32_768, "a query is at most 32 KB of JSON");
 const limiterState = z.array(z.object({
   policy: z.string(),
@@ -692,6 +693,27 @@ export const routes: Route[] = [
     readOnly: true,
     workerOp: "evaluate.listings (after the trade site's search and fetch)",
     run: (s, i) => s.tradeSearch({ ...i, realm: i.realm ?? "pc", priority: i.priority ?? "interactive", searches: i.searches.map((q) => ({ query: q.query, sort: q.sort, slot: q.slot, listings: q.listings ?? 10 })) }),
+  }),
+  route({
+    name: "trade.leagues",
+    domain: "trade",
+    method: "GET",
+    path: "/v1/trade/leagues",
+    summary: "The trade leagues of a realm as Path of Building's Trade tab lists them, asked of the official trade site now: the leagues that are not permanent first in the site's order, then Standard, Hardcore, Ruthless and Hardcore Ruthless (those the site lists for the realm). `current` is the softcore trade league being played: the first league that is not permanent and has none of Hardcore, HC, Ruthless or SSF as a word in its name; it is null when the site lists none. Use it as the `league` of `trade.search`. Limits: on request only (nothing asks by itself), the answer cached for an hour per realm (`cached`, and a failed request is not cached), the host fixed, Path of Building's client string, no account, session or cookie; it has its own policy in the one limiter all trade requests share (`limiter`), paced as `trade.search`, `priority: background` refused rather than kept waiting; a 429 or any 4xx is an error with the site's Retry-After and nothing is retried.",
+    input: z.object({
+      realm,
+      priority: z.enum(["interactive", "background"]).optional().describe("interactive (default): a person asking now, waits for the pace up to 60 s; background: refused at once when the budget is short"),
+    }),
+    output: z.looseObject({
+      realm: z.string(),
+      leagues: strings.describe("Not permanent leagues in the site's order, then the permanent ones the site lists"),
+      current: z.string().nullable().describe("The softcore trade league being played; null when the site lists none"),
+      cached: z.boolean().describe("Served from the hour's cache: nothing was sent"),
+      limiter: limiterState,
+    }),
+    readOnly: true,
+    workerOp: "(trade site)",
+    run: (s, i) => s.tradeLeagues({ realm: i.realm ?? "pc", priority: i.priority ?? "interactive" }),
   }),
 
   // lookup
