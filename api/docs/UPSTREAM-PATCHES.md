@@ -5,9 +5,9 @@ entry here: which file, what and why, its upstream status and how to drop it.
 
 ## Carried patches (fork only)
 
-### 3.30 Covens uniques: `src/Data/Uniques/Special/New.lua`, `src/Data/ModCache.lua`
+### 3.30 Covens uniques: `src/Data/Uniques/Special/New.lua`, `src/Data/ModCache.lua`, `src/Data/Bases/jewel.lua`, `src/Export/Bases/jewel.txt`
 
-- What: ten of the eleven uniques added in 3.30, in Path of Building's unique text format. Mod lines and ranges from the
+- What: the eleven uniques added in 3.30, in Path of Building's unique text format. Mod lines and ranges from the
   item pages on poedb.tw (read 15 Nov 2026), worded as the exported mods in `src/Data/ModItemExclusive.lua` where those
   exist; implicits as the base items carry them. `ModCache.lua` regenerated the way upstream's check does it
   (`REGENERATE_MOD_CACHE=1 luajit HeadlessWrapper.lua` in `src/`); a separate commit first regenerates it for the
@@ -16,8 +16,17 @@ entry here: which file, what and why, its upstream status and how to drop it.
 - Upstream status: not offered. Drop when upstream adds the 3.30 uniques (their lists then win).
 - Wording checked against the game files' unique text (15 Nov 2026); Bane of the Apostate's "+2 to maximum
   Witchhunter's Pyres" was added from them.
-- Not added: Putrid Seed. Its base, Mycelium Core, is not in Path of Building's base data, and its effect (grows four
-  random passives when anointed) is not something Path of Building can simulate.
+- Putrid Seed sits on a new jewel base, Mycelium Core (`Metadata/Items/Jewels/JewelBlighted`: tags jewel and
+  not_for_sale, no implicit, no attribute requirement), added to the base export list and the generated base file. Its
+  effect (grows four random passives when anointed) is not something Path of Building can simulate; the item is there
+  so it can be equipped and imported.
+- Not added: Broken Elegy, Lash of Retribution, Kitava's Hunger and Arohongui's Tending. The game files name them, but
+  at old row numbers, with only an item class and no link to their mods; poedb.tw has no page for any of them (15 Nov
+  2026), so there is no text to add and no sign they drop in 3.30.
+- Checked, not changed: ten existing unique lines whose values no game mod carries (Hyperboreus, Martyr's Crown, Ngamahu
+  Tiki, Replica Dragonfang's Flight, Thirst for Horrors twice, Timetwist, Vivinsect twice, Wall of Brambles). None is in
+  the 3.30 patch notes' unique changes; most are no-longer-obtainable or variant lines, and the same-shaped game mods
+  belong to other versions. Path of Building's values stay.
 
 Which lines Path of Building turns into numbers (from its own parser; "not used" lines show red in the item and change
 nothing):
@@ -34,6 +43,7 @@ nothing):
 | Hide of the Vendigo (Exquisite Leather) | spell suppression, Evasion, cold resistance, added cold damage with unarmed attacks, attack speed after a movement skill (the "used a Movement Skill recently" setting; Path of Building has no separate attack-movement setting), claw-only attack skills usable with an empty main hand, "with Claws" modifiers on those attacks | none |
 | Unwilling Embrace (Bone Ring) | minion resistances, suppression, Dexterity, Evasion, minion damage | minions gain your suppression; minions have no Armour or ES |
 | Dreadmaidens' Sacrament (Basalt Flask) | (flask lines are not player stats) | taunt, charges when hit, Life removed on use, Retaliation chance |
+| Putrid Seed (Mycelium Core) | none | both lines (passives grown when anointed) |
 
 ### Parser support for the 3.30 uniques: `src/Modules/ModParser.lua`, `src/Modules/CalcSetup.lua`, `src/Modules/CalcActiveSkill.lua`
 
@@ -54,6 +64,12 @@ nothing):
   - Hide of the Vendigo: "with Claws" modifiers (passives, gear) apply to these attacks, and "with Unarmed Attacks"
     ones too. "While wielding a Claw" conditions do not, as the main hand is empty. Base damage, speed and critical
     chance stay those of unarmed attacks.
+- Open reading, not changed: Hide of the Vendigo with Hollow Palm Technique disables every claw-only skill. Hollow Palm
+  makes the off hand a virtual unarmed weapon (`CalcActiveSkill.lua` dual-wield check), and the claw allowance is set
+  on the main hand only (`CalcSetup.lua`, after `weaponData1`). Whether the game allows claw skills in that case is
+  unverified.
+- Not a fault: Close Combat Support turns Double Strike off when unarmed, with or without Hollow Palm. The gem says
+  "Supported Skills can only be used with Axes or Swords" (`weaponTypes` in its skill data).
 - Why: these change damage numbers for builds made around the items. Other unparsed lines in the table above either
   need skill data Path of Building does not have or change no damage or defence number.
 - Test: `spec/System/TestNewUniques_spec.lua` (fails without the change).
@@ -89,6 +105,16 @@ nothing):
 - Why: correctness. No item, passive or skill produces either stat today, so no current result changes.
 - Test: `spec/System/TestAttacks_spec.lua`, "adds triple damage chance on crit to triple damage chance" (feeds the stat
   through a cached custom modifier line; fails without the change).
+- Upstream status: not offered.
+
+### Stat description signs and formats: `src/Modules/StatDescriber.lua`
+
+- What: `{:+d}` placeholders dropped their plus sign, and signed ranges were always printed with `%d`, so a range of
+  values divided by one hundred came out as `+(0-0)`. Both placeholder forms now use the value's own format and keep
+  the sign.
+- Why: gem tooltips, the skills tab and generated trade text show these descriptions; found by the game-data builder
+  comparing its own dump.
+- Test: `spec/System/TestStatDescriber_spec.lua` (fails without the change).
 - Upstream status: not offered.
 
 ### Open upstream pull requests merged ahead of upstream
