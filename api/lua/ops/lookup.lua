@@ -423,6 +423,42 @@ return function(W)
 		return { lines = out }
 	end
 
+	-- args: lines (mod text), type? (the trade site's stat group, default explicit). Each line's trade stat ids as the Buy similar popup
+	-- finds them (TradeHelpers findTradeIdOption, else findTradeHash with the ids the trade site's stat list has): `option` for a
+	-- stat the site offers as a choice, `value` the number the popup puts in the filter (the count for a timeless jewel line),
+	-- `inverted` when the filter takes the value negated.
+	local tradeStatIds
+	function ops.trade_stats(args)
+		local helpers = require("Classes.TradeHelpers")
+		if not tradeStatIds then
+			tradeStatIds = {}
+			for _, group in ipairs(helpers.getTradeStats()) do
+				for _, entry in ipairs(group.entries) do tradeStatIds[entry.id] = true end
+			end
+		end
+		local kind = args.type or "explicit"
+		local out = array()
+		for i, line in ipairs(args.lines) do
+			local ids = array()
+			local row = { line = line, ids = ids, value = W.json.null, found = false, inverted = false }
+			local optionId, optionValue = helpers.findTradeIdOption(line, kind)
+			if optionId then
+				ids[1] = optionId
+				if optionId:find("timeless", 1, true) then row.value = optionValue else row.option = optionValue end
+			else
+				local hashes, value, negate = helpers.findTradeHash(line)
+				for _, hash in ipairs(hashes or {}) do
+					local id = ("%s.stat_%s"):format(kind, hash)
+					if tradeStatIds[id] then ids[#ids + 1] = id end
+				end
+				row.value, row.inverted = value or W.json.null, negate == true
+			end
+			row.found = #ids > 0
+			out[i] = row
+		end
+		return { type = kind, lines = out }
+	end
+
 	-- The scopes describeStats may load: the one the application's own descriptions use and the one each skill names.
 	local statScopes
 	-- args: stats ([stat id]: number), scope? (default stat_descriptions). The game text for stat values (data.describeStats).

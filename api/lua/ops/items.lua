@@ -398,6 +398,125 @@ return function(W)
 		return function(nb) return describe(nb.itemsTab, nb.itemsTab.items[added], true) end
 	end)
 
+	-- args: item | slot (the item in it), league, realm?, listed? (the popup's Listed status by its api value), baseType? (the "Use
+	-- specific base" box), itemLevel? ({ min, max }), select? and defences? (lists of { index, selected?, min?, max? }: a row listed
+	-- is ticked unless selected is false; the popup ticks none), and, for another build's item, xml, label and otherSets (W.compared).
+	-- The Buy similar popup (CompareBuySimilar.openPopup) driven through its controls: realm, league and listed dropdowns set, the
+	-- rows' boxes and edits filled, then its Open URL button pressed; the link it copies is answered, with the search it carries.
+	-- The popup asks the trade site for its league list when it opens and builds "Standard" while that is empty: its request is
+	-- replaced by one that sends nothing, and the league list is exactly the given league before any link is built.
+	local realmLabels = { pc = "PC", sony = "PS4", xbox = "Xbox" }
+	function ops.buy_similar(args)
+		local similar, helpers, null = require("Classes.CompareBuySimilar"), require("Classes.TradeHelpers"), W.json.null
+		local function bad(message) W.fail("invalid_input", message) end
+		if (args.item == nil) == (args.slot == nil) then bad("name the item or the slot, one of them") end
+		if type(args.league) ~= "string" then bad("league is the trade league being played") end
+		local function run(tab)
+			local item, slotName
+			if args.item then
+				item = itemOf(tab, args.item)
+				slotName = tab:GetComparisonSlotNameForItem(item)
+			else
+				slotName = slotOf(tab, args.slot).slotName
+				item = tab.items[tab.slots[slotName].selItemId]
+				if not item then W.fail("not_found", slotName .. " holds no item") end
+			end
+			local entries = similar.addModEntries(item, { { list = item.enchantModLines, type = "enchant" }, { list = item.implicitModLines, type = "implicit" },
+				{ list = item.explicitModLines, type = "explicit" }, { list = item.scourgeModLines, type = "scourge" } })
+			-- the popup keeps its last choices between openings; it starts from its own defaults here and leaves them as found
+			local keep = { realm = similar.lastRealmIdx, listed = similar.lastListedIndex, leagues = similar.lastLeagueByRealm, openURL = OpenURL }
+			similar.lastRealmIdx, similar.lastListedIndex, similar.lastLeagueByRealm = nil, nil, nil
+			OpenURL = function() end -- Open URL copies the link, then hands it to the browser seam; nothing here opens it
+			local popups = #main.popups
+			local ok, out = pcall(function()
+				similar.openPopup(item, slotName, { itemsTab = { tradeQuery = { tradeQueryRequests = { FetchLeagues = function() end } } } })
+				local c = main.popups[1].controls
+				local rows = 0
+				while c["mod" .. (rows + 1) .. "Check"] do rows = rows + 1 end
+				if rows ~= #entries then W.fail("worker_error", "the Buy similar popup lists " .. rows .. " mod rows, not " .. #entries) end
+				local function search()
+					W.takeCopied()
+					W.clickPopup("Open URL")
+					local url = W.takeCopied()
+					local text = url and url:match("/([^/]+)$") and helpers.B64GzipDecode(url:match("/([^/]+)$"))
+					if not text then W.fail("worker_error", "Buy similar made no search link") end
+					return url, W.json.decode(text)
+				end
+				local function tick(box, on) box.state = on; box.changeFunc(on) end
+				local function fill(edit, number) edit:SetText(number == nil and "" or tostring(number), true) end
+				local function choose(drop, value)
+					return W.choose(drop, function(v) return v == value end) or bad("the popup has no " .. tostring(value))
+				end
+				choose(c.realmDrop, realmLabels[args.realm or "pc"])
+				c.leagueDrop:SetList({ args.league })
+				choose(c.leagueDrop, args.league)
+				if args.listed then
+					local found
+					for i, label in ipairs(c.listedDrop.list) do
+						c.listedDrop.selIndex = i
+						c.listedDrop.selFunc(i, label)
+						if select(2, search()).status.option == args.listed then found = true break end
+					end
+					if not found then bad("listed " .. tostring(args.listed) .. " is not one of the popup's Listed choices") end
+				end
+				if args.baseType ~= nil or args.itemLevel ~= nil then
+					if not c.baseTypeCheck then bad("baseType and itemLevel are not in the popup for a unique (it searches by name)") end
+					if args.baseType ~= nil then tick(c.baseTypeCheck, args.baseType == true) end
+					if args.itemLevel ~= nil then
+						fill(c.ilvlMin, args.itemLevel.min)
+						fill(c.ilvlMax, args.itemLevel.max)
+					end
+				end
+				local defences = setmetatable({}, { __jsontype = "array" })
+				while c["def" .. (#defences + 1) .. "Check"] do
+					local pre = "def" .. (#defences + 1)
+					defences[#defences + 1] = { index = #defences + 1, label = W.strip(c[pre .. "Label"].label), value = tonumber(c[pre .. "Min"].buf) }
+				end
+				-- one list of rows to set: the popup's boxes by name prefix (mod<i>, def<i>)
+				local function setRows(list, prefix, count, what)
+					for _, s in ipairs(list or {}) do
+						local i, pre, on = s.index, prefix .. s.index, s.selected ~= false
+						if i > count then bad(("%s: the popup has %d %s rows, not %d"):format(prefix == "mod" and "select" or "defences", count, what, i)) end
+						if on and prefix == "mod" and #entries[i].tradeIds == 0 then bad(("select: mod row %d has no trade stat (canSearch is false)"):format(i)) end
+						if (s.min ~= nil or s.max ~= nil) and (not on or not c[pre .. "Min"]) then
+							bad(("%s row %d takes no min or max: %s"):format(what, i, on and "the trade site takes a choice for it, not a number" or "it is not selected")) end
+						tick(c[pre .. "Check"], on)
+						if s.min ~= nil then fill(c[pre .. "Min"], s.min) end
+						if s.max ~= nil then fill(c[pre .. "Max"], s.max) end
+					end
+				end
+				setRows(args.select, "mod", #entries, "mod")
+				setRows(args.defences, "def", #defences, "defence")
+				local url, query = search()
+				local mods = setmetatable({}, { __jsontype = "array" })
+				for i, e in ipairs(entries) do
+					local pre = "mod" .. i
+					local ids = setmetatable({}, { __jsontype = "array" })
+					for j, id in ipairs(e.tradeIds) do ids[j] = id end
+					local timeless = e.isOption and ids[1]:find("timeless", 1, true)
+					local min, max = c[pre .. "Min"], c[pre .. "Max"]
+					mods[i] = { index = i, type = e.type, line = W.strip(table.concat(e.formattedLines, "\n")), tradeId = #ids == 1 and ids[1] or null, tradeIds = ids,
+						value = (timeless or not e.isOption) and e.value or null, option = e.isOption and not timeless and e.value or null, inverted = e.invert == true,
+						selected = c[pre .. "Check"].state == true, min = min and tonumber(min.buf) or null, max = max and tonumber(max.buf) or null, canSearch = #ids > 0 }
+				end
+				for i, d in ipairs(defences) do
+					local pre = "def" .. i
+					d.selected, d.min, d.max = c[pre .. "Check"].state == true, tonumber(c[pre .. "Min"].buf) or null, tonumber(c[pre .. "Max"].buf) or null
+				end
+				return { item = { id = item.id, name = W.strip(item.name or ""), title = item.title, baseName = item.baseName, rarity = item.rarity, type = item.type },
+					slot = slotName or null, league = args.league, realm = args.realm or "pc", listed = query.status.option, mods = mods, defences = defences,
+					query = query, search = { query = query }, link = url }
+			end)
+			while #main.popups > popups do main:ClosePopup() end
+			OpenURL = keep.openURL
+			similar.lastRealmIdx, similar.lastListedIndex, similar.lastLeagueByRealm = keep.realm, keep.listed, keep.leagues
+			if not ok then error(out, 0) end
+			return out
+		end
+		if args.xml then return W.compared(args, function(_, entry) return run(entry.itemsTab) end) end
+		return run(W.build().itemsTab)
+	end
+
 	ops.craft = W.mutation(function(args, b)
 		craftBase(b, args)
 		return describe(b.itemsTab, save(b.itemsTab, args.equip), true)

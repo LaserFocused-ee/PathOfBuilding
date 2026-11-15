@@ -200,7 +200,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `compare.copy_tree` / `copy_item` / `copy_config` | H | done | `tree.copy_from` (`use` makes it active), `items.copy_from` (a slot of the other build; `use` equips it), `config.copy_from`, each naming the other stored build; compare.test.ts |
 | `compare.power_report` | S | done | `evaluate.compare_power`: passives, items, skill and support gems, config of the other build, one at a time on this one, best first by a power stat; compare.test.ts |
 | `compare.import_folder` | S | not needed | The store is flat; there are no folders |
-| `compare.buy_similar_url` | S | F3 | Trade stage |
+| `compare.buy_similar_url` | S | done | `items.buy_similar` (the Buy similar popup driven through its controls: rows, defences, listed, realm, the league given and no trade request; the Items tab's button and, with `other`, the Compare tab's Buy button for the other build's item or slot); trade-similar.test.ts |
 | `power.uniques` | S | done | `evaluate.unique_rank`; evaluate.test.ts |
 | `power.anoints` | S | done | `evaluate.anoint_rank`; evaluate.test.ts |
 
@@ -217,7 +217,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `trade.evaluate` | S | done | `trade.search` with `buildId` scores each listing in its slot; trade.test.ts |
 | `trade.sort` / `total_price` | S | F3 | `pob_trade` |
 | `trade.price_all_slots` | X | F3 | `pob_trade` |
-| `trade.mod_to_trade_id` | H | F3 | `pob_trade` |
+| `trade.mod_to_trade_id` | H | done | `lookup.trade_stats` (mod lines to trade stat ids, values, options, inverted lines, timeless jewel stats); trade-similar.test.ts |
 | `trade.rate_limits` | H | done | `trade.search` answers the limiter state (remaining, retry-after, the site's windows); trade.test.ts |
 
 ### notes, party, settings
@@ -268,11 +268,11 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | items and crafting | 30 | 29 | 0 | 0 | 1 | 0 | 0 |
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
 | calcs | 13 | 13 | 0 | 0 | 0 | 0 | 0 |
-| compare and power | 12 | 7 | 0 | 0 | 4 | 1 | 0 |
-| trade | 11 | 6 | 0 | 0 | 0 | 5 | 0 |
+| compare and power | 12 | 8 | 0 | 0 | 4 | 0 | 0 |
+| trade | 11 | 7 | 0 | 0 | 0 | 4 | 0 |
 | notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 |
 | data | 17 | 17 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | 187 | 156 | 1 | 9 | 9 | 6 | 6 |
+| **Total** | 187 | 158 | 1 | 9 | 9 | 4 | 6 |
 
 ## MCP tools
 
@@ -304,7 +304,7 @@ Routes for the tree, skills, items, config, party, evaluate domains, character i
 
 ## F3. Import and trade query: in progress
 
-In: character import from a public profile, jewel finding (`evaluate.jewel_mods`, jewels in `evaluate.compare_item`), gear finding for every slot (`evaluate.item_mods`), and trade search from the server (`trade.search`) under the limits in `SPEC.md`. The one live check against the trade site after deploy is the orchestrator's; until then the link form and the site's mod-line shape without an account are unverified (both shapes are read).
+In: character import from a public profile, jewel finding (`evaluate.jewel_mods`, jewels in `evaluate.compare_item`), gear finding for every slot (`evaluate.item_mods`), the Buy similar search for an item (`items.buy_similar`), mod lines to trade stat ids (`lookup.trade_stats`), and trade search from the server (`trade.search`) under the limits in `SPEC.md`. The one live check against the trade site after deploy is the orchestrator's; until then the link form and the site's mod-line shape without an account are unverified (both shapes are read).
 
 ## F4. Web view: separate owner
 

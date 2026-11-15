@@ -159,6 +159,20 @@ const withOther = (r: Route, keys: string[]): Route => ({
   run: (svc, i) => svc.withCompared(String(i.id), String(i.other), r.workerOp, pick(i, [...keys, "otherSets"]), !r.readOnly, typeof i.baseRevision === "number" ? i.baseRevision : undefined),
 });
 
+/** `withOther` for a route that also works on this build alone: without `other` the route runs as it was, and `otherSets` is refused. */
+const orOther = (r: Route, keys: string[]): Route => {
+  const w = withOther(r, keys);
+  return {
+    ...w,
+    input: w.input.extend({ other: buildId.optional().describe("Another build: the item is that build's, loaded as the Compare tab's compared build") }),
+    run: (svc, i) => {
+      if (i.other !== undefined) return w.run(svc, i);
+      if (i.otherSets !== undefined) throw new ApiError("invalid_input", "otherSets needs other");
+      return r.run(svc, i);
+    },
+  };
+};
+
 // Output schemas of the read routes: top-level keys of what the Lua op returns; nested detail stays loose.
 const strings = z.array(z.string());
 const nodeBrief = z.looseObject({ id: z.number(), name: z.string(), type: z.string(), ascendancy: z.string().optional(), allocated: z.boolean() });
@@ -245,6 +259,12 @@ const powerStatName = z.string().trim().min(1).max(60).describe("A stat of Path 
 const customModsResult = z.object({
   configSet: z.number(),
   groups: z.array(z.object({ title: z.string(), enabled: z.boolean(), text: z.string(), lines: z.array(z.object({ text: z.string(), supported: z.boolean() })) })),
+});
+const buySimilarRow = z.object({
+  index: z.number().int().min(1).max(200),
+  selected: z.boolean().optional().describe("Default true for a row listed"),
+  min: z.number().min(-1000000).max(1000000).optional(),
+  max: z.number().min(-1000000).max(1000000).optional(),
 });
 const tradeWeights = z.array(z.object({ stat: powerStatName, weight: z.number().min(0.01).max(1) })).min(1).max(20).optional().describe("Stat weights as the trade popup's list sets them (0.01 to 1 each; default Full DPS 1, Effective Hit Pool 0.5)");
 const tradeLeague = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9 '-]*$/, "a league name is letters, digits, spaces, ' and -").max(64);
@@ -428,6 +448,34 @@ export const routes: Route[] = [
     workerOp: "items.affix_options",
     run: (svc, i) => svc.read(i.id, "items.affix_options", pick(i, ["base", "rarity", "affixes", "slots", "sort", "limit"])),
   }), { id: buildId }),
+  orOther(extended(route<z.ZodObject<Shape>, { id: string }>({
+    name: "items.buy_similar", domain: "items", method: "POST", path: "/v1/items/:id/buy-similar",
+    summary: "The trade search the Items tab's Buy similar popup (and the Compare tab's Buy button) builds for an item, answered without opening anything: the popup is driven through its own controls and its Open URL link is read. Name an `item` (id from `items list`) or a `slot` (the item in it); with `other`, the item is the other build's (its `item` id or `slot`, as the Compare tab's Buy button takes it) and neither build changes. `league` is required: the popup's league list is exactly that league, so the link is never built for Standard unless it is asked for, and nothing is sent to the trade site (the link is made with no request, and it is unverified until someone opens one by hand). `realm` (default pc) and `listed` (the Listed status by its api value, default securable, the popup's first) are the popup's dropdowns. Like the popup, the answer ticks nothing by default: only the category filter (a unique: its name and base) is in the query. `mods` lists the popup's mod rows (enchant, implicit, explicit, scourge; `canSearch` is false for a line the trade site has no stat for); `select` ticks rows by `index` (a row listed is ticked unless `selected` is false) and sets their Min and Max (Min starts at the roll, `value`), a trade stat the site offers as a choice (`option`) takes no number. `defences` does the same for the Armour, Evasion, Energy Shield and Ward rows of a gear item; `baseType` is the \"Use specific base\" box and `itemLevel` the Item Level boxes (neither is in the popup for a unique). `query` is the search the link carries, `search` the body for `trade.search`. Calculation only; nothing is sent anywhere.",
+    input: z.object({
+      item: itemRef.optional().describe("Item id; with `other`, an item of the other build"),
+      slot: itemSlot.optional().describe("The item in this slot instead of `item`; with `other`, the other build's slot"),
+      league: tradeLeague.describe("Trade league, the one being played (required: no default)"),
+      realm,
+      listed: z.enum(["securable", "available", "online", "any"]).optional().describe("Listed status: securable (Instant Buyout, default), available (Instant Buyout & In Person), online (In Person (Online)), any"),
+      baseType: z.boolean().optional().describe("Tick \"Use specific base\""),
+      itemLevel: z.object({ min: z.number().int().min(1).max(100).optional(), max: z.number().int().min(1).max(100).optional() }).optional().describe("Item Level boxes"),
+      select: z.array(buySimilarRow).max(60).optional().describe("Mod rows to tick, by `index` in `mods`"),
+      defences: z.array(buySimilarRow).max(4).optional().describe("Defence rows to tick, by `index` in `defences`"),
+    }),
+    output: z.looseObject({
+      item: z.looseObject({ id: z.number(), name: z.string(), baseName: z.string().optional(), rarity: z.string().optional(), type: z.string().optional(), title: z.string().optional() }),
+      slot: z.string().nullable(), league: z.string(), realm: z.string(), listed: z.string(),
+      mods: z.array(z.looseObject({
+        index: z.number(), type: z.enum(["enchant", "implicit", "explicit", "scourge"]), line: z.string(), tradeId: z.string().nullable(), tradeIds: strings,
+        value: z.number().nullable(), option: z.union([z.number(), z.string()]).nullable(), inverted: z.boolean(), selected: z.boolean(), min: z.number().nullable(), max: z.number().nullable(), canSearch: z.boolean(),
+      })),
+      defences: z.array(z.looseObject({ index: z.number(), label: z.string(), value: z.number(), selected: z.boolean(), min: z.number().nullable(), max: z.number().nullable() })),
+      query: tradeQuery, search: z.looseObject({ query: tradeQuery }), link: z.string(),
+    }),
+    readOnly: true,
+    workerOp: "items.buy_similar",
+    run: (svc, i) => svc.read(i.id, "items.buy_similar", pick(i, ["item", "slot", "league", "realm", "listed", "baseType", "itemLevel", "select", "defences"])),
+  }), { id: buildId }), ["item", "slot", "league", "realm", "listed", "baseType", "itemLevel", "select", "defences"]),
   mutateRoute("items", "items", "influence", "Set an item's influences from its Influence dropdowns (Shaper, Elder, Warlord, Hunter, Crusader, Redeemer; helmets, gloves, boots and body armour also Searing Exarch and Eater of Worlds). An empty list removes them. Items without Influence dropdowns (flasks, jewels) and unknown names fail.", z.object({ item: itemRef, influences: z.array(z.string().trim().min(1).max(50)).max(2).describe("Up to two influence names, as the dropdowns list them") }), itemDetail, ["item", "influences"]),
   mutateRoute("items", "items", "corrupt", "Corrupt an item with the Corrupt... popup (Corrupted source), choosing up to two implicits from its lists; an empty list corrupts with no new implicit. An implicit is matched by its text, exactly or by one unique part. Items that cannot be corrupted and implicits the lists do not offer fail.", z.object({ item: itemRef, implicits: z.array(z.string().trim().min(1).max(300)).max(2).describe("Text of each implicit, one per Implicit box") }), itemDetail, ["item", "implicits"]),
   mutateRoute("items", "items", "add_implicit", "Add an implicit with the Add Implicit... popup. Sources: Custom (give `text`), and where the item allows them Vestigial, Searing Exarch and Eater of Worlds (give `mod`: the text of a choice, exactly or by one unique part). Items that take no added implicit and unknown or ambiguous choices fail.", z.object({ item: itemRef, source: z.string().trim().min(1).max(50).optional().describe("Source in the popup; Custom when `text` is given, else the first listed"), mod: z.string().trim().min(1).max(300).optional().describe("Text of the choice, for the listed sources"), text: z.string().trim().min(1).max(300).optional().describe("The implicit line, for the Custom source") }), itemDetail, ["item", "source", "mod", "text"]),
@@ -666,6 +714,18 @@ export const routes: Route[] = [
     readOnly: true,
     workerOp: "lookup.parse_mod",
     run: (svc, i) => svc.read(undefined, "lookup.parse_mod", pick(i, ["lines"])),
+  }),
+  route({
+    name: "lookup.trade_stats",
+    domain: "lookup",
+    method: "POST",
+    path: "/v1/lookup/trade-stats",
+    summary: "The trade site's stat ids for mod lines, as Path of Building's Buy similar popup finds them: per line `ids` (the trade stat ids, with the stat group `type` as their prefix; more than one when the text fits several stats), `value` (the number the popup puts in the filter; a timeless jewel line gives `explicit.pseudo_timeless_jewel_<conqueror>` and its count), `option` (the choice, for a stat the site offers as a choice), `inverted` (the filter takes the value negated, e.g. a `reduced` line of an `increased` stat) and `found` (false when no stat matches; the id is also dropped when the site's stat list has no such stat). Nothing is stored and nothing is sent.",
+    input: z.object({ lines: z.array(z.string().max(500)).min(1).max(50), type: z.enum(["explicit", "implicit", "enchant", "crafted", "fractured", "scourge", "pseudo"]).optional().describe("The stat group, as the popup's rows name it (default explicit)") }),
+    output: z.looseObject({ type: z.string(), lines: z.array(z.looseObject({ line: z.string(), ids: strings, value: z.number().nullable(), option: z.union([z.number(), z.string()]).optional(), inverted: z.boolean(), found: z.boolean() })) }),
+    readOnly: true,
+    workerOp: "lookup.trade_stats",
+    run: (svc, i) => svc.read(undefined, "lookup.trade_stats", pick(i, ["lines", "type"])),
   }),
   route({
     name: "lookup.describe_stats",
