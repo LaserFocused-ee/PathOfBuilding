@@ -93,8 +93,25 @@ GetRuntimePath = function() return stateDir end
 local copied
 Copy = function(text) copied = text end
 Paste = function() return nil end
-LaunchSubScript = function() return nil end
-OpenURL = function() end
+-- The ways out of the Lua state: sub-scripts (Launch.lua's downloads), links, and files written outside the state dir.
+-- None of them goes anywhere; each is counted so a test can show what a control reached (`worker.reach`).
+local reach = { subScripts = 0, urls = 0, writes = {} }
+LaunchSubScript = function() reach.subScripts = reach.subScripts + 1; return nil end
+OpenURL = function() reach.urls = reach.urls + 1 end
+local l_open, l_remove, l_rename = io.open, os.remove, os.rename
+local function outside(path) return tostring(path):sub(1, #stateDir + 1) ~= stateDir .. "/" end
+io.open = function(path, mode)
+	if mode and mode:find("[wa+]") and outside(path) then reach.writes[#reach.writes + 1] = tostring(path) end
+	return l_open(path, mode)
+end
+os.remove = function(path)
+	if outside(path) then reach.writes[#reach.writes + 1] = tostring(path) end
+	return l_remove(path)
+end
+os.rename = function(from, to)
+	if outside(from) or outside(to) then reach.writes[#reach.writes + 1] = tostring(to) end
+	return l_rename(from, to)
+end
 function GetVirtualScreenSize() return 1920, 1080 end
 __callbackTable__ = {}
 function runCallback(name, ...)
@@ -282,6 +299,12 @@ end
 ops["worker.ping"] = function()
 	return { pobVersion = launch.versionNumber, latestTreeVersion = latestTreeVersion, heapKB = collectgarbage("count") }
 end
+-- What reached a way out since the last call (see the stubs above), then counted from zero again.
+ops["worker.reach"] = function()
+	local r = { subScripts = reach.subScripts, urls = reach.urls, writes = setmetatable(reach.writes, { __jsontype = "array" }) }
+	reach = { subScripts = 0, urls = 0, writes = {} }
+	return r
+end
 ops["worker.gc"] = function()
 	collectgarbage("collect")
 	collectgarbage("collect")
@@ -301,7 +324,8 @@ for line in io.lines() do
 		local started = nowMs()
 		local ok, res = xpcall(ops[req.op], function(e)
 			if type(e) == "table" then return e end
-			return { code = "worker_error", message = tostring(e), trace = debug.traceback("", 2) }
+			-- the Lua text names server files: it goes to the server log, the caller gets the op only
+			return { code = "worker_error", message = "the engine failed while running " .. req.op, detail = tostring(e), trace = debug.traceback("", 2) }
 		end, type(req.args) == "table" and req.args or {})
 		local prompt = takePrompt()
 		local warnings = drainPopups()
@@ -311,7 +335,7 @@ for line in io.lines() do
 			warnings[#warnings + 1] = prompt
 		end
 		if not ok and res.trace then
-			stderr:write(res.message, res.trace, "\n")
+			stderr:write(res.detail, res.trace, "\n")
 			res.trace = nil
 		end
 		if ok then

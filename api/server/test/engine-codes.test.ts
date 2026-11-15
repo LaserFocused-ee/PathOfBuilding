@@ -106,3 +106,11 @@ void test("MCP over HTTP: list tools, read a loaded build's stats, failures are 
   }
 });
 
+
+void test("an engine script error answers worker_error naming the op only; the Lua text goes to the server log", async () => {
+  // a table where the op expects text: no route sends this (the route table validates it), so it reaches the worker directly
+  const failed = await srv.runtime.svc.pool.run("lookup", "lookup.gems", { query: {} }).then(() => undefined, (e: unknown) => e as { code: string; message: string });
+  assert.deepEqual([failed?.code, failed?.message], ["worker_error", "the engine failed while running lookup.gems"]);
+  const logged = srv.lines.find((l) => l.event === "worker.error");
+  assert.match(String(logged?.detail), /\.lua:\d+: /, "the script error with its file and line is logged");
+});

@@ -20,6 +20,7 @@ return function(W)
 		["import.importCodeGo"] = "may download from a link (use the build import routes)", ["import.generateCodeByLink"] = "uploads the build to a share site",
 		["items.priceDisplayItem"] = "opens the trade site", ["items.displayItemBuySimilar"] = "opens the trade site",
 		["party.importCodeGo"] = "may download from a link (use party import)",
+		["tree.findTimelessJewel"] = "opens the timeless jewel finder, which asks the trade site for its leagues",
 	}
 	-- A button labelled like this is refused too, whatever it is called (popups and dynamic buttons).
 	local deniedLabel = { "^save", "^open", "close", "^exit", "^quit", "^back", "^<< ", "fetch", "download", "upload", "authori[sz]e", "log ?out", "^share", "^buy", "^trade" }

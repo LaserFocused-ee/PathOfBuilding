@@ -258,7 +258,7 @@ export const routes: Route[] = [
     run: (s, i) => s.importLink({ url: i.url, name: i.name }),
   }),
   route({
-    name: "build.characters", domain: "build", method: "GET", path: "/v1/builds/import/characters", summary: "Characters on a public Path of Exile profile (name, league, class, level). The profile's Characters tab must be public.",
+    name: "build.characters", domain: "build", method: "POST", path: "/v1/builds/import/characters", summary: "Characters on a public Path of Exile profile (name, league, class, level). The profile's Characters tab must be public. POST so the account name travels in the body, not in a URL that proxies log.",
     input: z.object({ account, realm }), output: z.object({ characters: z.array(z.object({ name: z.string(), league: z.string(), class: z.string(), level: z.number().optional() })) }),
     readOnly: true, workerOp: "(game site)", run: (s, i) => s.characters({ account: i.account, realm: i.realm }),
   }),

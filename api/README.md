@@ -94,7 +94,8 @@ All settings are environment variables, read and checked once at start (an inval
 
 - The server is the source of truth for every build: one XML file plus one JSON metadata file per build under the data directory, with a revision number. A write that names a `baseRevision` older than the current one is refused with `409 stale_revision`.
 - A build imported from a public profile records where it came from in its metadata: the account name with its discriminator, the realm and the character name (so it can be traced back to that profile). It is kept with the build, returned only to callers with the token, and never logged; deleting the build removes it with the build after the 7-day restore window.
-- Share-link imports fetch only from the build sites Path of Building itself supports (`src/Modules/BuildSiteTools.lua`), over https, with a timeout, a size cap, and redirects followed only to those hosts. Nothing else makes outbound requests; the Lua workers have no network access.
+- Share-link imports fetch only from the build sites Path of Building itself supports (`src/Modules/BuildSiteTools.lua`), over https, with a timeout, a size cap, and redirects followed only to those hosts. The browser view's relay (`POST /v1/fetch`) reaches only those sites' download and upload paths and the game site's three character-window reads. Trade searches (`POST /v1/trade/search`) go to the official trade site only when called, under the limits in the route's text. Nothing else makes outbound requests; the Lua workers have no network access.
+- Personal data: the account name above is the only one stored. The character list (`POST /v1/builds/import/characters`) takes the account name in the body, not the URL. A trade search answer is kept in memory for 10 minutes (listing ids, prices, item text) and is gone on restart; seller account names and whisper texts are dropped as the answer arrives and are never stored, logged or returned. Log lines carry no account name, query or item text.
 - `GET /health` answers without auth; `GET /health/deep` boots or pings a worker and reports the Path of Building version, the latest tree version and the pool.
 - `GET /v1/builds/:id/events` is a server-sent event stream of revision changes for one build.
 
@@ -110,7 +111,7 @@ Every route is also listed with its input and result schemas in `docs/API.md`. G
 | `POST /v1/builds/import/xml` | `pob_build` `import_xml` | Load a build from Path of Building XML. |
 | `POST /v1/builds/import/code` | `pob_build` `import_code` | Load a build from a build code (the text Path of Building shares). |
 | `POST /v1/builds/import/link` | `pob_build` `import_link` | Load a build from a share link on a supported site (pobb.in, pastebin, Maxroll, poe.ninja, pob.codes, rentry, poedb). |
-| `GET /v1/builds/import/characters` | `pob_build` `characters` | Characters on a public Path of Exile profile (name, league, class, level). The profile's Characters tab must be public. |
+| `POST /v1/builds/import/characters` | `pob_build` `characters` | Characters on a public Path of Exile profile (name, league, class, level). The profile's Characters tab must be public. POST so the account name travels in the body, not in a URL that proxies log. |
 | `POST /v1/builds/import/character` | `pob_build` `import_character` | A new build from a character on a public profile: passive tree, jewels, items and skills, as the Import tab imports them. |
 | `GET /v1/builds/trash` | `pob_build` `trash` | Deleted builds that can still be restored (kept 7 days after deletion). |
 | `GET /v1/builds/:id` | `pob_build` `get` | A build's metadata and summary (class, ascendancy, level, tree version, main skill). |

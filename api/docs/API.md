@@ -69,9 +69,9 @@ Load a build from a share link on a supported site (pobb.in, pastebin, Maxroll, 
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"url":{"type":"string","maxLength":2000,"format":"uri"},"name":{"type":"string","minLength":1,"maxLength":200}},"required":["url"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"build":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"revision":{"type":"number"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"},"source":{"type":"object","properties":{"kind":{"type":"string"}},"required":["kind"],"additionalProperties":{}}},"required":["id","name","revision","createdAt","updatedAt","source"],"additionalProperties":{}},"summary":{"type":"object","properties":{"name":{"type":"string"},"className":{"type":"string"},"ascendancy":{"type":"string"},"level":{"type":"number"},"treeVersion":{"type":"string"},"mainSkill":{"type":"string"}},"required":["name","className","level","treeVersion"],"additionalProperties":{}}},"required":["build","summary"]}`
 
-### `GET /v1/builds/import/characters`
+### `POST /v1/builds/import/characters`
 
-Characters on a public Path of Exile profile (name, league, class, level). The profile's Characters tab must be public.
+Characters on a public Path of Exile profile (name, league, class, level). The profile's Characters tab must be public. POST so the account name travels in the body, not in a URL that proxies log.
 
 - Name: `build.characters` (MCP `pob_build` action `characters`)
 - Read-only: yes; worker: `(game site)`

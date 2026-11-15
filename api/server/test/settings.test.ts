@@ -3,8 +3,10 @@
 // version (the build keeps only a hash of the last imported character's name, and a fixed target version), so build_settings
 // is unchanged.
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { startServer, type TestServer } from "./helpers.js";
+import { FIXTURES, startServer, type TestServer } from "./helpers.js";
 
 type Change = Record<string, { before: number | null; after: number | null }>;
 type Mutated<T = Record<string, unknown>> = { result: T; changed: Change; revision: number };
@@ -235,4 +237,29 @@ void test("lookup.config relevantOnly keeps only the options that apply to the b
   assert.deepEqual([all.total, rel.total], [586, 81]);
   // The filter keeps exactly the options the full list marks relevant, in the same order.
   assert.deepEqual(rel.options.map((o) => o.var), all.options.filter((o) => o.relevant === true).map((o) => o.var));
+});
+
+void test("ui_invoke: every action every control offers, on every tab, reaches no sub-script, link or file outside the state dir", async () => {
+  const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
+  const id = ok(await srv.call<{ build: { id: string } }>("POST", "/v1/builds/import/xml", { xml })).build.id;
+  const pool = srv.runtime.svc.pool;
+  const reach = async () => (await pool.run<{ subScripts: number; urls: number; writes: string[] }>(id, "worker.reach")).result;
+  await reach(); // from zero: boot writes its data caches next to the sources
+  let invoked = 0;
+  for (const tab of ["build", "tree", "skills", "items", "calcs", "config", "notes", "party", "import"]) {
+    const list = (await pool.run<UiList>(id, "ui.controls", { tab, limit: 5000 })).result.controls;
+    for (const c of list) {
+      for (const operation of c.actions) {
+        const value = operation === "set_state" ? !c.state : operation === "select" ? Math.min(2, c.choiceCount ?? 1) : operation === "set_text" ? "1" : undefined;
+        invoked++;
+        await pool.run(id, "ui.invoke", { tab, control: c.name, operation, ...(value === undefined ? {} : { value }) }).catch(() => undefined); // a refusal is fine here
+        assert.deepEqual(await reach(), { subScripts: 0, urls: 0, writes: [] }, `${tab}.${c.name} ${operation}`);
+      }
+    }
+  }
+  assert.ok(invoked > 150, `${invoked} actions offered`);
+  // the one control that reached a seam before it was denied: the timeless jewel finder asks the trade site for its leagues
+  const finder = await invoke(id, { tab: "tree", control: "findTimelessJewel", operation: "click" });
+  fails(finder, 400, "invalid_input");
+  assert.match(finder.body.error?.message ?? "", /asks the trade site for its leagues/);
 });

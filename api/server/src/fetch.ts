@@ -19,8 +19,16 @@ export const GAME_HOST = "www.pathofexile.com";
  */
 export const RELAY_PATHS: Readonly<Record<string, { paths: readonly string[]; post: boolean }>> = {
   [GAME_HOST]: { paths: ["/character-window/get-characters", "/character-window/get-passive-skills", "/character-window/get-items"], post: false },
-  ...Object.fromEntries(SHARE_HOSTS.map((h) => [h, { paths: ["/"], post: true }])),
-};
+  // the downloadURL and postUrl of each site in BuildSiteTools.lua; api.pob.codes serves builds at /<id>/raw, so its whole (API-only) host
+  "maxroll.gg": { paths: ["/poe/api/pob"], post: true },
+  "api.pob.codes": { paths: ["/"], post: true },
+  "pobb.in": { paths: ["/pob/"], post: true },
+  "poe.ninja": { paths: ["/poe1/pob/raw/", "/poe1/pob/api/upload"], post: true },
+  "pastebin.com": { paths: ["/raw/"], post: false },
+  "pastebinp.com": { paths: ["/raw/"], post: false },
+  "rentry.co": { paths: ["/paste/"], post: false },
+  "poedb.tw": { paths: ["/pob/"], post: true },
+} satisfies Record<(typeof SHARE_HOSTS)[number] | typeof GAME_HOST, unknown>;
 
 const relayEntry = (url: URL): string | undefined =>
   RELAY_PATHS[url.hostname]?.paths.find((p) => (p.endsWith("/") ? url.pathname.startsWith(p) : url.pathname === p || url.pathname.startsWith(`${p}/`)));
