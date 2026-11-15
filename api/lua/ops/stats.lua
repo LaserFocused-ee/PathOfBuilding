@@ -244,6 +244,95 @@ return function(W)
 		}
 	end
 
+	-- The build-quality levers a player checks: jewel sockets (filled, empty, reachable), cluster jewels, flasks,
+	-- config options set, anoints, tattoos and masteries, each as Path of Building holds it, and `unused` naming the
+	-- levers left unpulled. Sockets are tree nodes of type Socket, cluster subgraphs included; `points` is PassiveSpec's pathDist, the passive points
+	-- to allocate it (1000 when no path reaches it).
+	function ops.levers()
+		local json = W.json
+		local function arr(t) return setmetatable(t, { __jsontype = "array" }) end
+		local b = W.build()
+		local spec, tab = b.spec, b.itemsTab
+		local function itemIn(id) return id and id > 0 and tab.items[id] or nil end
+		local sizes = { [0] = "small cluster", [1] = "medium cluster", [2] = "large cluster" }
+		local sockets, reachable, clusters, empty = {}, {}, {}, 0
+		for id, node in pairs(spec.nodes) do
+			if node.type == "Socket" then -- tree sockets and the ones cluster jewels add
+				local kind = node.expansionJewel and sizes[node.expansionJewel.size] or "basic"
+				local item = itemIn(spec.jewels[id])
+				if spec.allocNodes[id] then
+					sockets[#sockets + 1] = { nodeId = id, name = node.dn, kind = kind, item = item and item.id or json.null, itemName = item and item.name or json.null }
+					if not item then empty = empty + 1 end
+					if item and item.clusterJewel then clusters[#clusters + 1] = { nodeId = id, item = item.id, name = item.name, base = item.baseName } end
+				elseif node.pathDist and node.pathDist < 1000 then
+					reachable[#reachable + 1] = { nodeId = id, name = node.dn, kind = kind, points = node.pathDist }
+				end
+			end
+		end
+		table.sort(sockets, function(x, y) return x.nodeId < y.nodeId end)
+		table.sort(clusters, function(x, y) return x.nodeId < y.nodeId end)
+		table.sort(reachable, function(x, y) if x.points ~= y.points then return x.points < y.points end return x.nodeId < y.nodeId end)
+
+		local flasks, abyss, anoints = {}, {}, {}
+		for _, slot in ipairs(tab.orderedSlots) do
+			local name = slot.slotName
+			if not slot.nodeId and slot:IsShown() then
+				local item = itemIn(slot.selItemId)
+				if name:match("^Flask %d$") then
+					flasks[#flasks + 1] = { slot = name, item = item and item.id or json.null, name = item and item.name or json.null, active = item ~= nil and slot.active == true }
+				elseif name:match("Abyssal Socket") then
+					abyss[#abyss + 1] = { slot = name, item = item and item.id or json.null, name = item and item.name or json.null }
+				elseif item and item.base and not item.base.cannotBeAnointed and item.base.subType ~= "Talisman" and (item.canBeAnointed or item.base.type == "Amulet") then
+					local allocates = {} -- ItemsTab's isAnointable test; the anoint is an enchant line "Allocates <notable>"
+					for _, line in ipairs(item.enchantModLines or {}) do
+						local notable = line.line:match("^Allocates (.+)$")
+						if notable then allocates[#allocates + 1] = notable end
+					end
+					anoints[#anoints + 1] = { slot = name, item = item.id, name = item.name, allocates = arr(allocates) }
+				end
+			end
+		end
+
+		local tattoos = {}
+		for id, node in pairs(spec.hashOverrides) do
+			if node.isTattoo then tattoos[#tattoos + 1] = { nodeId = id, name = node.dn } end
+		end
+		table.sort(tattoos, function(x, y) return x.nodeId < y.nodeId end)
+		local masteries, unselected = 0, {}
+		for id, node in pairs(spec.allocNodes) do
+			if node.type == "Mastery" then
+				masteries = masteries + 1
+				if not spec.masterySelections[id] then unselected[#unselected + 1] = { nodeId = id, name = node.dn } end
+			end
+		end
+		table.sort(unselected, function(x, y) return x.nodeId < y.nodeId end)
+		local config = W.configValues(b)
+		local configCount = 0
+		for _ in pairs(config) do configCount = configCount + 1 end
+
+		local unused = {}
+		local function say(s) unused[#unused + 1] = s end
+		if empty > 0 then say(empty .. " allocated jewel socket" .. (empty == 1 and " is" or "s are") .. " empty") end
+		if #reachable > 0 then say(#reachable .. " unallocated jewel socket" .. (#reachable == 1 and " is" or "s are") .. " reachable, the nearest " .. reachable[1].points .. " point" .. (reachable[1].points == 1 and "" or "s") .. " away") end
+		if #clusters == 0 then say("no cluster jewel") end
+		for _, f in ipairs(flasks) do
+			if f.item == json.null then say(f.slot .. " is empty") elseif not f.active then say(f.slot .. " (" .. f.name .. ") is not active") end
+		end
+		for _, a in ipairs(abyss) do if a.item == json.null then say(a.slot .. " is empty") end end
+		for _, a in ipairs(anoints) do if #a.allocates == 0 then say(a.slot .. " (" .. a.name .. ") has no anoint") end end
+		if #tattoos == 0 then say("no tattoo") end
+		if #unselected > 0 then say(#unselected .. " allocated master" .. (#unselected == 1 and "y has" or "ies have") .. " no effect chosen") end
+		if configCount == 0 then say("no config option set") end
+
+		return {
+			jewelSockets = { allocated = arr(sockets), empty = empty, reachable = arr(reachable) },
+			clusterJewels = arr(clusters), flasks = arr(flasks), abyssalSockets = arr(abyss), anoints = arr(anoints), tattoos = arr(tattoos),
+			masteries = { allocated = masteries, selected = masteries - #unselected, unselected = arr(unselected) },
+			config = { count = configCount, values = config },
+			unused = arr(unused),
+		}
+	end
+
 	function ops.versions()
 		local b = W.build()
 		local tv = b.spec.treeVersion

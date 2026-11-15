@@ -18,9 +18,8 @@ return function(W)
 		return out
 	end
 
-	-- Values on the active config set that differ from their default, plus the set list and level settings.
-	function ops.get()
-		local b = W.build()
+	-- Values on the active config set that differ from their default.
+	function W.configValues(b)
 		local tab = b.configTab
 		local values = {}
 		for var, value in pairs(tab.input) do
@@ -28,8 +27,15 @@ return function(W)
 				values[var] = W.plain(value)
 			end
 		end
+		return setmetatable(values, { __jsontype = "object" })
+	end
+
+	-- Values on the active config set that differ from their default, plus the set list and level settings.
+	function ops.get()
+		local b = W.build()
+		local tab = b.configTab
 		return {
-			values = setmetatable(values, { __jsontype = "object" }), sets = sets(tab),
+			values = W.configValues(b), sets = sets(tab),
 			level = b.characterLevel, autoLevel = b.characterLevelAutoMode == true,
 		}
 	end
