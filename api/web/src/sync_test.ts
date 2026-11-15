@@ -328,6 +328,64 @@ Deno.test("keep mine: a failed write is retried on the revision the user chose, 
   assertEquals(sync.state, { kind: "synced", revision: 3 });
 });
 
+Deno.test("keep mine with a failed write: an event repeating the chosen revision does not ask again", async () => {
+  const { sync, view, server, api, remoteEdit } = setup();
+  await sync.start();
+  view.code = "A1";
+  await sync.poll();
+  await sync.serverRevision(remoteEdit("B"));
+  const realSave = api.save;
+  api.save = () => Promise.reject(new Error("network down"));
+  await sync.resolve("overwrite");
+  api.save = realSave;
+  await sync.serverRevision(2); // the stream's first frame after a reconnect
+  assertEquals(sync.state, { kind: "save_failed", revision: 1, reason: "network down", retrying: true });
+  await sync.poll();
+  assertEquals(server.saves.at(-1), { code: "A1", base: 2 });
+  assertEquals(sync.state, { kind: "synced", revision: 3 });
+});
+
+Deno.test("keep mine's chosen revision: try again writes on it; a good write or a reload drops it", async () => {
+  const { sync, view, server, api, ui, remoteEdit } = setup();
+  const keepMineThenFailWrite = async () => {
+    view.code = view.code + "+";
+    await sync.poll();
+    await sync.serverRevision(remoteEdit("R" + server.revision));
+    const realSave = api.save;
+    api.save = () => Promise.reject(new Error("network down"));
+    await sync.resolve("overwrite");
+    api.save = realSave;
+  };
+  await sync.start();
+  // Try again after a stop writes on the chosen revision (2), not on the one loaded (1).
+  await keepMineThenFailWrite();
+  const realRead = ui.read;
+  ui.read = () => Promise.reject(new Error("busy"));
+  await sync.poll();
+  assertEquals(sync.state, { kind: "failed", reason: "busy" });
+  ui.read = realRead;
+  await sync.start();
+  assertEquals(server.saves.at(-1), { code: "A+", base: 2 });
+  assertEquals(sync.state, { kind: "synced", revision: 3 });
+  // After that good write the next edit goes on the new revision.
+  view.code = "A++";
+  await sync.poll();
+  await sync.poll();
+  assertEquals(server.saves.at(-1), { code: "A++", base: 3 });
+  assertEquals(sync.state, { kind: "synced", revision: 4 });
+  // After "Reload" in a later conflict, the next edit goes on the reloaded revision.
+  await keepMineThenFailWrite(); // chosen revision 5
+  await sync.serverRevision(remoteEdit("C")); // 6: a newer change, asked again
+  assertEquals(sync.state.kind, "conflict");
+  await sync.resolve("reload");
+  assertEquals(sync.state, { kind: "synced", revision: 6 });
+  view.code = "C1";
+  await sync.poll();
+  await sync.poll();
+  assertEquals(server.saves.at(-1), { code: "C1", base: 6 });
+  assertEquals(sync.state, { kind: "synced", revision: 7 });
+});
+
 Deno.test("try again after a stop never loads over an edit: conflict if the server moved, else write", async () => {
   const { sync, view, server, ui, remoteEdit } = setup();
   await sync.start();

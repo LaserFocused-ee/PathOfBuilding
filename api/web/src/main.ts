@@ -1,7 +1,7 @@
 // Browser view: `/` lists the server's builds, `/?build=<id>` opens one in the real Path of Building UI
 // (pob-web's driver) and keeps it in step with the server (sync.ts).
 import { Driver } from "pob-driver/driver";
-import { viaRelay } from "./account-import.ts";
+import { pageFetch } from "./account-import.ts";
 import { api, ApiError, type BuildMeta, isBuildId } from "./api.ts";
 import { buildContent } from "./content.ts";
 import { safeExternalUrl } from "./links.ts";
@@ -166,17 +166,10 @@ async function viewPage(id: string) {
     },
     // Path of Building's own downloads (public-profile character import, build links) go through the
     // server's allow-listed fetch route; the browser never calls those sites itself (account-import.ts).
-    onFetch: async (url, headers, body) => {
-      try {
-        const result = await viaRelay(url, () => withSession(() => api.fetch(url, headers, body)), (note) => {
-          text($("#import-note"), note ?? "");
-          $("#import-note").hidden = note === null;
-        });
-        return { ...result, error: undefined };
-      } catch (e) {
-        return { body: "", status: undefined, headers: {}, error: e instanceof Error ? e.message : String(e) };
-      }
-    },
+    onFetch: pageFetch((url, headers, body) => withSession(() => api.fetch(url, headers, body)), (note) => {
+      text($("#import-note"), note ?? "");
+      $("#import-note").hidden = note === null;
+    }),
     onOAuthAuthorize: () =>
       Promise.reject(
         new Error(

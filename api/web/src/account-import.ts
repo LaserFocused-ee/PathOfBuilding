@@ -3,7 +3,10 @@
 // - The profile page, which Path of Building reads only to learn the account name's exact case, is not
 //   reachable from the server (the site screens it). The page answers that request itself with the name
 //   as typed, so the exact case is the user's to give.
-// - A refused or empty character request says plainly that the name must match exactly. Nothing is retried.
+// - A refused or empty character request says plainly that the name must match exactly; a rate limit says
+//   to wait, a site failure says so. Nothing is retried.
+
+import { ApiError } from "./api.ts";
 
 export interface FetchResult {
   status: number;
@@ -48,25 +51,47 @@ export function profileStandIn(url: string): FetchResult | null {
 export function accountNote(url: string, result: FetchResult): string | null {
   const match = CHARACTER_WINDOW.exec(url);
   if (!match) return null;
-  if (result.status >= 400) return `Path of Exile refused the request (${result.status}). ${EXACT_NAME}`;
+  const status = result.status;
+  if (status === 401 || status === 403 || status === 404) {
+    return `Path of Exile refused the request (${status}). ${EXACT_NAME}`;
+  }
+  if (status === 429) return SLOW_DOWN;
+  if (status >= 500) return `Path of Exile failed to answer (${status}). Try again later.`;
+  if (status >= 400) return `Path of Exile refused the request (${status}).`;
   if (match[1] === "get-characters" && result.body.trim() === "[]") {
     return `Path of Exile returned no characters for that account. ${EXACT_NAME}`;
   }
   return null;
 }
 
+export const SLOW_DOWN = "Path of Exile asked for fewer requests. Wait a minute before importing again.";
+
+type Send = (url: string, headers: Record<string, string>, body: string | undefined) => Promise<FetchResult>;
+
 /**
- * Path of Building's download through the page: the profile page answered here, everything else by `relay`
- * (POST /v1/fetch). A character request's answer sets the note above the view (null clears it).
+ * Path of Building's downloads through the page (the driver's onFetch): the profile page answered here,
+ * everything else by `send` (POST /v1/fetch). A character request clears the note above the view when it
+ * starts and sets it from its answer; a relay error reaches Path of Building as its error text.
  */
-export async function viaRelay(
-  url: string,
-  relay: () => Promise<FetchResult>,
-  note: (text: string | null) => void,
-): Promise<FetchResult> {
-  const local = profileStandIn(url);
-  if (local) return local;
-  const result = await relay();
-  if (url.startsWith("https://www.pathofexile.com/character-window/")) note(accountNote(url, result));
-  return result;
+export function pageFetch(send: Send, note: (text: string | null) => void) {
+  return async (url: string, headers: Record<string, string>, body: string | undefined): Promise<{
+    body: string;
+    status: number | undefined;
+    headers: Record<string, string>;
+    error: string | undefined;
+  }> => {
+    const local = profileStandIn(url);
+    if (local) return { ...local, error: undefined };
+    const character = CHARACTER_WINDOW.test(url);
+    if (character) note(null);
+    try {
+      const result = await send(url, headers, body);
+      if (character) note(accountNote(url, result));
+      return { ...result, error: undefined };
+    } catch (e) {
+      // The relay answers a game-site 429 (or its own hold on the host) as rate_limited.
+      if (character && e instanceof ApiError && e.code === "rate_limited") note(SLOW_DOWN);
+      return { body: "", status: undefined, headers: {}, error: e instanceof Error ? e.message : String(e) };
+    }
+  };
 }

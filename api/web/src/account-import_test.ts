@@ -1,5 +1,6 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { accountNote, EXACT_NAME, profileStandIn, viaRelay } from "./account-import.ts";
+import { accountNote, EXACT_NAME, type FetchResult, pageFetch, profileStandIn, SLOW_DOWN } from "./account-import.ts";
+import { ApiError } from "./api.ts";
 
 const site = "https://www.pathofexile.com/";
 
@@ -55,25 +56,55 @@ Deno.test("an empty character list says the name must match exactly; a good one 
   assertEquals(accountNote(`${site}account/view-profile/a`, { status: 403, headers: {}, body: "" }), null);
 });
 
-Deno.test("no profile-page URL reaches the relay; character requests set or clear the note", async () => {
-  const relayCalls: string[] = [];
+Deno.test("only 401, 403 and 404 name the account name; 429 says wait, 5xx says the site failed", () => {
+  const url = `${site}character-window/get-passive-skills?accountName=a%231&character=x&realm=pc`;
+  const note = (status: number) => accountNote(url, { status, headers: {}, body: "" })!;
+  for (const status of [401, 403, 404]) assertStringIncludes(note(status), EXACT_NAME);
+  assertEquals(note(429), SLOW_DOWN);
+  for (const status of [400, 429, 500, 503]) assertEquals(note(status).includes(EXACT_NAME), false);
+  assertStringIncludes(note(503), "failed to answer (503)");
+  assertStringIncludes(note(400), "(400)");
+  // Not a character request: nothing to say, whatever the answer.
+  assertEquals(accountNote("https://pobb.in/abc", { status: 404, headers: {}, body: "" }), null);
+  assertEquals(
+    accountNote(`${site}character-window/get-stash?accountName=a`, { status: 403, headers: {}, body: "" }),
+    null,
+  );
+});
+
+Deno.test("Path of Building's downloads: no profile URL is sent; notes clear at the start and follow the answer", async () => {
+  const sent: Array<[string, Record<string, string>, string | undefined]> = [];
   const notes: (string | null)[] = [];
-  const relay = (url: string, status = 200, body = "[]") => () => {
-    relayCalls.push(url);
-    return Promise.resolve({ status, headers: {}, body });
-  };
+  let answer: () => Promise<FetchResult> = () => Promise.resolve({ status: 200, headers: {}, body: "[]" });
+  const onFetch = pageFetch((url, headers, body) => {
+    sent.push([url, headers, body]);
+    return answer();
+  }, (n) => notes.push(n));
   for (const odd of ["a%231", "a%231/characters", "a&b/c%231", "a&b?c%231", "a%231#x", ""]) {
-    const url = `${site}account/view-profile/${odd}`;
-    await viaRelay(url, relay(url), (n) => notes.push(n));
+    const result = await onFetch(`${site}account/view-profile/${odd}`, {}, undefined);
+    assertEquals(result.error, undefined);
   }
-  assertEquals(relayCalls, []);
+  assertEquals(sent, []);
   assertEquals(notes, []);
+
   const chars = `${site}character-window/get-characters?accountName=a%231&realm=pc`;
-  await viaRelay(chars, relay(chars, 403, ""), (n) => notes.push(n));
-  await viaRelay(chars, relay(chars, 200, '[{"name":"x"}]'), (n) => notes.push(n));
+  answer = () => Promise.resolve({ status: 403, headers: {}, body: "" });
+  const refused = await onFetch(chars, { accept: "*/*" }, "x=1");
+  assertEquals([refused.status, refused.error], [403, undefined]);
+  answer = () => Promise.resolve({ status: 200, headers: {}, body: '[{"name":"x"}]' });
+  await onFetch(chars, {}, undefined);
+  answer = () => Promise.reject(new ApiError(429, "rate_limited", "www.pathofexile.com is limiting requests"));
+  const limited = await onFetch(chars, {}, undefined);
+  assertEquals([limited.status, limited.error], [undefined, "www.pathofexile.com is limiting requests"]);
   const link = "https://pobb.in/abc";
-  await viaRelay(link, relay(link, 404, ""), (n) => notes.push(n));
-  assertEquals(relayCalls, [chars, chars, link]);
-  assertStringIncludes(notes[0]!, "(403)");
-  assertEquals(notes.slice(1), [null]);
+  answer = () => Promise.resolve({ status: 404, headers: {}, body: "" });
+  await onFetch(link, {}, undefined);
+  answer = () => Promise.reject(new Error("offline"));
+  assertEquals((await onFetch(link, {}, undefined)).error, "offline");
+
+  assertEquals(sent.map((s) => s[0]), [chars, chars, chars, link, link]);
+  assertEquals(sent[0], [chars, { accept: "*/*" }, "x=1"]); // passed through as Path of Building gave them
+  assertEquals(notes.length, 6); // each character request: cleared at its start, then its answer
+  assertEquals([notes[0], notes[2], notes[3], notes[4], notes[5]], [null, null, null, null, SLOW_DOWN]);
+  assertStringIncludes(notes[1]!, "(403)");
 });

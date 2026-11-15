@@ -71,6 +71,25 @@ if [ ! -f "$P/packages/driver/dist/release/driver.wasm" ] || [ "$(cat "$STAMP" 2
   done
   echo "$PATCHES_SUM" >"$STAMP"
 fi
+# 2c. The load-build patch against real Path of Building, in the engine's LuaJIT runtime (no browser):
+# getBuildCode answers the sentinel for every build the page did not load (tools/load-build-probe.lua),
+# and the sentinel is the string main.ts compares.
+SENTINEL="$(sed -n 's/^+ *return "\(![a-z-]*\)"$/\1/p' "$HERE/patches/pob-web-load-build.patch")"
+[ -n "$SENTINEL" ] && grep -qF "code === \"$SENTINEL\"" "$HERE/src/main.ts" ||
+  { echo "load-build sentinel '$SENTINEL' from the patch is not the one src/main.ts compares" >&2; exit 1; }
+RT="${POB_RUNTIME_DIR:-$REPO/api/runtime/rt}"
+[ -x "$RT/bin/luajit" ] || RT="$RT" "$REPO/api/runtime/build-runtime.sh"
+PR="$B/load-build-probe"; mkdir -p "$PR"
+PS="$(mktemp -d "$PR/state.XXXXXX")" # ponytail: one small directory per build, left in the gitignored cache
+{
+  sed -n '/^package\.path = /,/^main\.buildPath = /p' "$REPO/api/lua/worker.lua"
+  echo 'local mainObject = launch'
+  awk '/^local function markLoadedBuilds/{p=1} p' "$P/packages/driver/boot.lua"
+  cat "$HERE/tools/load-build-probe.lua"
+} >"$PR/probe.lua"
+(cd "$REPO/src" && SENTINEL="$SENTINEL" FIXTURE="$REPO/api/server/test/fixtures/witch-elementalist-3_30.xml" \
+  POB_STATE_DIR="$PS" LUA_CPATH="$RT/?.so" "$RT/bin/luajit" "$PR/probe.lua" >"$PR/result.txt" 2>"$PR/stderr.log") ||
+  { echo "load-build probe failed; see $PR/result.txt and $PR/stderr.log" >&2; grep -v '^ok' "$PR/result.txt" >&2; exit 1; }
 
 # 2b. The published decoder module compiles its bindings with `new Function`, which the serve
 # contract's Content-Security-Policy refuses; this build uses -sDYNAMIC_EXECUTION=0 and no eval.
