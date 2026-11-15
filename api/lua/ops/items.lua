@@ -197,10 +197,57 @@ return function(W)
 
 	-- The hover text of an item in the Items tab's list (AddItemTooltip): its lines, a flask's effective stats with its
 	-- uptime, and what equipping it in each slot it fits would change.
+	-- Our estimate (not Path of Building's) of a utility flask's uptime with charges gained on critical strike, which the
+	-- tooltip leaves out: crits per second (main skill's Speed x HitChance x CritChance, one target) x the chance per crit
+	-- (the flask's own mods plus the build's, capped at 100%) x the charge gain modifier, plus the charges the tooltip counts
+	-- per second, against charges used per second (charges per use x the chance to consume / duration). The terms are the
+	-- tooltip's (ItemsTab:AddItemTooltip). ponytail: no in-game cooldown on crit charge gain, one target, no per-empty-flask
+	-- or ward-break charges; add them when a build needs them.
+	local function flaskEstimate(b, item)
+		local fd, base = item.flaskData, item.base.flask
+		if not fd or not base or base.life or base.mana or not fd.duration or fd.duration <= 0 then return nil end
+		local modDB, out = b.calcsTab.mainEnv.modDB, b.calcsTab.mainOutput
+		local own = 0
+		for _, lines in ipairs({ item.enchantModLines, item.implicitModLines, item.explicitModLines, item.crucibleModLines }) do
+			for _, line in ipairs(lines or {}) do
+				for _, mod in ipairs(line.modList or {}) do
+					if mod.name == "FlaskChargeOnCritChance" and mod.type == "BASE" then own = own + mod.value end
+				end
+			end
+		end
+		-- an active flask's mods join the build's (Path of Building applies them all globally); the crit charge mod of a flask
+		-- is local to it in the game, so flask sources are left out of the build's chance
+		local global = 0
+		for _, t in ipairs(modDB:Tabulate("BASE", nil, "FlaskChargeOnCritChance")) do
+			local id = tostring(t.mod.source):match("^Item:(%d+):")
+			local from = id and b.itemsTab.items[tonumber(id)]
+			if not (from and from.base and from.base.flask) then global = global + t.value end
+		end
+		local perCrit = math.min(own + global, 100) / 100
+		local gainMod = fd.gainMod * (1 + modDB:Sum("INC", nil, "FlaskChargesGained") / 100)
+		local generated = (modDB:Sum("BASE", nil, "FlaskChargesGenerated") + modDB:Sum("BASE", nil, "UtilityFlaskChargesGenerated")) * gainMod
+		local speed, hit, crit = out.Speed or 0, (out.HitChance or 100) / 100, (out.CritChance or 0) / 100
+		local critsPerSecond = speed * hit * crit
+		local gained = critsPerSecond * perCrit * gainMod + generated
+		local duration = fd.duration * (1 + modDB:Sum("INC", nil, "FlaskDuration") / 100)
+		local used = fd.chargesUsed * (1 + modDB:Sum("INC", nil, "FlaskChargesUsed") / 100)
+		local consume = 1 - math.min(modDB:Sum("BASE", nil, "FlaskChanceNotConsumeCharges"), 100) / 100
+		local needed = used * consume / duration
+		return {
+			source = "estimate by this API, not Path of Building; any in-game cooldown on charges gained on critical strike is not modelled",
+			chargesGainedPerSecond = gained, chargesNeededPerSecond = needed,
+			estimatedUptime = needed > 0 and math.min(gained / needed, 1) or 1,
+			inputs = { speed = speed, hitChance = hit, critChance = crit, critsPerSecond = critsPerSecond, flaskChanceOnCrit = own,
+				buildChanceOnCrit = global, gainModifier = gainMod, generatedPerSecond = generated, chargesPerUse = used,
+				chanceToConsume = consume, duration = duration },
+		}
+	end
+
 	function ops.tooltip(args)
-		local tab = W.build().itemsTab
+		local b = W.build()
+		local tab = b.itemsTab
 		local item = itemOf(tab, args.item)
-		return { item = item.id, name = W.strip(item.name), lines = W.tooltip(function(t) tab:AddItemTooltip(t, item) end) }
+		return { item = item.id, name = W.strip(item.name), lines = W.tooltip(function(t) tab:AddItemTooltip(t, item) end), uptime = flaskEstimate(b, item) }
 	end
 
 	-- Saves the display item with the Save / Add to build button; a new item goes where `equip` says.

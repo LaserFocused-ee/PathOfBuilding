@@ -329,4 +329,19 @@ void test("tooltip: an item's hover text, a flask's effective stats and uptime",
   assert.deepEqual([t.item, t.name], [flask, "Quicksilver Flask"]);
   assert.deepEqual(t.lines.slice(t.lines.indexOf("Effective flask stats:")), ["Effective flask stats:", "Flask uptime: 0% average, 0% minimum", "Activating this flask will give you:", "+39% Movement Speed Modifier"], "no charges generated per second: uptime 0");
   fails(await srv.call("GET", `/v1/items/${id}/tooltip?item=99`), 404, "not_found");
+
+  // Our uptime estimate with charges gained on critical strike: the flask's own 33% counts for it, not as the build's,
+  // even while the flask is active (Path of Building then adds its mods to the build's).
+  type Uptime = { chargesGainedPerSecond: number; chargesNeededPerSecond: number; estimatedUptime: number; source: string; inputs: { critsPerSecond: number; gainModifier: number; [k: string]: number } };
+  ok(await srv.call("POST", `/v1/skills/${id}/add-group`, { gems: [{ name: "Fireball" }], includeInFullDPS: true }));
+  const surgeon = ok(await post<Brief>(id, "add", { text: "Rarity: MAGIC\nSurgeon's Silver Flask\n33% chance to gain a Flask Charge when you deal a Critical Strike", equip: "Flask 2" })).result.id;
+  ok(await post(id, "set-active", { slot: "Flask 2", active: true }));
+  const u = ok(await srv.call<{ uptime?: Uptime }>("GET", `/v1/items/${id}/tooltip?item=${surgeon}`)).uptime;
+  assert.ok(u && u.inputs.critsPerSecond > 0, JSON.stringify(u));
+  assert.deepEqual([u.inputs.flaskChanceOnCrit, u.inputs.buildChanceOnCrit, u.inputs.chargesPerUse, u.inputs.duration, u.inputs.generatedPerSecond], [33, 0, 40, 7.2, 0]);
+  assert.ok(Math.abs(u.chargesNeededPerSecond - 40 / 7.2) < 1e-9);
+  assert.ok(Math.abs(u.chargesGainedPerSecond - u.inputs.critsPerSecond * 0.33 * u.inputs.gainModifier) < 1e-6);
+  assert.ok(Math.abs(u.estimatedUptime - Math.min(u.chargesGainedPerSecond / u.chargesNeededPerSecond, 1)) < 1e-6);
+  assert.match(u.source, /not Path of Building; any in-game cooldown/);
+  assert.equal(ok(await srv.call<{ uptime?: Uptime }>("GET", `/v1/items/${id}/tooltip?item=${flask}`)).uptime?.inputs.flaskChanceOnCrit, 0, "Quicksilver has no crit charge mod");
 });
