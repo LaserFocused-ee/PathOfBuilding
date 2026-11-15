@@ -120,7 +120,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `skills.gem_tooltip` | S | done | `skills.gem_tooltip`; skills2.test.ts |
 | `skills.gems.find` | H | done | `lookup.gems`; engine.test.ts |
 | `skills.gems.search` | S | done | `lookup.gems`; engine.test.ts |
-| `skills.support_compatible` | H | F3 | Data lookup, not yet routed (`lookup.gems` only filters support gems) |
+| `skills.support_compatible` | H | done | `skills.support_compatible` (on a build holding the skill); lookup-computed.test.ts |
 | `skills.gems.rank` | X | done | `evaluate.gem_rank`; evaluate.test.ts |
 
 ### items and crafting
@@ -242,20 +242,20 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `data.uniques.search` | S | done | `lookup.uniques`; engine.test.ts |
 | `data.rare_templates` | H | done | `lookup.data` (`table`: `rare_templates`); lookup-data.test.ts |
 | `data.bases` | H | done | `lookup.bases`; engine.test.ts |
-| `data.mods_for_base` | S | F3 | Data lookup, not yet routed |
+| `data.mods_for_base` | S | done | `lookup.mods_for_base`; lookup-computed.test.ts |
 | `data.bench_crafts` | H | done | `lookup.data` (`table`: `bench_crafts`); lookup-data.test.ts |
 | `data.essences` / `veiled` / `necropolis` / `beastcraft` / `delve` / `incursion` / `fossil` | H | done | `lookup.data` (`table`: `essences`, `veiled`, `necropolis`, `beastcraft`, `delve`, `incursion`, `fossil`); lookup-data.test.ts |
 | `data.enchantments` | H | done | `lookup.data` (`table`: `enchantments`); lookup-data.test.ts |
 | `data.gems` | H | done | `lookup.gems`; engine.test.ts |
-| `data.support_compatible` | H | F3 | Data lookup, not yet routed |
+| `data.support_compatible` | H | done | `skills.support_compatible` (on a build holding the skill); lookup-computed.test.ts |
 | `data.tree.search` | S | done | `lookup.nodes`; engine.test.ts |
 | `data.cluster_notables` | H | done | `lookup.data` (`table`: `cluster_notables`); lookup-data.test.ts |
 | `data.timeless` | H | F3 | Data lookup, not yet routed |
 | `data.anoint_recipes` | S | done | `lookup.data` (`table`: `anoint_recipes`); lookup-data.test.ts |
 | `data.keystones` / `pantheons` / `map_mods` / `minions` / `bosses` | H | done | `lookup.data` (`table`: `keystones`, `pantheons`, `map_mods`, `minions`, `bosses`); lookup-data.test.ts |
 | `data.spectres` | H | done | `lookup.data` (`table`: `spectres`); lookup-data.test.ts |
-| `data.parse_mod` | H | F3 | Data lookup, not yet routed |
-| `data.describe_stats` | H | F3 | Data lookup, not yet routed |
+| `data.parse_mod` | H | done | `lookup.parse_mod`; lookup-computed.test.ts |
+| `data.describe_stats` | H | done | `lookup.describe_stats`; lookup-computed.test.ts |
 
 ### Counts
 
@@ -264,15 +264,15 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | builds | 30 | 17 | 0 | 9 | 2 | 0 | 2 |
 | import / export | 14 | 9 | 1 | 0 | 0 | 0 | 4 |
 | tree | 27 | 26 | 0 | 0 | 0 | 1 | 0 |
-| skills | 17 | 16 | 0 | 0 | 0 | 1 | 0 |
+| skills | 17 | 17 | 0 | 0 | 0 | 0 | 0 |
 | items and crafting | 30 | 29 | 0 | 0 | 1 | 0 | 0 |
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
 | calcs | 13 | 13 | 0 | 0 | 0 | 0 | 0 |
 | compare and power | 12 | 7 | 0 | 0 | 4 | 1 | 0 |
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 |
-| data | 17 | 12 | 0 | 0 | 0 | 5 | 0 |
-| **Total** | 187 | 146 | 1 | 9 | 9 | 16 | 6 |
+| data | 17 | 16 | 0 | 0 | 0 | 1 | 0 |
+| **Total** | 187 | 151 | 1 | 9 | 9 | 11 | 6 |
 
 ## MCP tools
 

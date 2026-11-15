@@ -15,11 +15,11 @@ GET inputs go in the query string (lists comma-separated); POST and PUT inputs a
 | `pob_build` | no | `list`, `new`, `import_xml`, `import_code`, `import_link`, `characters`, `import_character`, `reimport`, `trash`, `get`, `rename`, `duplicate`, `delete`, `restore`, `revert`, `settings`, `loadout_list`, `loadout_activate`, `loadout_new`, `ui_controls`, `ui_invoke`, `export_xml`, `replace_code`, `export_code`, `save_point`, `history` |
 | `pob_stats` | yes | `sidebar`, `output`, `skills`, `breakdown`, `warnings`, `defences`, `points`, `xp`, `sections`, `versions` |
 | `pob_tree` | no | `get`, `set_class`, `set_ascendancy`, `set_bloodline`, `allocate`, `deallocate`, `reset`, `mastery_options`, `set_mastery`, `remove_tattoos`, `copy_from`, `tattoo_options`, `tattoo`, `untattoo`, `export_url`, `import_url`, `radius_nodes`, `path`, `spec_new`, `spec_copy`, `spec_rename`, `spec_delete`, `spec_activate`, `spec_move`, `convert`, `convert_all` |
-| `pob_skills` | no | `get`, `group_text`, `group_tooltip`, `gem_tooltip`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_skill_options`, `set_spectres`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
+| `pob_skills` | no | `get`, `group_text`, `group_tooltip`, `gem_tooltip`, `support_compatible`, `add_group`, `update_group`, `delete_group`, `move_group`, `set_main`, `set_gem`, `delete_gem`, `set_imbued`, `optimise_sockets`, `set_options`, `set_skill_options`, `set_spectres`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_items` | no | `list`, `get`, `add`, `add_unique`, `add_rare`, `modify`, `edit`, `anoint`, `enchant`, `copy_from`, `craft`, `affix_options`, `influence`, `corrupt`, `add_implicit`, `custom_mod`, `crucible_mod`, `cluster_jewel`, `equip`, `unequip`, `set_active`, `delete`, `weapon_set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` |
 | `pob_config` | no | `get`, `set`, `set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate`, `custom_mods`, `set_custom_mods`, `copy_from`, `party_export`, `notes`, `set_notes`, `party_get`, `party_import`, `party_clear`, `party_set`, `party_effects` |
 | `pob_evaluate` | yes | `what_if`, `passives`, `node_power`, `compare_item`, `jewel_mods`, `timeless`, `gem_rank`, `anoint_rank`, `unique_rank`, `compare_specs`, `compare_item_sets`, `compare_builds`, `compare_power` |
-| `pob_lookup` | yes | `gems`, `uniques`, `bases`, `nodes`, `node`, `config`, `data` |
+| `pob_lookup` | yes | `gems`, `uniques`, `bases`, `nodes`, `node`, `config`, `data`, `mods_for_base`, `parse_mod`, `describe_stats` |
 | `pob_trade` | yes | `search` |
 
 ## Routes
@@ -626,6 +626,15 @@ The hover text of a gem's name box in the Skills tab, as lines of text.
 - Read-only: yes; worker: `skills.gem_tooltip`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"gem":{"type":"integer","minimum":1,"maximum":100,"description":"Gem position in the group, from 1"},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["group","gem","id"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"number"},"gem":{"type":"number"},"name":{"type":"string"},"lines":{"type":"array","items":{"type":"string"}}},"required":["group","gem","name","lines"],"additionalProperties":{}}`
+
+### `GET /v1/skills/:id/support-compatible`
+
+The support gems the gem box offers for an active skill of a socket group, as Path of Building decides what can support it (so this reads a build holding the skill; the gem box's Skills tab options for legacy and exceptional supports apply). `skill` is a position in the group's active skills (default its main one); `query` matches gem names.
+
+- Name: `skills.support_compatible` (MCP `pob_skills` action `support_compatible`)
+- Read-only: yes; worker: `skills.support_compatible`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"integer","minimum":1,"maximum":500,"description":"Socket group number in the group list, from 1"},"skill":{"description":"Active skill position in the group, from 1","type":"integer","minimum":1,"maximum":100},"query":{"type":"string","maxLength":100},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["group","id"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"group":{"type":"number"},"skill":{"type":"string"},"total":{"type":"number"},"offset":{"type":"number"},"gems":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"id":{"type":"string"},"tags":{"type":"array","items":{"type":"string"}}},"required":["name","id","tags"],"additionalProperties":{}}}},"required":["group","skill","total","offset","gems"],"additionalProperties":{}}`
 
 ### `POST /v1/skills/:id/add-group`
 
@@ -1382,3 +1391,30 @@ Page through one of Path of Building's own game-data tables: rare_templates, ben
 - Read-only: yes; worker: `lookup.data`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"table":{"type":"string","enum":["rare_templates","bench_crafts","essences","veiled","necropolis","beastcraft","delve","incursion","fossil","enchantments","cluster_notables","anoint_recipes","keystones","pantheons","map_mods","minions","spectres","bosses"]},"query":{"type":"string","maxLength":100},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}},"required":["table"]}`
 - Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"table":{"type":"string"},"total":{"type":"number"},"offset":{"type":"number"},"rows":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":{}}}},"required":["table","total","offset","rows"],"additionalProperties":{}}`
+
+### `GET /v1/lookup/mods-for-base`
+
+The mods a rare item of a base can roll, as the affix boxes of the Items tab list them: those the base can have with a spawn weight above 0, at most the item level (default 100), sorted by type, group, level. `influence` adds the mods of an influence the base can take (Shaper, Elder, Warlord, Hunter, Crusader, Redeemer, Searing Exarch, Eater of Worlds); `query` matches the mod text.
+
+- Name: `lookup.mods_for_base` (MCP `pob_lookup` action `mods_for_base`)
+- Read-only: yes; worker: `lookup.mods_for_base`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"base":{"type":"string","minLength":1,"maxLength":200,"description":"Base type name, e.g. Vaal Regalia"},"ilvl":{"description":"Item level (default 100)","type":"integer","minimum":1,"maximum":100},"type":{"type":"string","enum":["Prefix","Suffix"]},"influence":{"type":"string","minLength":1,"maxLength":50},"query":{"type":"string","maxLength":100},"limit":{"description":"Result cap (1-200)","type":"integer","minimum":1,"maximum":200},"offset":{"description":"Skip this many results (paging with limit)","type":"integer","minimum":0,"maximum":100000},"buildId":{"description":"Answer in the context of this build (tree version, relevance); default: an empty build on the latest tree","type":"string","pattern":"^[a-f0-9]{16}$"}},"required":["base"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"base":{"type":"string"},"ilvl":{"type":"number"},"total":{"type":"number"},"offset":{"type":"number"},"mods":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"id":{"type":"string"},"type":{"type":"string"},"affix":{"type":"string"},"level":{"type":"number"},"group":{"type":"string"},"weight":{"type":"number"},"lines":{"type":"array","items":{"type":"string"}}},"required":["name","id","type","level","weight","lines"],"additionalProperties":{}}}},"required":["base","ilvl","total","offset","mods"],"additionalProperties":{}}`
+
+### `POST /v1/lookup/parse-mod`
+
+What the calculator makes of mod lines: per line the mods it parses to (name, type, value, flags, keywordFlags, tags) and any text it could not read; `supported` is true when the whole line was read. Nothing is stored.
+
+- Name: `lookup.parse_mod` (MCP `pob_lookup` action `parse_mod`)
+- Read-only: yes; worker: `lookup.parse_mod`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"lines":{"minItems":1,"maxItems":50,"type":"array","items":{"type":"string","maxLength":500}}},"required":["lines"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"lines":{"type":"array","items":{"type":"object","properties":{"line":{"type":"string"},"mods":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"type":{"type":"string"},"value":{},"flags":{"type":"number"},"keywordFlags":{"type":"number"},"tags":{"type":"array","items":{}}},"required":["name","type","value","flags","keywordFlags","tags"],"additionalProperties":{}}},"extra":{"type":["string","null"]},"supported":{"type":"boolean"}},"required":["line","mods","extra","supported"],"additionalProperties":{}}}},"required":["lines"],"additionalProperties":{}}`
+
+### `POST /v1/lookup/describe-stats`
+
+The game text for raw stat values (stat id to number), as the passive tree and gem descriptions are written. `scope` names a description set (default stat_descriptions; the sets the gems use are accepted, others fail). Nothing is stored.
+
+- Name: `lookup.describe_stats` (MCP `pob_lookup` action `describe_stats`)
+- Read-only: yes; worker: `lookup.describe_stats`
+- Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"stats":{"type":"object","propertyNames":{"type":"string","minLength":1,"maxLength":100},"additionalProperties":{"type":"number"}},"scope":{"type":"string","minLength":1,"maxLength":100}},"required":["stats"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"scope":{"type":"string"},"lines":{"type":"array","items":{"type":"string"}}},"required":["scope","lines"],"additionalProperties":{}}`

@@ -354,5 +354,80 @@ return function(W)
 		return { table = args.table, total = #list, offset = offset, rows = out }
 	end
 
+	local function array() return setmetatable({}, { __jsontype = "array" }) end
+
+	-- args: base, ilvl? (default 100), type? (Prefix or Suffix), influence? (an Influence dropdown entry, e.g. Shaper), query?, offset?, limit?
+	-- The mods a rare of this base can roll: the affix pool the Items tab's affix boxes draw from (ItemsTab:UpdateAffixControl),
+	-- in force when CanHaveMod holds and the base's spawn weight is above 0, up to the item level.
+	function ops.mods_for_base(args)
+		if not data.itemBases[args.base] then W.fail("not_found", "no item base " .. tostring(args.base)) end
+		if args.type ~= nil and args.type ~= "Prefix" and args.type ~= "Suffix" then W.fail("invalid_input", "type is Prefix or Suffix") end
+		local item = new("Item"):Item("Rarity: RARE\nX\n" .. args.base)
+		if not item.base or not item.affixes then W.fail("not_found", args.base .. " has no mods to roll") end
+		if args.influence ~= nil then
+			-- The Influence dropdowns' entries for this item (ItemsTab.lua:2133).
+			local eldritch = item.canHaveEldritchInfluence or item.type == "Helmet" or item.type == "Body Armour" or item.type == "Gloves" or item.type == "Boots"
+			local key
+			for _, info in ipairs(itemLib.influenceInfo[eldritch and "all" or "default"]) do
+				if info.display:lower() == args.influence:lower() or info.key == args.influence:lower() then key = info.key end
+			end
+			if not item.canBeInfluenced or not key then W.fail("invalid_input", args.base .. " cannot take the influence " .. args.influence) end
+			item[key] = true
+		end
+		local ilvl = tonumber(args.ilvl) or 100
+		local list = {}
+		for id, mod in pairs(item.affixes) do
+			if (mod.type == "Prefix" or mod.type == "Suffix") and (args.type == nil or mod.type == args.type) and (mod.level or 0) <= ilvl
+				and not item:CheckIfModIsDelve(mod) and item:CanHaveMod(mod) then
+				local row = modRow(id, mod)
+				row.weight, row.tags = item:GetModSpawnWeight(mod), nil
+				if row.weight > 0 and has(row.name, args.query) then list[#list + 1] = row end
+			end
+		end
+		table.sort(list, function(a, b)
+			if a.type ~= b.type then return a.type < b.type end
+			if a.group ~= b.group then return (a.group or "") < (b.group or "") end
+			if a.level ~= b.level then return a.level < b.level end
+			return a.id < b.id
+		end)
+		local out, offset, limit = {}, pageOf(args, 20)
+		for i = offset + 1, math.min(#list, offset + limit) do out[#out + 1] = list[i] end
+		return { base = args.base, ilvl = ilvl, total = #list, offset = offset, mods = out }
+	end
+
+	-- args: lines (the text of mod lines). Each line as the calculator reads it (modLib.parseMod): the mods it makes and the
+	-- text left over that it could not read.
+	function ops.parse_mod(args)
+		local out = array()
+		for i, line in ipairs(args.lines) do
+			local modList, extra = modLib.parseMod(line)
+			local mods = array()
+			for _, mod in ipairs(modList or {}) do
+				local tags = array()
+				for j, tag in ipairs(mod) do tags[j] = W.plain(tag) end
+				mods[#mods + 1] = { name = mod.name, type = mod.type, value = W.plain(mod.value), flags = mod.flags, keywordFlags = mod.keywordFlags, tags = tags }
+			end
+			out[i] = { line = line, mods = mods, extra = extra or W.json.null, supported = modList ~= nil and extra == nil }
+		end
+		return { lines = out }
+	end
+
+	-- The scopes describeStats may load: the one the application's own descriptions use and the one each skill names.
+	local statScopes
+	-- args: stats ([stat id]: number), scope? (default stat_descriptions). The game text for stat values (data.describeStats).
+	function ops.describe_stats(args)
+		if not statScopes then
+			statScopes = { stat_descriptions = true }
+			for _, skill in pairs(data.skills) do
+				if skill.statDescriptionScope then statScopes[skill.statDescriptionScope] = true end
+			end
+		end
+		local scope = args.scope or "stat_descriptions"
+		if not statScopes[scope] then W.fail("invalid_input", "no stat description scope " .. tostring(scope) .. "; scopes: " .. table.concat(sortedKeys(statScopes), ", ")) end
+		local lines = array()
+		for i, line in ipairs((data.describeStats(args.stats, scope))) do lines[i] = strip(line) end
+		return { scope = scope, lines = lines }
+	end
+
 	return ops
 end
