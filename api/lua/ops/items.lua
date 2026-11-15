@@ -353,7 +353,8 @@ return function(W)
 
 	-- args: base (base type name), rarity? ("NORMAL" | "MAGIC" | "RARE"; default RARE), title?, affixes? ([{ slot (1-based affix box),
 	-- mod (text of the choice), roll? 0..1 across its tiers }]), equip?. The Craft item... popup, then the affix boxes.
-	ops.craft = W.mutation(function(args, b)
+	-- The Craft item... popup on a base, then the affix boxes: the display item, not yet added.
+	local function craftBase(b, args)
 		local tab = b.itemsTab
 		local base = b.data.itemBases[args.base]
 		if not base then W.fail("invalid_input", "unknown item base " .. tostring(args.base)) end
@@ -381,8 +382,72 @@ return function(W)
 			if not item.crafted then W.fail("invalid_input", "this base has no affix boxes") end
 			setAffix(tab, a.slot, a.mod, a.roll)
 		end
-		return describe(tab, save(tab, args.equip), true)
+		return item
+	end
+
+	ops.craft = W.mutation(function(args, b)
+		craftBase(b, args)
+		return describe(b.itemsTab, save(b.itemsTab, args.equip), true)
 	end)
+
+	-- args: base, rarity?, affixes? (as craft: filled first, so their groups are excluded as the boxes do), slots? (affix boxes to
+	-- list; default every empty one), sort? (a Modifier sorting entry, e.g. Full DPS), limit? (choices per box). The choices in
+	-- each affix box of a base crafted on the Items tab, in the box's order; with `sort`, best first by that stat for the build
+	-- (UpdateAffixControl's power sort, the mid tier of each choice measured in its slot) and `value` is that stat with it.
+	-- Nothing is added to the build.
+	function ops.affix_options(args)
+		local b = W.build()
+		local tab = b.itemsTab
+		local sorting = tab.controls.craftingSorting
+		local keep = { item = tab.displayItem, sort = sorting.selIndex }
+		local ok, out = pcall(function()
+			local item = craftBase(b, args)
+			if not item.crafted then W.fail("invalid_input", args.base .. " has no affix boxes at this rarity") end
+			if args.sort ~= nil then
+				if tab.controls.craftingSortingLabel.shown() ~= true then W.fail("invalid_input", "this base has no modifier sorting (cluster jewels)") end
+				sorting.selIndex = choose(sorting.list, args.sort, "modifier sorting")
+			end
+			local stat = sorting.list[sorting.selIndex]
+			local prefixLimit = item.prefixes.limit or (item.affixLimit / 2)
+			local wanted = {}
+			for _, i in ipairs(args.slots or {}) do wanted[i] = true end
+			local cache, boxes = {}, {}
+			for i = 1, item.affixLimit do
+				local isPrefix = i <= prefixLimit
+				local list, index = isPrefix and "prefixes" or "suffixes", isPrefix and i or i - prefixLimit
+				local current = item[list][index] and item[list][index].modId or "None"
+				if (args.slots and wanted[i]) or (not args.slots and current == "None") then
+					if current ~= "None" then W.fail("invalid_input", "affix box " .. i .. " is filled; list only empty boxes") end
+					local control = tab.controls["displayItemAffix" .. i]
+					local modType = (isPrefix and not (item.rareLikeUnique and item.rareLikeUnique.ignoreModType)) and "Prefix" or (not isPrefix and "Suffix" or nil)
+					tab:UpdateAffixControl(control, item, modType, list, index, cache)
+					local choices = {}
+					for j = 2, #control.list do
+						if args.limit and #choices >= args.limit then break end
+						local e = control.list[j]
+						local mid = e.modList[#e.modList == 1 and 1 or 1 + round((#e.modList - 1) * main.defaultItemAffixQuality)] -- the tier the sort measures
+						local tiers = {}
+						for _, id in ipairs(e.modList) do
+							local mod = item.affixes[id]
+							tiers[#tiers + 1] = { id = id, text = table.concat(mod, " / "), level = mod.level }
+						end
+						choices[#choices + 1] = { text = W.strip(e.label), value = stat.stat and cache[mid] or W.json.null, tiers = tiers }
+					end
+					boxes[#boxes + 1] = { slot = i, type = isPrefix and "Prefix" or "Suffix", choices = setmetatable(choices, { __jsontype = "array" }) }
+				end
+			end
+			if args.slots then
+				for _, i in ipairs(args.slots) do
+					if i < 1 or i > item.affixLimit then W.fail("invalid_input", "no affix box " .. i .. "; this base has " .. item.affixLimit) end
+				end
+			end
+			return { base = item.baseName, rarity = item.rarity, sort = stat.label, boxes = setmetatable(boxes, { __jsontype = "array" }) }
+		end)
+		sorting.selIndex = keep.sort
+		tab:SetDisplayItem(keep.item)
+		if not ok then error(out, 0) end
+		return out
+	end
 
 	-- args: item, influences ([name]: 0 to 2 of the Influence dropdowns' entries, e.g. Shaper, Elder, Searing Exarch; [] clears).
 	ops.influence = W.mutation(function(args, b)

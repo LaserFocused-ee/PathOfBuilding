@@ -185,3 +185,29 @@ void test("cluster_jewel: skill and passive count set on a socketed Small Cluste
   fails(await post(id, "cluster-jewel", { item: plain, nodes: 3 }), 400, "invalid_input");
   assert.equal(await revisionOf(id), rev);
 });
+
+void test("affix_options lists each affix box's choices for a base; sorted by a stat, best first with the stat's value; nothing is added", async () => {
+  type Options = { base: string; rarity: string; sort: string; boxes: Array<{ slot: number; type: string; choices: Array<{ text: string; value: number | null; tiers: Array<{ id: string; text: string; level: number }> }> }> };
+  const id = await newWitch();
+  const rev = await revisionOf(id);
+  assert.equal((await output(id, "Life")).Life, 1125);
+  const all = ok(await srv.call<Options>("POST", `/v1/items/${id}/affix-options`, { base: "Vaal Regalia", limit: 3 }));
+  assert.deepEqual([all.base, all.rarity, all.sort, all.boxes.map((b) => [b.slot, b.type, b.choices.length])], ["Vaal Regalia", "RARE", "Default", [[1, "Prefix", 3], [2, "Prefix", 3], [3, "Prefix", 3], [4, "Suffix", 3], [5, "Suffix", 3], [6, "Suffix", 3]]]);
+  assert.deepEqual(all.boxes[0]?.choices[0]?.tiers.slice(0, 2), [{ id: "LocalIncreasedEnergyShield1", text: "+(3-5) to maximum Energy Shield", level: 3 }, { id: "LocalIncreasedEnergyShield2", text: "+(6-11) to maximum Energy Shield", level: 11 }]);
+  assert.ok(all.boxes.every((b) => b.choices.every((c) => c.value === null)), "no value without a sort");
+  // Flat Energy Shield in box 2 takes its group out of box 1; by Life, flat Life is the best prefix. Each choice is measured
+  // at its mid tier (Item Affix Quality 0.5): +(85-99) Life is +92, the hybrid's +(29-33) Life is +31.
+  const byLife = ok(await srv.call<Options>("POST", `/v1/items/${id}/affix-options`, { base: "Vaal Regalia", sort: "Life", slots: [1, 4], affixes: [{ slot: 2, mod: "+# to maximum Energy Shield" }], limit: 4 }));
+  assert.deepEqual([byLife.sort, byLife.boxes.map((b) => b.slot)], ["Life", [1, 4]]);
+  const prefixes = byLife.boxes[0]?.choices ?? [];
+  assert.deepEqual(prefixes.slice(0, 2).map((c) => [c.text, c.value, c.tiers.length]), [["+# to maximum Life", 1125 + 92, 13], ["+# to maximum Energy Shield/+# to maximum Life", 1125 + 31, 4]]);
+  assert.ok(!prefixes.some((c) => c.text === "+# to maximum Energy Shield"), "box 2's group is not offered again");
+  assert.ok(prefixes.every((c, i) => i === 0 || (c.value ?? 0) <= (prefixes[i - 1]?.value ?? 0)), "best first");
+  for (const body of [
+    { base: "Vaal Regalia", slots: [2], affixes: [{ slot: 2, mod: "+# to maximum Energy Shield" }] },
+    { base: "Vaal Regalia", sort: "No Such Stat" },
+    { base: "No Such Base" },
+  ]) fails(await srv.call("POST", `/v1/items/${id}/affix-options`, body), 400, "invalid_input");
+  assert.equal(await revisionOf(id), rev, "nothing added to the build");
+  assert.deepEqual((await srv.call<{ items: unknown[] }>("GET", `/v1/items/${id}/list`)).body.result.items, []);
+});

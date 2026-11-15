@@ -140,7 +140,7 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `items.catalyst` | S | done | `items.modify`; items.test.ts |
 | `items.influence` | S | done | `items.influence`; items2.test.ts |
 | `items.craft_new` | S | done | `items.craft`; items.test.ts |
-| `items.affixes.options` | S | open | No listing of affix choices; `items.craft` matches a mod by its text |
+| `items.affixes.options` | S | done | `items.affix_options` (each affix box's choices and tiers on a crafted base; with `sort`, best first for the build); items2.test.ts |
 | `items.affixes.set` | S | done | `items.craft` (new items); an existing item changes through `items.edit`; items.test.ts |
 | `items.custom_mod` | S | done | `items.custom_mod`; items2.test.ts |
 | `items.crucible_mod` | S | done | `items.crucible_mod`; items2.test.ts |
@@ -265,14 +265,14 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
 | tree | 27 | 25 | 0 | 0 | 0 | 1 | 1 |
 | skills | 17 | 14 | 0 | 0 | 0 | 1 | 2 |
-| items and crafting | 30 | 26 | 0 | 0 | 0 | 0 | 4 |
+| items and crafting | 30 | 27 | 0 | 0 | 0 | 0 | 3 |
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
 | calcs | 13 | 12 | 0 | 0 | 0 | 0 | 1 |
 | compare and power | 12 | 4 | 0 | 0 | 4 | 1 | 3 |
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 7 | 0 | 0 | 2 | 0 | 1 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 125 | 1 | 9 | 8 | 24 | 20 |
+| **Total** | 187 | 126 | 1 | 9 | 8 | 24 | 19 |
 
 ## MCP tools
 
