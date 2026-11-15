@@ -263,10 +263,6 @@ return {
 			},
 		},
 		["1059_ChaosDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 1.5,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -1008,10 +1004,6 @@ return {
 			},
 		},
 		["1315_ChaosResistance"] = {
-			["AbyssJewel"] = {
-				["max"] = 3,
-				["min"] = 1,
-			},
 			["Amulet"] = {
 				["max"] = 29,
 				["min"] = 19,
@@ -1526,10 +1518,6 @@ return {
 			},
 		},
 		["1546_ReducedChillDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -1540,10 +1528,6 @@ return {
 			},
 		},
 		["1547_ReducedShockDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -1554,10 +1538,6 @@ return {
 			},
 		},
 		["1548_ReducedFreezeDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -1568,10 +1548,6 @@ return {
 			},
 		},
 		["1549_ReducedBurnDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -1971,10 +1947,6 @@ return {
 			},
 		},
 		["1731_ActorSize"] = {
-			["AbyssJewel"] = {
-				["max"] = -1,
-				["min"] = -1,
-			},
 			["inverseKey"] = "reduced",
 			["specialCaseData"] = {
 			},
@@ -2330,10 +2302,6 @@ return {
 			},
 		},
 		["1908_ReducedReservationForJewel"] = {
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -2825,6 +2793,484 @@ return {
 				["type"] = "implicit",
 			},
 		},
+		["250_DisplaySocketedGemGetsElementalProliferation"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_3828086965",
+				["text"] = "Socketed Gems are Supported by Level # Elemental Proliferation Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_DisplaySocketedGemGetsIncreasedAreaOfEffectLevel"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_3737592146",
+				["text"] = "Socketed Gems are Supported by Level # Increased Area of Effect Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_DisplaySocketedGemsGetAddedChaosDamage"] = {
+			["2HSword"] = {
+				["max"] = 17,
+				["min"] = 17,
+			},
+			["2HWeapon"] = {
+				["max"] = 17,
+				["min"] = 17,
+			},
+			["Bow"] = {
+				["max"] = 17,
+				["min"] = 17,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_1673391040",
+				["text"] = "Socketed Gems are Supported by Level # Added Chaos Damage Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_DisplaySocketedGemsGetAddedFireDamage"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_1571191461",
+				["text"] = "Socketed Gems are Supported by Level # Added Fire Damage Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_DisplaySocketedGemsGetFasterCast"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_1324938267",
+				["text"] = "Socketed Gems are Supported by Level # Faster Casting Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SocketedGemsSupportedByLifetap"] = {
+			["2HAxe"] = {
+				["max"] = 1,
+				["min"] = 1,
+			},
+			["2HWeapon"] = {
+				["max"] = 1,
+				["min"] = 1,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_265550805",
+				["text"] = "Socketed Gems are Supported by Level # Lifetap Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByAccuracy"] = {
+			["2HSword"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_338557223",
+				["text"] = "Socketed Gems are Supported by Level # Additional Accuracy Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByAreaOfEffect"] = {
+			["2HMace"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Staff"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_3737592146",
+				["text"] = "Socketed Gems are Supported by Level # Increased Area of Effect Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByBlind"] = {
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Bow"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_3972941836",
+				["text"] = "Socketed Gems are Supported by Level # Blind Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByCastOnCrit"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_4267977279",
+				["text"] = "Socketed Gems are Supported by Level # Cast On Critical Strike Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByCastOnStun"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_3474714415",
+				["text"] = "Socketed Gems are Supported by Level # Cast when Stunned Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByChain"] = {
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Bow"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_3009566559",
+				["text"] = "Socketed Gems are Supported by Level # Chain Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByCriticalMultiplier"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_4278342035",
+				["text"] = "Socketed Gems are Supported by Level # Increased Critical Damage Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByCruelty"] = {
+			["2HAxe"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HMace"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Staff"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_2251567057",
+				["text"] = "Socketed Gems are Supported by Level # Cruelty Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByElementalPenetration"] = {
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Staff"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_3232631539",
+				["text"] = "Socketed Gems are Supported by Level # Elemental Penetration Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByFork"] = {
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Bow"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_3553187279",
+				["text"] = "Socketed Gems are Supported by Level # Fork Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByFortify"] = {
+			["2HAxe"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HMace"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HSword"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_3543464371",
+				["text"] = "Socketed Gems are Supported by Level # Fortify Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByImpale"] = {
+			["2HAxe"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HSword"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_3419961156",
+				["text"] = "Socketed Gems are Supported by Level # Impale Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByLifeGainOnHit"] = {
+			["2HAxe"] = {
+				["max"] = 15,
+				["min"] = 15,
+			},
+			["2HWeapon"] = {
+				["max"] = 15,
+				["min"] = 15,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_4282732147",
+				["text"] = "Socketed Gems are Supported by Level # Life Gain on Hit Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByLifeLeech"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_2713755048",
+				["text"] = "Socketed Gems are Supported by Level # Life Leech Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByMeleeSplash"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_682681978",
+				["text"] = "Socketed Gems are Supported by Level # Melee Splash Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByMultipleProjectiles"] = {
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Bow"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Staff"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_1153652646",
+				["text"] = "Socketed Gems are Supported by Level # Multiple Projectiles Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByMultistrike"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_2100902429",
+				["text"] = "Socketed Gems are Supported by Level # Multistrike Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByOnslaught"] = {
+			["2HAxe"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HMace"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HSword"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Bow"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_3893320621",
+				["text"] = "Socketed Gems are Supported by Level # Momentum Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByProjectileSpeed"] = {
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Bow"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_1770376530",
+				["text"] = "Socketed Gems are Supported by Level # Faster Projectiles Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByRage"] = {
+			["2HAxe"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HMace"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_3512123051",
+				["text"] = "Socketed Gems are Supported by Level # Rage Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByReducedMana"] = {
+			["2HAxe"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HMace"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_859488427",
+				["text"] = "Socketed Gems are Supported by Level # Inspiration Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByStun"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_1878151040",
+				["text"] = "Socketed Gems are Supported by Level # Stun Support",
+				["type"] = "implicit",
+			},
+		},
+		["250_SupportedByWeaponElementalDamage"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "implicit.effect_468251502",
+				["text"] = "Socketed Gems are Supported by Level # Elemental Damage with Attacks Support",
+				["type"] = "implicit",
+			},
+		},
 		["2543_FishingQuantity"] = {
 			["FishingRod"] = {
 				["max"] = 10,
@@ -3010,10 +3456,6 @@ return {
 			},
 		},
 		["2720_ChargeDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 7,
-				["min"] = 3,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3059,10 +3501,6 @@ return {
 			},
 		},
 		["2789_VaalSkillDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 5,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3073,10 +3511,6 @@ return {
 			},
 		},
 		["2790_DamageWhileDead"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3087,10 +3521,6 @@ return {
 			},
 		},
 		["2793_ChaosDamagePerCorruptedItem"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3101,10 +3531,6 @@ return {
 			},
 		},
 		["2794_LifeLeechRatePerCorruptedItem"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3115,10 +3541,6 @@ return {
 			},
 		},
 		["2796_ManaLeechRatePerCorrupteditem"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -3129,10 +3551,6 @@ return {
 			},
 		},
 		["2826_ChanceToTakeCriticalStrike"] = {
-			["AbyssJewel"] = {
-				["max"] = 100,
-				["min"] = 60,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -15098,10 +15516,6 @@ return {
 			},
 		},
 		["1029_FireDamagePercentagePrefix"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -15440,10 +15854,6 @@ return {
 			},
 		},
 		["1031_GlobalAddedFireDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 23,
-			},
 			["Gloves"] = {
 				["max"] = 30,
 				["min"] = 23,
@@ -16040,10 +16450,6 @@ return {
 			},
 		},
 		["1038_ColdDamagePercentagePrefix"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -16368,10 +16774,6 @@ return {
 			},
 		},
 		["1040_GlobalAddedColdDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 23,
-			},
 			["Gloves"] = {
 				["max"] = 30,
 				["min"] = 23,
@@ -17007,10 +17409,6 @@ return {
 			},
 		},
 		["1049_LightningDamagePercentagePrefix"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -17339,10 +17737,6 @@ return {
 			},
 		},
 		["1051_GlobalAddedLightningDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 30.5,
-				["min"] = 24.5,
-			},
 			["Gloves"] = {
 				["max"] = 30.5,
 				["min"] = 24.5,
@@ -17915,10 +18309,6 @@ return {
 			},
 		},
 		["1057_IncreasedChaosDamagePrefix"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -18135,10 +18525,6 @@ return {
 			},
 		},
 		["1058_GlobalAddedChaosDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 25,
-				["min"] = 18,
-			},
 			["Gloves"] = {
 				["max"] = 25,
 				["min"] = 18,
@@ -20541,7 +20927,7 @@ return {
 		["1105_IncreasedAccuracy"] = {
 			["AbyssJewel"] = {
 				["max"] = 300,
-				["min"] = 10,
+				["min"] = 31,
 			},
 			["Amulet"] = {
 				["max"] = 480,
@@ -22903,10 +23289,6 @@ return {
 			},
 		},
 		["1212_LocalPhysicalDamageReductionRatingPercentSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Armour",
@@ -23226,10 +23608,6 @@ return {
 			},
 		},
 		["1220_LocalEvasionRatingIncreasePercentSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Evasion Rating",
@@ -23334,10 +23712,6 @@ return {
 			},
 		},
 		["1222_LocalArmourAndEnergyShieldSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Armour and Energy Shield",
@@ -23442,10 +23816,6 @@ return {
 			},
 		},
 		["1223_LocalArmourAndEvasionSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Armour and Evasion",
@@ -23550,10 +23920,6 @@ return {
 			},
 		},
 		["1224_LocalEvasionAndEnergyShieldSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Evasion and Energy Shield",
@@ -23626,10 +23992,6 @@ return {
 			},
 		},
 		["1225_LocalArmourAndEvasionAndEnergyShieldSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Armour, Evasion and Energy Shield",
@@ -24029,10 +24391,6 @@ return {
 			},
 		},
 		["1230_LocalEnergyShieldPercentSuffix"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 				["overrideModLine"] = "#% increased Energy Shield",
@@ -24487,10 +24845,6 @@ return {
 			},
 		},
 		["1241_LifeAndPercentLife"] = {
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 15,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -24885,10 +25239,6 @@ return {
 			},
 		},
 		["1243_LifeAndPercentLife"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 2,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -25683,10 +26033,6 @@ return {
 			},
 		},
 		["1253_MaximumManaIncreasePercent"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 15,
 				["min"] = 10,
@@ -25790,10 +26136,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 0.8,
 				["min"] = 0.7,
-			},
-			["AbyssJewel"] = {
-				["max"] = 0.5,
-				["min"] = 0.5,
 			},
 			["Dagger"] = {
 				["max"] = 0.4,
@@ -26149,10 +26491,6 @@ return {
 			},
 		},
 		["1259_ManaRecoveryRate"] = {
-			["AbyssJewel"] = {
-				["max"] = 12,
-				["min"] = 8,
-			},
 			["Amulet"] = {
 				["max"] = 12,
 				["min"] = 8,
@@ -26529,10 +26867,6 @@ return {
 			},
 		},
 		["1289_MinionGlobalSkillLevel"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Boots"] = {
 				["max"] = 2,
 				["min"] = 1,
@@ -27313,10 +27647,6 @@ return {
 			},
 		},
 		["1315_ChaosResistancePrefix"] = {
-			["AbyssJewel"] = {
-				["max"] = 35,
-				["min"] = 20,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -27569,10 +27899,6 @@ return {
 			},
 		},
 		["1340_PhysicalDamageLifeLeechPermyriad"] = {
-			["AbyssJewel"] = {
-				["max"] = 0.2,
-				["min"] = 0.2,
-			},
 			["Amulet"] = {
 				["max"] = 0.5,
 				["min"] = 0.3,
@@ -27601,10 +27927,6 @@ return {
 			},
 		},
 		["1344_FireDamageLifeLeechPermyriad"] = {
-			["AbyssJewel"] = {
-				["max"] = 0.2,
-				["min"] = 0.2,
-			},
 			["Amulet"] = {
 				["max"] = 0.5,
 				["min"] = 0.3,
@@ -27661,10 +27983,6 @@ return {
 			},
 		},
 		["1349_ColdDamageLifeLeechPermyriad"] = {
-			["AbyssJewel"] = {
-				["max"] = 0.2,
-				["min"] = 0.2,
-			},
 			["Amulet"] = {
 				["max"] = 0.5,
 				["min"] = 0.3,
@@ -27721,10 +28039,6 @@ return {
 			},
 		},
 		["1353_LightningDamageLifeLeechPermyriad"] = {
-			["AbyssJewel"] = {
-				["max"] = 0.2,
-				["min"] = 0.2,
-			},
 			["Amulet"] = {
 				["max"] = 0.5,
 				["min"] = 0.3,
@@ -27781,10 +28095,6 @@ return {
 			},
 		},
 		["1356_ChaosDamageLifeLeechPermyriad"] = {
-			["AbyssJewel"] = {
-				["max"] = 0.2,
-				["min"] = 0.2,
-			},
 			["Amulet"] = {
 				["max"] = 0.5,
 				["min"] = 0.3,
@@ -27944,10 +28254,6 @@ return {
 			},
 		},
 		["1396_EnergyShieldLeechPermyriad"] = {
-			["AbyssJewel"] = {
-				["max"] = 0.3,
-				["min"] = 0.3,
-			},
 			["Gloves"] = {
 				["max"] = 0.3,
 				["min"] = 0.3,
@@ -28166,10 +28472,6 @@ return {
 			},
 		},
 		["1418_ManaGainPerTarget"] = {
-			["AbyssJewel"] = {
-				["max"] = 4,
-				["min"] = 2,
-			},
 			["Gloves"] = {
 				["max"] = 5,
 				["min"] = 2,
@@ -28604,10 +28906,6 @@ return {
 			},
 		},
 		["1440_MinionLife"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Belt"] = {
 				["max"] = 30,
 				["min"] = 13,
@@ -28710,10 +29008,6 @@ return {
 			},
 		},
 		["1443_MinionRunSpeed"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 15,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 13,
@@ -30254,10 +30548,6 @@ return {
 			},
 		},
 		["1541_SelfStatusAilmentDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Boots"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -30694,10 +30984,6 @@ return {
 			},
 		},
 		["1557_ManaCostReduction"] = {
-			["AbyssJewel"] = {
-				["max"] = 6,
-				["min"] = 4,
-			},
 			["Ring"] = {
 				["max"] = 6,
 				["min"] = 4,
@@ -30751,10 +31037,6 @@ return {
 				["min"] = 1,
 			},
 			["2HWeapon"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
-			["AbyssJewel"] = {
 				["max"] = 1,
 				["min"] = 1,
 			},
@@ -31280,10 +31562,6 @@ return {
 				["max"] = 1,
 				["min"] = 1,
 			},
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Boots"] = {
 				["max"] = 1,
 				["min"] = 1,
@@ -31389,10 +31667,6 @@ return {
 				["min"] = 1,
 			},
 			["2HWeapon"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
-			["AbyssJewel"] = {
 				["max"] = 1,
 				["min"] = 1,
 			},
@@ -32537,7 +32811,7 @@ return {
 		},
 		["1618_LifeRegenerationRatePercentage"] = {
 			["AbyssJewel"] = {
-				["max"] = 1,
+				["max"] = 0.3,
 				["min"] = 0.3,
 			},
 			["Amulet"] = {
@@ -32977,7 +33251,7 @@ return {
 		},
 		["1647_MinionDamage"] = {
 			["AbyssJewel"] = {
-				["max"] = 30,
+				["max"] = 16,
 				["min"] = 14,
 			},
 			["Gloves"] = {
@@ -33116,10 +33390,6 @@ return {
 			},
 			["2HWeapon"] = {
 				["max"] = 144,
-				["min"] = 30,
-			},
-			["AbyssJewel"] = {
-				["max"] = 130,
 				["min"] = 30,
 			},
 			["Bow"] = {
@@ -33267,10 +33537,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 94,
 				["min"] = 37,
-			},
-			["AbyssJewel"] = {
-				["max"] = 120,
-				["min"] = 19,
 			},
 			["Belt"] = {
 				["max"] = 30,
@@ -33432,10 +33698,6 @@ return {
 				["max"] = 2,
 				["min"] = 1,
 			},
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
-			},
 			["Boots"] = {
 				["max"] = 2,
 				["min"] = 2,
@@ -33562,10 +33824,6 @@ return {
 				["max"] = 2,
 				["min"] = 1,
 			},
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
-			},
 			["Boots"] = {
 				["max"] = 2,
 				["min"] = 2,
@@ -33609,10 +33867,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 2,
 				["min"] = 1,
-			},
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
 			},
 			["Boots"] = {
 				["max"] = 2,
@@ -34435,10 +34689,6 @@ return {
 				["max"] = 2,
 				["min"] = 1,
 			},
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
-			},
 			["Boots"] = {
 				["max"] = 2,
 				["min"] = 2,
@@ -34688,10 +34938,6 @@ return {
 			},
 		},
 		["1733_GlobalFlaskLifeRecovery"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -36041,10 +36287,6 @@ return {
 			},
 		},
 		["1856_IgnoreArmourMovementPenalties"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Helmet"] = {
 				["max"] = 1,
 				["min"] = 1,
@@ -36290,10 +36532,6 @@ return {
 			},
 		},
 		["1903_ManaReservationEfficiency"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 10,
-			},
 			["Amulet"] = {
 				["max"] = 14,
 				["min"] = 4,
@@ -36338,10 +36576,6 @@ return {
 			},
 		},
 		["1907_ReducedReservation"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 8,
-			},
 			["Amulet"] = {
 				["max"] = 14,
 				["min"] = 12,
@@ -36472,10 +36706,6 @@ return {
 			},
 		},
 		["1910_FlatPhysicalDamageTaken"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 34,
-			},
 			["Chest"] = {
 				["max"] = 50,
 				["min"] = 34,
@@ -36690,10 +36920,6 @@ return {
 			},
 		},
 		["1950_ReducedPhysicalDamageTaken"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["Chest"] = {
 				["max"] = 8,
 				["min"] = 2,
@@ -37647,10 +37873,6 @@ return {
 			},
 		},
 		["2174_AddedPhysicalDamageVsBleedingEnemies"] = {
-			["AbyssJewel"] = {
-				["max"] = 14.5,
-				["min"] = 9.5,
-			},
 			["Gloves"] = {
 				["max"] = 14.5,
 				["min"] = 9.5,
@@ -37883,10 +38105,6 @@ return {
 				["min"] = 1,
 			},
 			["2HWeapon"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
-			["AbyssJewel"] = {
 				["max"] = 1,
 				["min"] = 1,
 			},
@@ -38184,10 +38402,6 @@ return {
 			},
 		},
 		["2277_CurseEffectiveness"] = {
-			["AbyssJewel"] = {
-				["max"] = 3,
-				["min"] = 2,
-			},
 			["Shield"] = {
 				["max"] = 12,
 				["min"] = 4,
@@ -38649,10 +38863,6 @@ return {
 			},
 		},
 		["2327_EnergyShieldRegenerationPerMinute"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Boots"] = {
 				["max"] = 1,
 				["min"] = 1,
@@ -38691,10 +38901,6 @@ return {
 			},
 		},
 		["2381_DamageRemovedFromManaBeforeLife"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 5,
-			},
 			["Chest"] = {
 				["max"] = 15,
 				["min"] = 5,
@@ -39127,6 +39333,1864 @@ return {
 			["tradeMod"] = {
 				["id"] = "explicit.stat_3503466234",
 				["text"] = "#% increased Damage with Hits and Ailments against Blinded Enemies",
+				["type"] = "explicit",
+			},
+		},
+		["250_AdditionalMinesPlacedSupported"] = {
+			["Helmet"] = {
+				["max"] = 25,
+				["min"] = 25,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3082206530",
+				["text"] = "Socketed Gems are Supported by Level # Blastchain Mine Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_AdditionalTrapsThrownSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 25,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1854569159",
+				["text"] = "Socketed Gems are Supported by Level # Trap Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_ArcaneSurgeAndSpellDamage"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3438910899",
+				["text"] = "Socketed Gems are Supported by Level # Arcane Surge Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_AreaDamageSupported"] = {
+			["Helmet"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3293595800",
+				["text"] = "Socketed Gems are Supported by Level # Concentrated Effect Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_AreaOfEffectSupported"] = {
+			["Helmet"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3737592146",
+				["text"] = "Socketed Gems are Supported by Level # Increased Area of Effect Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_BleedingDamageSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1561428496",
+				["text"] = "Socketed Gems are Supported by Level # Chance to Bleed Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_BlindOnHitSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3972941836",
+				["text"] = "Socketed Gems are Supported by Level # Blind Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_BurningDamageSupported"] = {
+			["Helmet"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1200122555",
+				["text"] = "Socketed Gems are Supported by Level # Burning Damage Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_CastOnCritAndSpellDamage"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_4267977279",
+				["text"] = "Socketed Gems are Supported by Level # Cast On Critical Strike Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_CastWhileChannelingAndSpellDamage"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1723015380",
+				["text"] = "Socketed Gems are Supported by Level # Cast while Channelling Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_ChanceToBleedSupported"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1561428496",
+				["text"] = "Socketed Gems are Supported by Level # Chance to Bleed Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_ChanceToFreezeShockIgniteProliferation"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3828086965",
+				["text"] = "Socketed Gems are Supported by Level # Elemental Proliferation Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_ChanceToFreezeShockIgniteUnboundAilments"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_880096186",
+				["text"] = "Socketed Gems are Supported by Level # Unbound Ailments Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_ChanceToMaimSupported"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1243416714",
+				["text"] = "Socketed Gems are Supported by Level # Maim Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_ChanceToPoisonSupported"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_2141384509",
+				["text"] = "Socketed Gems are Supported by Level # Chance to Poison Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_ChillEffectSupported"] = {
+			["Helmet"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1214076534",
+				["text"] = "Socketed Gems are Supported by Level # Hypothermia Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_ColdDamagePrefixColdPenetration"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3851855898",
+				["text"] = "Socketed Gems are Supported by Level # Cold Penetration Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_CriticalStrikeChanceSpellsSupported"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1355803435",
+				["text"] = "Socketed Gems are Supported by Level # Increased Critical Strikes Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_CriticalStrikeChanceSupported"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1355803435",
+				["text"] = "Socketed Gems are Supported by Level # Increased Critical Strikes Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_CriticalStrikeMultiplierSupported"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_4278342035",
+				["text"] = "Socketed Gems are Supported by Level # Increased Critical Damage Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_DeepwaterSwordCombustion"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3985111281",
+				["text"] = "Socketed Gems are Supported by Level # Combustion Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_DisplaySocketedGemsSupportedByFortify"] = {
+			["Boots"] = {
+				["max"] = 25,
+				["min"] = 20,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3543464371",
+				["text"] = "Socketed Gems are Supported by Level # Fortify Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_DisplaySupportedByManaLeech"] = {
+			["Gloves"] = {
+				["max"] = 15,
+				["min"] = 15,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_952649073",
+				["text"] = "Socketed Gems are Supported by Level # Mana Leech Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_DisplaySupportedByManaLeechMaven"] = {
+			["Gloves"] = {
+				["max"] = 20,
+				["min"] = 20,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_952649073",
+				["text"] = "Socketed Gems are Supported by Level # Mana Leech Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_ElementalDamagePrefixElementalFocus"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_2722476813",
+				["text"] = "Socketed Gems are Supported by Level # Elemental Focus Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_FireDamagePrefixFirePenetration"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3161142268",
+				["text"] = "Socketed Gems are Supported by Level # Fire Penetration Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_IgniteDurationSupported"] = {
+			["Helmet"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1199731147",
+				["text"] = "Socketed Gems are Supported by Level # Immolate Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_IncreasedAccuracyPercentSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_338557223",
+				["text"] = "Socketed Gems are Supported by Level # Additional Accuracy Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_IncreasedAttackSpeedSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_4291787627",
+				["text"] = "Socketed Gems are Supported by Level # Faster Attacks Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_IncreasedCastSpeedFasterCasting"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1324938267",
+				["text"] = "Socketed Gems are Supported by Level # Faster Casting Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_IncreasedCastSpeedSpellEcho"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3995245401",
+				["text"] = "Socketed Gems are Supported by Level # Spell Echo Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_IncreasedCastSpeedSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1324938267",
+				["text"] = "Socketed Gems are Supported by Level # Faster Casting Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_IncreasedWeaponElementalDamagePercentSupported"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_468251502",
+				["text"] = "Socketed Gems are Supported by Level # Elemental Damage with Attacks Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LightningDamagePrefixLightningPenetration"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_724848072",
+				["text"] = "Socketed Gems are Supported by Level # Lightning Penetration Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalIncreasedAttackSpeedFasterAttacks"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_4291787627",
+				["text"] = "Socketed Gems are Supported by Level # Faster Attacks Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalIncreasedAttackSpeedMultistrike"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_2100902429",
+				["text"] = "Socketed Gems are Supported by Level # Multistrike Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalIncreasedAttackSpeedOnslaught"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3893320621",
+				["text"] = "Socketed Gems are Supported by Level # Momentum Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalIncreasedPhysicalDamagePercentFasterProjectiles"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1770376530",
+				["text"] = "Socketed Gems are Supported by Level # Faster Projectiles Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalIncreasedPhysicalDamagePercentIronGrip"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_865121484",
+				["text"] = "Socketed Gems are Supported by Level # Iron Grip Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalIncreasedPhysicalDamagePercentPowerChargeOnCrit"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_949715883",
+				["text"] = "Socketed Gems are Supported by Level # Power Charge On Critical Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalIncreasedPhysicalDamagePercentProjectileAttackDamage"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_4119948431",
+				["text"] = "Socketed Gems are Supported by Level # Vicious Projectiles Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalPhysicalDamagePercentAddedFireDamage"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1571191461",
+				["text"] = "Socketed Gems are Supported by Level # Added Fire Damage Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalPhysicalDamagePercentBrutality"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3869346801",
+				["text"] = "Socketed Gems are Supported by Level # Brutality Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalPhysicalDamagePercentEnduranceChargeOnStun"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_144941225",
+				["text"] = "Socketed Gems are Supported by Level # Endurance Charge on Melee Stun Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalPhysicalDamagePercentFortify"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3543464371",
+				["text"] = "Socketed Gems are Supported by Level # Fortify Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalPhysicalDamagePercentMeleePhysicalDamage"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_369135889",
+				["text"] = "Socketed Gems are Supported by Level # Melee Physical Damage Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalPhysicalDamagePercentOnslaught"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3893320621",
+				["text"] = "Socketed Gems are Supported by Level # Momentum Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_LocalPhysicalDamagePercentRuthless"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3921181872",
+				["text"] = "Socketed Gems are Supported by Level # Ruthless Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_MineDamageSupported"] = {
+			["Helmet"] = {
+				["max"] = 25,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3082206530",
+				["text"] = "Socketed Gems are Supported by Level # Blastchain Mine Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_MineDamageTrapSupported"] = {
+			["Helmet"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_4174205387",
+				["text"] = "Socketed Gems are Supported by Level # Trap and Mine Damage Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_MinionDamageSupported"] = {
+			["Helmet"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_174595432",
+				["text"] = "Socketed Gems are Supported by Level # Minion Damage Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_MinionLifeSupported"] = {
+			["Helmet"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3858590323",
+				["text"] = "Socketed Gems are Supported by Level # Minion Life Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_PoisonDamageSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_2141384509",
+				["text"] = "Socketed Gems are Supported by Level # Chance to Poison Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_PoisonDamageWeaponSupported"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_2141384509",
+				["text"] = "Socketed Gems are Supported by Level # Chance to Poison Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_PoisonDurationSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 25,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_2141384509",
+				["text"] = "Socketed Gems are Supported by Level # Chance to Poison Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_PoisonDurationWeaponSupported"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_602948540",
+				["text"] = "Socketed Gems are Supported by Level # Critical Strike Affliction Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_ProjectileDamageSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1276857842",
+				["text"] = "Socketed Gems are Supported by Level # Slower Projectiles Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_ProjectileSpeedSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1770376530",
+				["text"] = "Socketed Gems are Supported by Level # Faster Projectiles Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_ShockEffectSupported"] = {
+			["Helmet"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1994599451",
+				["text"] = "Socketed Gems are Supported by Level # Innervate Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SkillEffectDurationSupported"] = {
+			["Boots"] = {
+				["max"] = 20,
+				["min"] = 15,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1544569957",
+				["text"] = "Socketed Gems are Supported by Level # More Duration Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByArcaneSurge"] = {
+			["Chest"] = {
+				["max"] = 1,
+				["min"] = 1,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3438910899",
+				["text"] = "Socketed Gems are Supported by Level # Arcane Surge Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByArcaneSurgeWeapon"] = {
+			["2HWeapon"] = {
+				["max"] = 1,
+				["min"] = 1,
+			},
+			["Staff"] = {
+				["max"] = 1,
+				["min"] = 1,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3438910899",
+				["text"] = "Socketed Gems are Supported by Level # Arcane Surge Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByCastOnCritWeapon"] = {
+			["2HAxe"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["2HSword"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["2HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Bow"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_4267977279",
+				["text"] = "Socketed Gems are Supported by Level # Cast On Critical Strike Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByCastOnDamageTaken"] = {
+			["Shield"] = {
+				["max"] = 5,
+				["min"] = 5,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_2581493934",
+				["text"] = "Socketed Gems are Supported by Level # Cast when Damage Taken Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByCastOnMeleeKillWeapon"] = {
+			["2HAxe"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["2HMace"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["2HSword"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["2HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Staff"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_2640673956",
+				["text"] = "Socketed Gems are Supported by Level # Cast on Melee Kill Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByCastWhileChannellingWeapon"] = {
+			["2HWeapon"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["Staff"] = {
+				["max"] = 20,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1723015380",
+				["text"] = "Socketed Gems are Supported by Level # Cast while Channelling Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByEmpower"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_360069007",
+				["text"] = "Socketed Gems are Supported by Level # Empower Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByEnduranceChargeOnStunWeapon"] = {
+			["2HAxe"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HMace"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HSword"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Staff"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_144941225",
+				["text"] = "Socketed Gems are Supported by Level # Endurance Charge on Melee Stun Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByEnhance"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3006785117",
+				["text"] = "Socketed Gems are Supported by Level # Enhance Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByEnlighten"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1979264894",
+				["text"] = "Socketed Gems are Supported by Level # Enlighten Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByFortifyWeapon"] = {
+			["2HAxe"] = {
+				["max"] = 1,
+				["min"] = 1,
+			},
+			["2HMace"] = {
+				["max"] = 1,
+				["min"] = 1,
+			},
+			["2HSword"] = {
+				["max"] = 1,
+				["min"] = 1,
+			},
+			["2HWeapon"] = {
+				["max"] = 1,
+				["min"] = 1,
+			},
+			["Staff"] = {
+				["max"] = 1,
+				["min"] = 1,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3543464371",
+				["text"] = "Socketed Gems are Supported by Level # Fortify Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByIncreasedAreaOfEffectDamage"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3737592146",
+				["text"] = "Socketed Gems are Supported by Level # Increased Area of Effect Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByInspirationWeapon"] = {
+			["2HWeapon"] = {
+				["max"] = 1,
+				["min"] = 1,
+			},
+			["Staff"] = {
+				["max"] = 1,
+				["min"] = 1,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_859488427",
+				["text"] = "Socketed Gems are Supported by Level # Inspiration Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByItemRarityUnique"] = {
+			["Chest"] = {
+				["max"] = 20,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3334987531",
+				["text"] = "Socketed Gems are Supported by Level # Item Rarity Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByLessDuration"] = {
+			["Helmet"] = {
+				["max"] = 25,
+				["min"] = 20,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_4185976903",
+				["text"] = "Socketed Gems are Supported by Level # Less Duration Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByLesserMultipleProjectilesDamage"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1153652646",
+				["text"] = "Socketed Gems are Supported by Level # Multiple Projectiles Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByLifeLeech"] = {
+			["Boots"] = {
+				["max"] = 20,
+				["min"] = 15,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_2713755048",
+				["text"] = "Socketed Gems are Supported by Level # Life Leech Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByMaim"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1243416714",
+				["text"] = "Socketed Gems are Supported by Level # Maim Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByMeleeSplashDamage"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_682681978",
+				["text"] = "Socketed Gems are Supported by Level # Melee Splash Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByOnslaughtWeapon"] = {
+			["2HAxe"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HSword"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Bow"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3893320621",
+				["text"] = "Socketed Gems are Supported by Level # Momentum Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByPowerChargeOnCritWeapon"] = {
+			["2HWeapon"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["Staff"] = {
+				["max"] = 10,
+				["min"] = 10,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_949715883",
+				["text"] = "Socketed Gems are Supported by Level # Power Charge On Critical Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedBySpellCascadeArea"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3678242906",
+				["text"] = "Socketed Gems are Supported by Level # Spell Cascade Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedBySpiritStrikeArea"] = {
+			["1HAxe"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HMace"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HSword"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Claw"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3672428602",
+				["text"] = "Socketed Gems are Supported by Level # Ancestral Call Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_SupportedByVolleySpeed"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3022937704",
+				["text"] = "Socketed Gems are Supported by Level # Volley Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_TotemDamageAttackSupported"] = {
+			["Boots"] = {
+				["max"] = 25,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_2686067790",
+				["text"] = "Socketed Gems are Supported by Level # Ballista Totem Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_TotemDamageSpellSupported"] = {
+			["Boots"] = {
+				["max"] = 25,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1858870975",
+				["text"] = "Socketed Gems are Supported by Level # Spell Totem Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_TotemSpeedAttackSupported"] = {
+			["Boots"] = {
+				["max"] = 25,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_2686067790",
+				["text"] = "Socketed Gems are Supported by Level # Ballista Totem Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_TotemSpeedSpellSupported"] = {
+			["Boots"] = {
+				["max"] = 25,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1858870975",
+				["text"] = "Socketed Gems are Supported by Level # Spell Totem Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_TrapDamageCooldownSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3479500684",
+				["text"] = "Socketed Gems are Supported by Level # Advanced Traps Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_TrapDamageMineSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_4174205387",
+				["text"] = "Socketed Gems are Supported by Level # Trap and Mine Damage Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_TrapDamageSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 18,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_1854569159",
+				["text"] = "Socketed Gems are Supported by Level # Trap Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_TrapSpeedCooldownSupported"] = {
+			["Gloves"] = {
+				["max"] = 25,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3479500684",
+				["text"] = "Socketed Gems are Supported by Level # Advanced Traps Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_WeaponSpellDamageArcaneSurge"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3438910899",
+				["text"] = "Socketed Gems are Supported by Level # Arcane Surge Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_WeaponSpellDamageControlledDestruction"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_3431656752",
+				["text"] = "Socketed Gems are Supported by Level # Controlled Destruction Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_WeaponSpellDamageEfficacy"] = {
+			["1HWeapon"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Dagger"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Sceptre"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["Wand"] = {
+				["max"] = 20,
+				["min"] = 16,
+			},
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_2795990092",
+				["text"] = "Socketed Gems are Supported by Level # Efficacy Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_WeaponSpellDamagePowerChargeOnCrit"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_949715883",
+				["text"] = "Socketed Gems are Supported by Level # Power Charge On Critical Support",
+				["type"] = "explicit",
+			},
+		},
+		["250_WeaponSpellDamageReducedMana"] = {
+			["sign"] = "",
+			["specialCaseData"] = {
+			},
+			["tradeMod"] = {
+				["id"] = "explicit.effect_859488427",
+				["text"] = "Socketed Gems are Supported by Level # Inspiration Support",
 				["type"] = "explicit",
 			},
 		},
@@ -39640,10 +41704,6 @@ return {
 			},
 		},
 		["2652_GlobalChanceToBlindOnHit"] = {
-			["AbyssJewel"] = {
-				["max"] = 6,
-				["min"] = 4,
-			},
 			["Gloves"] = {
 				["max"] = 15,
 				["min"] = 4,
@@ -39726,7 +41786,7 @@ return {
 				["min"] = 7,
 			},
 			["AbyssJewel"] = {
-				["max"] = 5,
+				["max"] = 1,
 				["min"] = 1,
 			},
 			["Amulet"] = {
@@ -39812,7 +41872,7 @@ return {
 				["min"] = 7,
 			},
 			["AbyssJewel"] = {
-				["max"] = 15,
+				["max"] = 1,
 				["min"] = 1,
 			},
 			["Amulet"] = {
@@ -39928,7 +41988,7 @@ return {
 				["min"] = 5,
 			},
 			["AbyssJewel"] = {
-				["max"] = 15,
+				["max"] = 1,
 				["min"] = 1,
 			},
 			["Amulet"] = {
@@ -40044,7 +42104,7 @@ return {
 				["min"] = 9,
 			},
 			["AbyssJewel"] = {
-				["max"] = 15,
+				["max"] = 1,
 				["min"] = 1,
 			},
 			["Amulet"] = {
@@ -40158,10 +42218,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 20,
 				["min"] = 20,
-			},
-			["AbyssJewel"] = {
-				["max"] = 20,
-				["min"] = 3,
 			},
 			["Boots"] = {
 				["max"] = 10,
@@ -40466,10 +42522,6 @@ return {
 			},
 		},
 		["2789_VaalSkillDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 20,
-			},
 			["Belt"] = {
 				["max"] = 40,
 				["min"] = 20,
@@ -40489,7 +42541,7 @@ return {
 		},
 		["2798_AdditionalVaalSoulOnKill"] = {
 			["AbyssJewel"] = {
-				["max"] = 8,
+				["max"] = 5,
 				["min"] = 3,
 			},
 			["AnyJewel"] = {
@@ -40526,10 +42578,6 @@ return {
 			},
 		},
 		["2799_VaalSkillDuration"] = {
-			["AbyssJewel"] = {
-				["max"] = 25,
-				["min"] = 15,
-			},
 			["Amulet"] = {
 				["max"] = 25,
 				["min"] = 15,
@@ -40544,10 +42592,6 @@ return {
 			},
 		},
 		["2801_VaalSkillCriticalStrikeChance"] = {
-			["AbyssJewel"] = {
-				["max"] = 120,
-				["min"] = 80,
-			},
 			["Gloves"] = {
 				["max"] = 120,
 				["min"] = 80,
@@ -41060,10 +43104,6 @@ return {
 				["max"] = 20,
 				["min"] = 20,
 			},
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 20,
-			},
 			["Bow"] = {
 				["max"] = 20,
 				["min"] = 20,
@@ -41333,10 +43373,6 @@ return {
 			},
 		},
 		["290_SocketedAttacksManaCost"] = {
-			["AbyssJewel"] = {
-				["max"] = 15,
-				["min"] = 15,
-			},
 			["Boots"] = {
 				["max"] = 15,
 				["min"] = 15,
@@ -41834,10 +43870,6 @@ return {
 			},
 		},
 		["302_SocketedSkillsAttackSpeed"] = {
-			["AbyssJewel"] = {
-				["max"] = 18,
-				["min"] = 18,
-			},
 			["Gloves"] = {
 				["max"] = 18,
 				["min"] = 18,
@@ -41888,10 +43920,6 @@ return {
 			},
 		},
 		["303_SocketedSkillsCastSpeed"] = {
-			["AbyssJewel"] = {
-				["max"] = 18,
-				["min"] = 18,
-			},
 			["Gloves"] = {
 				["max"] = 18,
 				["min"] = 18,
@@ -42070,10 +44098,6 @@ return {
 			},
 		},
 		["3069_FireDamageAvoidance"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 8,
-			},
 			["Boots"] = {
 				["max"] = 10,
 				["min"] = 5,
@@ -42150,10 +44174,6 @@ return {
 				["max"] = 20,
 				["min"] = 20,
 			},
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 20,
-			},
 			["Bow"] = {
 				["max"] = 20,
 				["min"] = 20,
@@ -42188,10 +44208,6 @@ return {
 			},
 		},
 		["3070_ColdDamageAvoidance"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 6,
-			},
 			["Boots"] = {
 				["max"] = 10,
 				["min"] = 5,
@@ -42236,10 +44252,6 @@ return {
 			},
 		},
 		["3071_LightningDamageAvoidance"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 6,
-			},
 			["Boots"] = {
 				["max"] = 10,
 				["min"] = 5,
@@ -42463,10 +44475,6 @@ return {
 			},
 		},
 		["309_SocketedSpellsManaCost"] = {
-			["AbyssJewel"] = {
-				["max"] = 20,
-				["min"] = 20,
-			},
 			["Boots"] = {
 				["max"] = 20,
 				["min"] = 20,
@@ -42667,10 +44675,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 4,
 				["min"] = 4,
-			},
-			["AbyssJewel"] = {
-				["max"] = 4,
-				["min"] = 2,
 			},
 			["Bow"] = {
 				["max"] = 4,
@@ -42982,10 +44986,6 @@ return {
 			},
 		},
 		["3262_AuraEffect"] = {
-			["AbyssJewel"] = {
-				["max"] = 25,
-				["min"] = 20,
-			},
 			["Chest"] = {
 				["max"] = 30,
 				["min"] = 15,
@@ -43160,10 +45160,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 16,
 				["min"] = 6,
-			},
-			["AbyssJewel"] = {
-				["max"] = 12,
-				["min"] = 9,
 			},
 			["Bow"] = {
 				["max"] = 16,
@@ -44434,25 +46430,7 @@ return {
 				["type"] = "explicit",
 			},
 		},
-		["4227_AccuracyIfNoEnemySlainRecently"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_2806435316",
-				["text"] = "#% increased Accuracy Rating if you haven't Killed Recently",
-				["type"] = "explicit",
-			},
-		},
 		["4239_FrenzyChargeWhenHit"] = {
-			["AbyssJewel"] = {
-				["max"] = 20,
-				["min"] = 15,
-			},
 			["Chest"] = {
 				["max"] = 20,
 				["min"] = 15,
@@ -44546,34 +46524,6 @@ return {
 				["type"] = "explicit",
 			},
 		},
-		["4282_ReducedPhysicalDamageTakenIfNotHitRecently"] = {
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_3603666270",
-				["text"] = "#% additional Physical Damage Reduction if you weren't Damaged by a Hit Recently",
-				["type"] = "explicit",
-			},
-		},
-		["4286_ReducedPhysicalDamageTakenVsAbyssMonsters"] = {
-			["AbyssJewel"] = {
-				["max"] = 6,
-				["min"] = 4,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_287491423",
-				["text"] = "#% additional Physical Damage Reduction against Abyssal Monsters",
-				["type"] = "explicit",
-			},
-		},
 		["428_CurseOnHitWarlordsMark"] = {
 			["sign"] = "",
 			["specialCaseData"] = {
@@ -44585,10 +46535,6 @@ return {
 			},
 		},
 		["4292_AdditionalPhysicalDamageReductionWhileMoving"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["Boots"] = {
 				["max"] = 5,
 				["min"] = 3,
@@ -44973,10 +46919,6 @@ return {
 			},
 		},
 		["4533_AttackAndCastSpeedIfHitRecently"] = {
-			["AbyssJewel"] = {
-				["max"] = 10,
-				["min"] = 5,
-			},
 			["Gloves"] = {
 				["max"] = 10,
 				["min"] = 5,
@@ -45576,10 +47518,6 @@ return {
 			},
 		},
 		["4661_EnchantmentElusive"] = {
-			["AbyssJewel"] = {
-				["max"] = 20,
-				["min"] = 10,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -45633,7 +47571,7 @@ return {
 		},
 		["4708_AilmentDamage"] = {
 			["AbyssJewel"] = {
-				["max"] = 40,
+				["max"] = 20,
 				["min"] = 15,
 			},
 			["Amulet"] = {
@@ -46230,10 +48168,6 @@ return {
 			},
 		},
 		["5155_CannotBeChilledOrFrozenWhileMoving"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Amulet"] = {
 				["max"] = 1,
 				["min"] = 1,
@@ -46284,10 +48218,6 @@ return {
 			},
 		},
 		["5171_CannotBeShockedOrIgnitedWhileMoving"] = {
-			["AbyssJewel"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
 			["Ring"] = {
 				["max"] = 1,
 				["min"] = 1,
@@ -46905,10 +48835,6 @@ return {
 			},
 		},
 		["5374_ChanceWhenHitForArmourToBeDoubled"] = {
-			["AbyssJewel"] = {
-				["max"] = 20,
-				["min"] = 10,
-			},
 			["Amulet"] = {
 				["max"] = 20,
 				["min"] = 20,
@@ -46935,10 +48861,6 @@ return {
 			},
 		},
 		["5376_AdditionalChanceToEvade"] = {
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 1,
-			},
 			["Amulet"] = {
 				["max"] = 2,
 				["min"] = 1,
@@ -47075,7 +48997,7 @@ return {
 		},
 		["5397_ChanceToGainOnslaughtOnFlaskUse"] = {
 			["AbyssJewel"] = {
-				["max"] = 20,
+				["max"] = 10,
 				["min"] = 5,
 			},
 			["AnyJewel"] = {
@@ -47191,10 +49113,6 @@ return {
 			},
 		},
 		["5438_ChaosResistanceAgainstDamageOverTime"] = {
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 30,
-			},
 			["Belt"] = {
 				["max"] = 43,
 				["min"] = 31,
@@ -47781,10 +49699,6 @@ return {
 			},
 		},
 		["5708_EnchantmentConsecratedGround"] = {
-			["AbyssJewel"] = {
-				["max"] = -15,
-				["min"] = -25,
-			},
 			["inverseKey"] = "reduced",
 			["specialCaseData"] = {
 			},
@@ -48029,20 +49943,6 @@ return {
 				["type"] = "explicit",
 			},
 		},
-		["5793_DamageVSAbyssMonsters"] = {
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 30,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_3257279374",
-				["text"] = "#% increased Damage with Hits and Ailments against Abyssal Monsters",
-				["type"] = "explicit",
-			},
-		},
 		["5795_ColdResistanceAilments"] = {
 			["Gloves"] = {
 				["max"] = 50,
@@ -48111,10 +50011,6 @@ return {
 				["min"] = 50,
 			},
 			["2HWeapon"] = {
-				["max"] = 120,
-				["min"] = 50,
-			},
-			["AbyssJewel"] = {
 				["max"] = 120,
 				["min"] = 50,
 			},
@@ -48712,10 +50608,6 @@ return {
 			},
 		},
 		["6143_EnchantmentBlind"] = {
-			["AbyssJewel"] = {
-				["max"] = -20,
-				["min"] = -30,
-			},
 			["inverseKey"] = "reduced",
 			["specialCaseData"] = {
 			},
@@ -48726,10 +50618,6 @@ return {
 			},
 		},
 		["6149_EnchantmentHinder"] = {
-			["AbyssJewel"] = {
-				["max"] = -25,
-				["min"] = -35,
-			},
 			["inverseKey"] = "reduced",
 			["specialCaseData"] = {
 			},
@@ -48740,10 +50628,6 @@ return {
 			},
 		},
 		["6152_EnchantmentIntimidate"] = {
-			["AbyssJewel"] = {
-				["max"] = 15,
-				["min"] = 10,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -48754,10 +50638,6 @@ return {
 			},
 		},
 		["6153_EnchantmentMaim"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 4,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -48768,10 +50648,6 @@ return {
 			},
 		},
 		["6155_EnchantmentWither"] = {
-			["AbyssJewel"] = {
-				["max"] = 2,
-				["min"] = 2,
-			},
 			["sign"] = "",
 			["specialCaseData"] = {
 			},
@@ -48895,7 +50771,7 @@ return {
 				["min"] = 1,
 			},
 			["AbyssJewel"] = {
-				["max"] = 1,
+				["max"] = 0.3,
 				["min"] = 0.3,
 			},
 			["AnyJewel"] = {
@@ -49054,7 +50930,7 @@ return {
 				["min"] = 1000,
 			},
 			["AbyssJewel"] = {
-				["max"] = 1000,
+				["max"] = 300,
 				["min"] = 250,
 			},
 			["AnyJewel"] = {
@@ -49101,10 +50977,6 @@ return {
 			},
 		},
 		["6236_GlobalEvasionRatingPercentOnFullLife"] = {
-			["AbyssJewel"] = {
-				["max"] = 50,
-				["min"] = 25,
-			},
 			["Helmet"] = {
 				["max"] = 50,
 				["min"] = 25,
@@ -49415,10 +51287,6 @@ return {
 				["min"] = 1,
 			},
 			["2HWeapon"] = {
-				["max"] = 1,
-				["min"] = 1,
-			},
-			["AbyssJewel"] = {
 				["max"] = 1,
 				["min"] = 1,
 			},
@@ -49947,10 +51815,6 @@ return {
 			},
 		},
 		["6512_FrenzyChargeOnHittingRareOrUnique"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["Quiver"] = {
 				["max"] = 5,
 				["min"] = 3,
@@ -51087,10 +52951,6 @@ return {
 				["max"] = 60,
 				["min"] = 60,
 			},
-			["AbyssJewel"] = {
-				["max"] = 60,
-				["min"] = 60,
-			},
 			["Bow"] = {
 				["max"] = 60,
 				["min"] = 60,
@@ -51154,10 +53014,6 @@ return {
 				["min"] = 60,
 			},
 			["2HWeapon"] = {
-				["max"] = 60,
-				["min"] = 60,
-			},
-			["AbyssJewel"] = {
 				["max"] = 60,
 				["min"] = 60,
 			},
@@ -51226,10 +53082,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 15,
 				["min"] = 7,
-			},
-			["AbyssJewel"] = {
-				["max"] = 15,
-				["min"] = 15,
 			},
 			["Bow"] = {
 				["max"] = 15,
@@ -51422,10 +53274,6 @@ return {
 			},
 		},
 		["7693_NearbyEnemyChaosDamageResistance"] = {
-			["AbyssJewel"] = {
-				["max"] = 9,
-				["min"] = 9,
-			},
 			["Helmet"] = {
 				["max"] = 12,
 				["min"] = 9,
@@ -51440,10 +53288,6 @@ return {
 			},
 		},
 		["7694_NearbyEnemyColdDamageResistance"] = {
-			["AbyssJewel"] = {
-				["max"] = 9,
-				["min"] = 9,
-			},
 			["Helmet"] = {
 				["max"] = 12,
 				["min"] = 9,
@@ -51472,10 +53316,6 @@ return {
 			},
 		},
 		["7696_NearbyEnemyFireDamageResistance"] = {
-			["AbyssJewel"] = {
-				["max"] = 9,
-				["min"] = 9,
-			},
 			["Helmet"] = {
 				["max"] = 12,
 				["min"] = 9,
@@ -51490,10 +53330,6 @@ return {
 			},
 		},
 		["7698_NearbyEnemyLightningDamageResistance"] = {
-			["AbyssJewel"] = {
-				["max"] = 9,
-				["min"] = 9,
-			},
 			["Helmet"] = {
 				["max"] = 12,
 				["min"] = 9,
@@ -51508,10 +53344,6 @@ return {
 			},
 		},
 		["7700_NearbyEnemyPhysicalDamageTaken"] = {
-			["AbyssJewel"] = {
-				["max"] = 9,
-				["min"] = 9,
-			},
 			["Helmet"] = {
 				["max"] = 12,
 				["min"] = 9,
@@ -51642,10 +53474,6 @@ return {
 			},
 		},
 		["7733_LocalItemQuality"] = {
-			["AbyssJewel"] = {
-				["max"] = 20,
-				["min"] = 10,
-			},
 			["Chest"] = {
 				["max"] = 20,
 				["min"] = 10,
@@ -52200,10 +54028,6 @@ return {
 				["max"] = 0.8,
 				["min"] = 0.8,
 			},
-			["AbyssJewel"] = {
-				["max"] = 0.8,
-				["min"] = 0.4,
-			},
 			["Bow"] = {
 				["max"] = 0.8,
 				["min"] = 0.8,
@@ -52243,7 +54067,7 @@ return {
 		},
 		["8004_ManaRegenerationRateWhileMoving"] = {
 			["AbyssJewel"] = {
-				["max"] = 70,
+				["max"] = 25,
 				["min"] = 20,
 			},
 			["Boots"] = {
@@ -52260,10 +54084,6 @@ return {
 			},
 		},
 		["810_BlockPercent"] = {
-			["AbyssJewel"] = {
-				["max"] = 4,
-				["min"] = 3,
-			},
 			["Chest"] = {
 				["max"] = 9,
 				["min"] = 5,
@@ -52346,10 +54166,6 @@ return {
 			},
 		},
 		["814_ChanceToDodgeAndSpellDodge"] = {
-			["AbyssJewel"] = {
-				["max"] = 6,
-				["min"] = 4,
-			},
 			["Boots"] = {
 				["max"] = 6,
 				["min"] = 4,
@@ -52516,10 +54332,6 @@ return {
 			},
 		},
 		["831_SpellBlockPercentage"] = {
-			["AbyssJewel"] = {
-				["max"] = 4,
-				["min"] = 3,
-			},
 			["Amulet"] = {
 				["max"] = 7,
 				["min"] = 4,
@@ -54281,10 +56093,6 @@ return {
 			},
 		},
 		["8923_FortifyEffect"] = {
-			["AbyssJewel"] = {
-				["max"] = 5,
-				["min"] = 3,
-			},
 			["Helmet"] = {
 				["max"] = 5,
 				["min"] = 3,
@@ -54327,10 +56135,6 @@ return {
 			},
 		},
 		["8939_MaximumEnergyShieldFromBodyArmour"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -55007,10 +56811,6 @@ return {
 			},
 		},
 		["902_PhysicalDamagePercentPrefix"] = {
-			["AbyssJewel"] = {
-				["max"] = 30,
-				["min"] = 20,
-			},
 			["Amulet"] = {
 				["max"] = 30,
 				["min"] = 20,
@@ -56329,10 +58129,6 @@ return {
 			},
 		},
 		["9069_AddedPhysicalDamageVsPoisonedEnemies"] = {
-			["AbyssJewel"] = {
-				["max"] = 14.5,
-				["min"] = 9.5,
-			},
 			["Gloves"] = {
 				["max"] = 14.5,
 				["min"] = 9.5,
@@ -56343,20 +58139,6 @@ return {
 			["tradeMod"] = {
 				["id"] = "explicit.stat_424026624",
 				["text"] = "Adds # to # Physical Damage against Poisoned Enemies",
-				["type"] = "explicit",
-			},
-		},
-		["9082_MinionAccuracyRatingFlat"] = {
-			["AbyssJewel"] = {
-				["max"] = 250,
-				["min"] = 95,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_1661151735",
-				["text"] = "Minions have +# to Accuracy Rating",
 				["type"] = "explicit",
 			},
 		},
@@ -56409,20 +58191,6 @@ return {
 			["tradeMod"] = {
 				["id"] = "explicit.stat_3091578504",
 				["text"] = "Minions have #% increased Attack and Cast Speed",
-				["type"] = "explicit",
-			},
-		},
-		["9090_MinionAttackAndCastSpeedIfEnemySlainRecently"] = {
-			["AbyssJewel"] = {
-				["max"] = 8,
-				["min"] = 6,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_4227567885",
-				["text"] = "Minions have #% increased Attack and Cast Speed if you or your Minions have Killed Recently",
 				["type"] = "explicit",
 			},
 		},
@@ -56535,20 +58303,6 @@ return {
 			["tradeMod"] = {
 				["id"] = "explicit.stat_1854213750",
 				["text"] = "Minions have +#% to Critical Strike Multiplier",
-				["type"] = "explicit",
-			},
-		},
-		["9117_MinionDamageVSAbyssMonsters"] = {
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 30,
-			},
-			["sign"] = "",
-			["specialCaseData"] = {
-			},
-			["tradeMod"] = {
-				["id"] = "explicit.stat_1086057912",
-				["text"] = "Minions deal #% increased Damage with Hits and Ailments against Abyssal Monsters",
 				["type"] = "explicit",
 			},
 		},
@@ -56929,10 +58683,6 @@ return {
 				["max"] = 15,
 				["min"] = 10,
 			},
-			["AbyssJewel"] = {
-				["max"] = 6,
-				["min"] = 4,
-			},
 			["Boots"] = {
 				["max"] = 6,
 				["min"] = 4,
@@ -57112,10 +58862,6 @@ return {
 			["2HWeapon"] = {
 				["max"] = 40,
 				["min"] = 40,
-			},
-			["AbyssJewel"] = {
-				["max"] = 40,
-				["min"] = 20,
 			},
 			["Bow"] = {
 				["max"] = 40,
@@ -57505,10 +59251,6 @@ return {
 			},
 		},
 		["937_GlobalAddedPhysicalDamage"] = {
-			["AbyssJewel"] = {
-				["max"] = 9.5,
-				["min"] = 7.5,
-			},
 			["Gloves"] = {
 				["max"] = 9.5,
 				["min"] = 7.5,
@@ -57816,7 +59558,7 @@ return {
 				["min"] = 1000,
 			},
 			["AbyssJewel"] = {
-				["max"] = 1000,
+				["max"] = 300,
 				["min"] = 250,
 			},
 			["AnyJewel"] = {
