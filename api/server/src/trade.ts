@@ -2,12 +2,15 @@
 // rates Path of Building prices listings with (TradeQuery:PullCXData).
 // Path of Building's own request shapes (src/Classes/TradeQueryRequests.lua) and client string; the hosts are fixed;
 // one limiter for the whole process, reading the site's rate-limit headers as TradeQueryRateLimiter.lua does, pacing
-// at half of every stated window (a quarter for background callers). No account, no cookies, no retries: a 429 or
-// any 4xx stops the call. Nothing here repeats a search by itself.
+// at half of every stated window (a quarter for background callers), the account's windows too when the site states them.
+// No cookie or credential is read here; with a signed-in server browser tab configured (trade-browser.ts) the search and
+// fetch run in that tab, which adds its session itself. No retries: a 429 or any 4xx stops the call. Nothing here repeats a
+// search by itself.
 import { z } from "zod";
 import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
 import { readCapped } from "./fetch.js";
+import { type BrowserTab, type CdpSocket, SIGN_IN, browserFetch, nodeSocket } from "./trade-browser.js";
 import type { Logger } from "./log.js";
 
 /** Every host a trade request may go to: the trade site, and the currency exchange's hourly history. The one place they are named. */
@@ -304,6 +307,20 @@ const encodeLeague = (league: string): string => league.replace(/[^A-Za-z0-9\-._
 /** `<root>[/<realm>]/<league>`, as TradeQueryRequests:buildUrl (realm pc left out). */
 export const tradeUrl = (root: string, realm: TradeRealm, league: string): string => `${ORIGIN}${root}${realm === "pc" ? "" : `/${realm}`}/${encodeLeague(league)}`;
 
+/**
+ * The trade site answered 400 "Query is too complex ... Logging in will increase this limit" to weighted sum groups of 32, 8 and 3
+ * stats sent without login (Covens, 15 Nov 2026), and 200 to 33 stats from a signed-in tab, so on the direct transport such a
+ * group is refused before anything is sent.
+ * ponytail: 3 is the smallest refused size seen; lower it if a 2-stat group is ever refused.
+ */
+export const GUEST_WEIGHT_STATS = 3;
+export const heavyWeightGroup = (q: Record<string, unknown>): boolean =>
+  Array.isArray(q.stats) &&
+  q.stats.some((g: unknown) => {
+    const group = g as { type?: unknown; filters?: unknown } | null;
+    return group?.type === "weight" && Array.isArray(group.filters) && group.filters.length >= GUEST_WEIGHT_STATS;
+  });
+
 export class TradeClient {
   private readonly cache = new Map<string, { at: number; value: TradeResult }>();
   private readonly leagueCache = new Map<TradeRealm, { at: number; value: TradeLeagues }>();
@@ -313,13 +330,21 @@ export class TradeClient {
   private readonly asked = new Map<Policy, number>();
   private readonly ratesPending = new Map<string, Promise<CurrencyRates & { cached: boolean }>>();
 
+  /** Where trade.search's search and fetch go: the signed-in server browser tab when one is configured, else straight to the site. */
+  readonly transport: "browser" | "direct";
+  private readonly browser: typeof fetch | undefined;
+
   constructor(
-    private readonly cfg: Pick<Config, "fetchTimeoutMs" | "fetchMaxBytes">,
+    private readonly cfg: Pick<Config, "fetchTimeoutMs" | "fetchMaxBytes"> & { tradeBrowser?: BrowserTab | undefined },
     private readonly log: Logger,
     private readonly fetchImpl?: typeof fetch, // default: the global fetch at call time
     readonly limiter = new TradeLimiter(),
     private readonly now: () => number = Date.now,
-  ) {}
+    openSocket: (url: string) => CdpSocket = nodeSocket,
+  ) {
+    this.browser = cfg.tradeBrowser ? browserFetch(cfg.tradeBrowser, cfg, { fetch: (u, i) => (this.fetchImpl ?? fetch)(u, i), openSocket }) : undefined;
+    this.transport = this.browser ? "browser" : "direct";
+  }
 
   /** A cached answer for this exact search, if one is younger than 10 minutes. */
   cached(s: Pick<TradeSearch, "realm" | "league" | "body" | "listings">): TradeResult | undefined {
@@ -435,6 +460,9 @@ export class TradeClient {
       this.asked.set(policy, this.now());
     }
     const site = host.hostname === TRADE_HOST ? "the trade site" : host.hostname;
+    // search and fetch only: the leagues and the rates need no session and stay direct
+    const browser = policy === "search" || policy === "fetch" ? this.browser : undefined;
+    const transport = browser ? "browser" : "direct";
     const started = this.now();
     let sent = false;
     const res = await this.limiter.run(policy, s.priority, s.deadline, async () => {
@@ -442,7 +470,7 @@ export class TradeClient {
       try {
         // the headers TradeQueryRequests:ProcessQueue sends (launch:DownloadPage, which the rates use, sends only the client
         // string), and Launch.lua's client string; no cookies, no authorization
-        return await (this.fetchImpl ?? fetch)(url, {
+        return await (browser ?? this.fetchImpl ?? fetch)(url, {
           method,
           redirect: "manual",
           headers: HOURLY.has(policy) ? { "user-agent": s.userAgent } : { "content-type": "application/json", "user-agent": s.userAgent },
@@ -450,7 +478,8 @@ export class TradeClient {
           signal: AbortSignal.timeout(this.cfg.fetchTimeoutMs),
         });
       } catch (e) {
-        this.log.warn({ event: "trade.request", policy, priority: s.priority, ok: false, duration_ms: this.now() - started, reason: (e as Error).name });
+        this.log.warn({ event: "trade.request", policy, transport, priority: s.priority, ok: false, duration_ms: this.now() - started, reason: e instanceof ApiError ? e.code : (e as Error).name });
+        if (e instanceof ApiError) throw e; // the browser transport's own words (tab gone, off the site)
         throw new ApiError("upstream_fetch_failed", `request to ${site} failed: ${(e as Error).name}`);
       }
     }).catch((e: unknown) => {
@@ -460,7 +489,7 @@ export class TradeClient {
       }
       throw e;
     });
-    this.log.info({ event: "trade.request", policy, priority: s.priority, status: res.status, ok: res.ok, duration_ms: this.now() - started });
+    this.log.info({ event: "trade.request", policy, transport, priority: s.priority, status: res.status, ok: res.ok, duration_ms: this.now() - started });
     if (res.status >= 300 && res.status < 400) {
       await res.body?.cancel();
       throw new ApiError("upstream_fetch_failed", `${site} answered ${res.status}; redirects are not followed`, { status: res.status });
@@ -477,6 +506,7 @@ export class TradeClient {
       const retryAfter = Number.isFinite(retry) && retry > 0 ? { retryAfterSeconds: retry } : res.status === 429 ? { retryAfterSeconds: 60 } : {};
       const headers = limitHeaders(res);
       if (res.status === 429) throw new ApiError("rate_limited", `${site} is limiting requests; stopped`, { status: 429, ...retryAfter, headers });
+      if (browser && (res.status === 401 || res.status === 403)) throw new ApiError("upstream_fetch_failed", `${site} answered ${res.status} to the server browser's session; ${SIGN_IN}`, { status: res.status, ...retryAfter, headers });
       // The site's own words only for a refused query (400); any other 4xx (a 403 on the client string, say) is reported by status and headers, never retried.
       const said = res.status === 400 ? siteMessage(text) : "";
       throw new ApiError(res.status === 400 ? "invalid_input" : "upstream_fetch_failed", `${site} answered ${res.status}${said ? `: ${said}` : ""}`, { status: res.status, ...retryAfter, headers });

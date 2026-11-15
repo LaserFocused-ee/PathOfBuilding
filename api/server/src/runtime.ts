@@ -10,6 +10,7 @@ import { Pool } from "./pool.js";
 import { Service } from "./service.js";
 import { BuildStore } from "./store.js";
 import { TradeClient } from "./trade.js";
+import type { CdpSocket } from "./trade-browser.js";
 
 export interface Runtime {
   svc: Service;
@@ -58,6 +59,8 @@ async function lock(dir: string): Promise<string> {
 /** Outside services the runtime uses; tests pass a recorded fetch. */
 export interface RuntimeDeps {
   fetch?: typeof fetch;
+  /** The signed-in browser tab's DevTools socket (trade-browser.ts); tests pass a fake. */
+  openSocket?: (url: string) => CdpSocket;
 }
 
 export async function openRuntime(cfg: Config, log: Logger, deps: RuntimeDeps = {}): Promise<Runtime> {
@@ -68,7 +71,7 @@ export async function openRuntime(cfg: Config, log: Logger, deps: RuntimeDeps = 
   for (const id of await store.recover()) log.warn({ event: "store.recovered", build_id: id }, "finished a delete or restore a stop interrupted");
   const pool = new Pool(cfg, log, store);
   await pool.init();
-  const svc = new Service(cfg, store, pool, new Events(), new Fetcher(cfg, log, SHARE_HOSTS, deps.fetch), new Fetcher(cfg, log, [GAME_HOST], deps.fetch), new TradeClient(cfg, log, deps.fetch), log);
+  const svc = new Service(cfg, store, pool, new Events(), new Fetcher(cfg, log, SHARE_HOSTS, deps.fetch), new Fetcher(cfg, log, [GAME_HOST], deps.fetch), new TradeClient(cfg, log, deps.fetch, undefined, undefined, deps.openSocket), log);
   await svc.purgeTrash();
   return {
     svc,

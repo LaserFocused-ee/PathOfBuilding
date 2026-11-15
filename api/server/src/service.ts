@@ -7,7 +7,7 @@ import { decodeBuildCode, GAME_HOST, type Fetcher, type Relayed } from "./fetch.
 import type { Logger } from "./log.js";
 import { LOOKUP_SESSION, type Pool } from "./pool.js";
 import { type BuildMeta, type BuildSource, type BuildStore, TRASH_DAYS } from "./store.js";
-import { type CurrencyRates, type Priority, type TradeAsk, type TradeClient, type TradeLeagues, type TradeRealm, type TradeResult, tradeClientString, tradeUrl } from "./trade.js";
+import { type CurrencyRates, type Priority, type TradeAsk, type TradeClient, type TradeLeagues, type TradeRealm, type TradeResult, GUEST_WEIGHT_STATS, heavyWeightGroup, tradeClientString, tradeUrl } from "./trade.js";
 import type { WorkerReply } from "./worker.js";
 
 export interface Summary {
@@ -466,6 +466,10 @@ export class Service {
     const league = this.tradeLeague(i.league, true);
     const order = i.order ?? (i.buildId === undefined ? "site" : "gain");
     if ((order === "gain" || order === "gainPrice") && i.buildId === undefined) throw new ApiError("invalid_input", `order ${order} scores listings: give buildId`);
+    const heavy = i.searches.findIndex((x) => heavyWeightGroup(x.query));
+    if (this.trade.transport === "direct" && heavy >= 0) {
+      throw new ApiError("invalid_input", `searches.${heavy}: the trade site refuses a weighted sum group of ${GUEST_WEIGHT_STATS} or more stats from a search without login (400 "Query is too complex"); use the \`search\` of jewel_mods or item_mods (a count group of the heaviest stats) and rank the listings with buildId, or configure the signed-in server browser`);
+    }
     const userAgent = await this.tradeUserAgent();
     const deadline = Date.now() + TRADE_CALL_MS;
     const searches: unknown[] = [];
@@ -477,7 +481,7 @@ export class Service {
       listed = await this.trade.leagues(i.realm, { priority: i.priority, deadline, userAgent });
     } catch (e) {
       if (!(e instanceof ApiError)) throw e;
-      return { result: { searches, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, total: null, rates: null, limiter: this.trade.limiter.state() }, warnings };
+      return { result: { searches, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, total: null, rates: null, transport: this.trade.transport, limiter: this.trade.limiter.state() }, warnings };
     }
     if (!listed.leagues.includes(league)) {
       throw new ApiError("invalid_input", `the configured trade league ${league} is not on the trade site's list for ${i.realm} (current: ${listed.current ?? "none listed"}); set POB_API_TRADE_LEAGUE to the league being played`, { league, current: listed.current });
@@ -489,7 +493,7 @@ export class Service {
         rates = await this.rates(i.realm, league, { priority: i.priority, deadline, userAgent });
       } catch (e) {
         if (!(e instanceof ApiError)) throw e;
-        return { result: { searches, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, total: null, rates: null, limiter: this.trade.limiter.state() }, warnings };
+        return { result: { searches, notRun: i.searches.length, stopped: { code: e.code, message: e.message, ...e.details }, total: null, rates: null, transport: this.trade.transport, limiter: this.trade.limiter.state() }, warnings };
       }
     }
     const rateOf = (currency: string): number | undefined => (rates && Object.hasOwn(rates.rates, currency) ? rates.rates[currency] : undefined);
@@ -548,7 +552,7 @@ export class Service {
     const priced = rates !== undefined && prices.every((p) => rateOf(p.currency) !== undefined);
     const total = { prices, divines: priced ? divs(prices.reduce((n, p) => n + p.amount * (rateOf(p.currency) ?? 0), 0)) : null };
     return {
-      result: { searches, notRun: i.searches.length - searches.length, stopped, total, rates: rates ? { hour: rates.hour, cached: rates.cached } : null, limiter: this.trade.limiter.state() },
+      result: { searches, notRun: i.searches.length - searches.length, stopped, total, rates: rates ? { hour: rates.hour, cached: rates.cached } : null, transport: this.trade.transport, limiter: this.trade.limiter.state() },
       warnings,
     };
   }

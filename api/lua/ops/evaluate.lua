@@ -828,6 +828,10 @@ return function(W)
 		return { query = q, sort = { price = "asc" } }
 	end
 	local function searchOf(query) return guestSearch(query, 2) end
+	-- Path of Building's own body for the query (the popup's sort): for trade.search through a signed-in browser tab.
+	local function weightedOf(query)
+		return query ~= json.null and { query = query, sort = { ["statgroup.0"] = "desc" }, engine = "new" } or json.null
+	end
 
 	-- The generator run as its Execute button runs it: StartQuery against `slot`, every mod weighed (ExecuteQuery, to the end),
 	-- FinishQuery's search, then the weighed mods best first with where the generator found each (text at `quality`, range, kind).
@@ -1010,7 +1014,7 @@ return function(W)
 		for i = 1, math.min(limit, #mods) do out[i] = mods[i] end
 		return { family = "cluster", size = size, enchant = skill.name, enchantId = enchantId or json.null, notableSlots = cap,
 			category = "jewel.cluster", weights = weightsOut(options.statWeights), total = #mods, mods = out, combinations = combos, query = query,
-			search = guestSearch(query, 1),
+			search = guestSearch(query, 1), weightedSearch = weightedOf(query),
 			queryError = query == json.null and "no notable of this enchant gains anything for this build" or json.null,
 			link = query ~= json.null and tradeLink(realm, args.league, query) or json.null }
 	end
@@ -1118,7 +1122,7 @@ return function(W)
 			out[i] = m
 		end
 		return { family = family, socket = slot.slotName, category = ctx.itemCategoryQueryStr, quality = quality, weights = weightsOut(statWeights),
-			total = #mods, mods = out, combinations = combos, query = query, search = searchOf(query), queryError = queryErr,
+			total = #mods, mods = out, combinations = combos, query = query, search = searchOf(query), weightedSearch = weightedOf(query), queryError = queryErr,
 			link = query ~= json.null and tradeLink(realm, args.league, query) or json.null }
 	end
 
@@ -1223,7 +1227,7 @@ return function(W)
 			options = object({ includeCorrupted = options.includeCorrupted, includeMirrored = options.includeMirrored, includeScourge = options.includeScourge,
 				includeTalisman = options.includeTalisman, includeEldritch = options.includeEldritch, sockets = options.sockets, links = options.links,
 				maxLevel = options.maxLevel, maxPrice = options.maxPrice, priceCurrency = options.maxPriceType }),
-			total = #weighed.mods, mods = mods, query = query, search = searchOf(query), queryError = weighed.queryError,
+			total = #weighed.mods, mods = mods, query = query, search = searchOf(query), weightedSearch = weightedOf(query), queryError = weighed.queryError,
 			link = query ~= json.null and tradeLink(o.realm, args.league, query) or json.null }
 	end
 

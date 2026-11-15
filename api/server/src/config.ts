@@ -43,6 +43,20 @@ const schema = z.object({
     .regex(LEAGUE_NAME, "a league name is letters, digits, spaces, ' and -")
     .optional()
     .describe("The trade league being played, e.g. the current challenge league; the only league trade searches and trade links are made for. Unset: those calls are refused"),
+  POB_API_TRADE_BROWSER_CDP: z
+    .string()
+    .url()
+    .refine((u) => {
+      const x = new URL(u);
+      return x.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(x.hostname) && x.pathname === "/";
+    }, "a loopback http origin, e.g. http://127.0.0.1:9223")
+    .optional()
+    .describe("DevTools endpoint of a browser on this server with a tab signed in to the trade site; with POB_API_TRADE_BROWSER_TAB, trade.search's searches and fetches run in that tab (the site's signed-in limits). Unset: straight to the site, without login"),
+  POB_API_TRADE_BROWSER_TAB: z
+    .string()
+    .regex(/^[A-Za-z0-9-]{8,64}$/, "a DevTools target id")
+    .optional()
+    .describe("DevTools target id of the signed-in trade tab (set with POB_API_TRADE_BROWSER_CDP)"),
   POB_FETCH_TIMEOUT_MS: int(10_000),
   POB_FETCH_MAX_BYTES: int(2_000_000),
   MCP_MAX_RESULT_CHARS: int(90_000),
@@ -78,6 +92,8 @@ export interface Config {
   tradeContact: string | undefined;
   /** The league being played; absent = trade searches and links are refused. */
   tradeLeague: string | undefined;
+  /** The signed-in server browser tab trade searches run in; absent = straight to the site. */
+  tradeBrowser: { cdp: string; tab: string } | undefined;
   fetchMaxBytes: number;
   mcpMaxResultChars: number;
   healthToken: string | undefined;
@@ -99,6 +115,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     throw new Error(`invalid configuration: ${lines.join("; ")}`);
   }
   const e = parsed.data;
+  if ((e.POB_API_TRADE_BROWSER_CDP === undefined) !== (e.POB_API_TRADE_BROWSER_TAB === undefined)) {
+    throw new Error("invalid configuration: POB_API_TRADE_BROWSER_CDP and POB_API_TRADE_BROWSER_TAB are set together or not at all");
+  }
   return {
     token: e.POB_API_TOKEN,
     host: e.HOST,
@@ -119,6 +138,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     fetchTimeoutMs: e.POB_FETCH_TIMEOUT_MS,
     tradeContact: e.POB_API_TRADE_CONTACT,
     tradeLeague: e.POB_API_TRADE_LEAGUE,
+    tradeBrowser: e.POB_API_TRADE_BROWSER_CDP && e.POB_API_TRADE_BROWSER_TAB ? { cdp: new URL(e.POB_API_TRADE_BROWSER_CDP).origin, tab: e.POB_API_TRADE_BROWSER_TAB } : undefined,
     fetchMaxBytes: e.POB_FETCH_MAX_BYTES,
     mcpMaxResultChars: e.MCP_MAX_RESULT_CHARS,
     healthToken: e.POB_HEALTH_TOKEN,
