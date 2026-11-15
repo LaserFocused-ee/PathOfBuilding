@@ -267,13 +267,27 @@ function W.clickPopup(label)
 	end
 	W.fail("worker_error", "dialog has no " .. label .. " button")
 end
--- Loads another build (its XML, from the store) into the Compare tab as the compared build for fn(tab, entry), then takes
--- it out again, so the compare list is as it was.
-function W.compared(xml, label, fn)
+-- Loads another build (args.xml, from the store) into the Compare tab as the compared build for fn(tab, entry), then takes
+-- it out again, so the compare list is as it was. args.otherSets {tree, skills, items, config} (1-based, in list order) picks
+-- the compared build's sets with the Compare tab's set dropdowns first.
+function W.compared(args, fn)
 	local tab = W.build().compareTab
 	local keep = { index = tab.activeCompareIndex, results = tab.comparePowerResults, n = #tab.compareEntries }
-	if type(xml) ~= "string" or not tab:ImportBuild(xml, label or "Compared") then W.fail("invalid_input", "the other build could not be loaded for comparison") end
-	local ok, out = pcall(fn, tab, tab.compareEntries[#tab.compareEntries])
+	if type(args.xml) ~= "string" or not tab:ImportBuild(args.xml, args.label or "Compared") then W.fail("invalid_input", "the other build could not be loaded for comparison") end
+	local ok, out = pcall(function()
+		local entry = tab.compareEntries[#tab.compareEntries]
+		local sets = args.otherSets or {}
+		for _, p in ipairs({ { "tree", "compareSpecSelect", entry.treeTab.specList }, { "skills", "compareSkillSetSelect", entry.skillsTab.skillSetOrderList },
+			{ "items", "compareItemSetSelect", entry.itemsTab.itemSetOrderList }, { "config", "compareConfigSetSelect", entry.configTab.configSetOrderList } }) do
+			local i = sets[p[1]]
+			if i ~= nil then
+				if not p[3][i] then W.fail("invalid_input", "the other build has no " .. p[1] .. " set " .. tostring(i) .. " (it has " .. #p[3] .. ")") end
+				tab.controls[p[2]].selFunc(i)
+			end
+		end
+		if entry.buildFlag then entry:Rebuild() end
+		return fn(tab, entry)
+	end)
 	while #tab.compareEntries > keep.n do tab:RemoveBuild(#tab.compareEntries) end
 	tab.activeCompareIndex, tab.comparePowerResults = keep.index, keep.results
 	tab:UpdateBuildSelector()

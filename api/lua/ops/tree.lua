@@ -355,7 +355,7 @@ return function(W)
 	-- into this build's tree list (jewels stay behind; they are the other build's items); `use` makes it the active tree.
 	ops.copy_from = W.mutation(function(args, b)
 		local before = #b.treeTab.specList
-		W.compared(args.xml, args.label, function(tab) tab:CopyCompareSpecToPrimary(args.use == true) end)
+		W.compared(args, function(tab) tab:CopyCompareSpecToPrimary(args.use == true) end)
 		if #b.treeTab.specList == before then W.fail("invalid_input", "the other build has no tree to copy") end
 		return { index = #b.treeTab.specList, title = b.treeTab.specList[#b.treeTab.specList].title, active = b.treeTab.activeSpec }
 	end)

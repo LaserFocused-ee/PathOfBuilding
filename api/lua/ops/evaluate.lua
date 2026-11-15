@@ -1028,7 +1028,7 @@ return function(W)
 	-- ({ tree, items, gems, supports, config }: default all), limit?. The Compare tab's power report: what each passive, item,
 	-- skill group, support gem and config option of the compared build would change on this build, one at a time, best first.
 	function ops.compare_power(args)
-		return W.compared(args.xml, args.label, function(tab, entry)
+		return W.compared(args, function(tab, entry)
 			local stat
 			for _, s in ipairs(tab.controls.comparePowerStatSelect.list) do
 				if s.stat and (s.label == (args.stat or "Full DPS")) then stat = s break end

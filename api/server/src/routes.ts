@@ -148,11 +148,15 @@ const mutateRoute = <Z extends z.ZodObject<Shape>>(domain: Domain, area: string,
   }), { id: buildId, baseRevision: revision.optional().describe("Refuse the change unless the build is at this revision") });
 
 /** The route's op runs with another stored build (`other`) loaded as the Compare tab's compared build (Service.withCompared). */
+const otherSet = z.number().int().min(1).max(500).optional();
 const withOther = (r: Route, keys: string[]): Route => ({
   ...r,
-  input: r.input.extend({ other: buildId.describe("The other build, loaded as the Compare tab's compared build") }),
+  input: r.input.extend({
+    other: buildId.describe("The other build, loaded as the Compare tab's compared build"),
+    otherSets: z.object({ tree: otherSet, skills: otherSet, items: otherSet, config: otherSet }).optional().describe("The other build's tree, skill, item and config sets to compare (1-based, in list order), as the Compare tab's set dropdowns pick them; default the active ones"),
+  }),
   workerOp: `${r.workerOp}, with the other build in the Compare tab`,
-  run: (svc, i) => svc.withCompared(String(i.id), String(i.other), r.workerOp, pick(i, keys), !r.readOnly, typeof i.baseRevision === "number" ? i.baseRevision : undefined),
+  run: (svc, i) => svc.withCompared(String(i.id), String(i.other), r.workerOp, pick(i, [...keys, "otherSets"]), !r.readOnly, typeof i.baseRevision === "number" ? i.baseRevision : undefined),
 });
 
 // Output schemas of the read routes: top-level keys of what the Lua op returns; nested detail stays loose.

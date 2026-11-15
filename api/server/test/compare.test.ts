@@ -85,6 +85,19 @@ void test("copy_from brings the other build's tree, an item and its config over;
   assert.equal(await revisionOf(other), ro, "the other build is only read");
 });
 
+void test("otherSets compares and copies another of the other build's sets, as the Compare tab's set dropdowns pick it", async () => {
+  const two = await witch();
+  ok(await post(`/v1/tree/${two}/allocate`, { nodes: ["Arcane Potency"] }));
+  ok(await post(`/v1/tree/${two}/spec-new`, { title: "Blank" })); // tree 2, empty; tree 1 stays active
+  assert.equal((await power(base, { other: two, stat: "Mana", categories: { tree: true } })).total, 10);
+  assert.equal((await power(base, { other: two, stat: "Mana", categories: { tree: true }, otherSets: { tree: 2 } })).total, 0);
+  const id = await witch();
+  const copied = ok(await post<Mutated<{ title: string }>>(`/v1/tree/${id}/copy-from`, { other: two, otherSets: { tree: 2 } }));
+  assert.equal(copied.result.title, "Blank (Compared)");
+  fails(await post(`/v1/evaluate/${base}/compare-power`, { other: two, otherSets: { tree: 3 } }), 400, "invalid_input");
+  fails(await post(`/v1/evaluate/${base}/compare-power`, { other: two, otherSets: { items: 0 } }), 400, "invalid_input");
+});
+
 void test("bad compares are refused and change nothing", async () => {
   const r0 = await revisionOf(base);
   fails(await post(`/v1/evaluate/${base}/compare-power`, { other: base }), 400, "invalid_input");

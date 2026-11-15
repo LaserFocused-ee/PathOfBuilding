@@ -391,7 +391,7 @@ return function(W)
 		local tab = b.itemsTab
 		local before = {}
 		for id in pairs(tab.items) do before[id] = true end
-		W.compared(args.xml, args.label, function(ctab, entry) ctab:CopyCompareItemToPrimary(args.slot, entry, args.use == true) end)
+		W.compared(args, function(ctab, entry) ctab:CopyCompareItemToPrimary(args.slot, entry, args.use == true) end)
 		local added
 		for id in pairs(tab.items) do if not before[id] then added = id end end
 		if not added then W.fail("invalid_input", "the other build has no item in " .. tostring(args.slot)) end

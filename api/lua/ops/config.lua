@@ -208,7 +208,7 @@ return function(W)
 	-- input of the compared build set on this build (inputs this build has and the other does not stay as they are).
 	ops.copy_from = W.mutation(function(args, b)
 		local count = 0
-		W.compared(args.xml, args.label, function(tab, entry)
+		W.compared(args, function(tab, entry)
 			for _ in pairs(entry.configTab.input) do count = count + 1 end
 			tab:CopyCompareConfig()
 		end)
