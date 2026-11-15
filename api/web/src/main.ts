@@ -6,7 +6,7 @@ import { api, ApiError, type BuildMeta, isBuildId } from "./api.ts";
 import { buildContent } from "./content.ts";
 import { safeExternalUrl } from "./links.ts";
 import { endSession, sessionGate } from "./session.ts";
-import { BuildSync, type SyncState } from "./sync.ts";
+import { BuildSync, describe, retryLabel } from "./sync.ts";
 
 declare const __POB_ASSETS__: string;
 // Path of Building opens links (Ctrl+click in notes, help links) through window.open with whatever text
@@ -91,31 +91,6 @@ async function listPage(note = "") {
     li.append(a, meta);
     return li;
   }));
-}
-
-function describe(state: SyncState): string {
-  switch (state.kind) {
-    case "loading":
-      return "Loading build…";
-    case "failed":
-      return `Stopped: ${state.reason}`;
-    case "synced":
-      return `Saved · revision ${state.revision}`;
-    case "saving":
-      return "Saving…";
-    case "save_failed":
-      return state.retrying
-        ? `Not saved (${state.reason}); retrying`
-        : `Not saved: the server refused this version (${state.reason}). Change the build or reload the page.`;
-    case "conflict":
-      return `The build changed on the server (revision ${state.serverRevision}) while you were editing.`;
-    case "released":
-      return (state.lost ? "Your last change to this build was not saved. " : "") +
-        "Path of Building has another build open; nothing there is saved to this build. " +
-        "Reopen this build replaces the build open there, unsaved changes included.";
-    case "deleted":
-      return "This build was deleted on the server.";
-  }
 }
 
 async function viewPage(id: string) {
@@ -233,8 +208,9 @@ async function viewPage(id: string) {
     (s) => {
       text(state, describe(s));
       conflict.hidden = s.kind !== "conflict";
-      $("#retry").hidden = s.kind !== "failed" && s.kind !== "released";
-      text($("#retry"), s.kind === "released" ? "Reopen this build" : "Try again");
+      const label = retryLabel(s);
+      $("#retry").hidden = label === null;
+      text($("#retry"), label ?? "");
       state.dataset.kind = s.kind;
     },
   );

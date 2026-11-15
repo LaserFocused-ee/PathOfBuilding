@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { hasLoweredCall, loweredFiles } from "./lowered-calls.ts";
+import { fromFileUrl } from "@std/path";
 
 Deno.test("catches the statement form", () => {
   assertEquals(hasLoweredCall("(n=this.f)==null||n.call(this,{a:1})"), true);
@@ -18,6 +19,6 @@ Deno.test("leaves a call whose receiver is not this alone", () => {
 });
 
 Deno.test("reads subdirectories; only .js files count", () => {
-  const dir = new URL("./testdata/lowered", import.meta.url).pathname;
+  const dir = fromFileUrl(new URL("./testdata/lowered", import.meta.url)); // a URL path breaks on a space
   assertEquals(loweredFiles(dir), [`${dir}/nested/lowered.js`]);
 });

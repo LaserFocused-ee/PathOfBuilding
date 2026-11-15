@@ -75,6 +75,8 @@ export class BuildSync {
   start(): Promise<void> {
     return this.run(async () => {
       const code = this.baseline !== "" ? await this.view.read() : null;
+      // Stopped while another build was opened in the view: say so before anything loads over it.
+      if (code === null && this.baseline !== "" && this.state.kind === "failed") return this.release();
       if (code !== null) {
         const content = await this.view.content(code);
         if (content !== this.baseline) {
@@ -125,6 +127,12 @@ export class BuildSync {
       const content = await this.view.content(code);
       if (content === this.baseline) {
         this.candidate = undefined;
+        // A failed write undone in the view: nothing differs from the server any more (unless "Keep mine" is pending).
+        if (this.state.kind === "save_failed" && this.overwriteBase === undefined) {
+          this.refused = undefined;
+          this.backoff = this.skipTicks = 0;
+          this.set({ kind: "synced", revision: this.revision });
+        }
         return;
       }
       if (content !== this.candidate) {
@@ -198,10 +206,12 @@ export class BuildSync {
     this.set({ kind: "conflict", revision: this.revision, serverRevision });
   }
 
-  /** The view holds another build: drop the claim on it; "Try again" loads this build again. */
+  /** The view holds another build: drop the claim on it; "Reopen this build" loads this build again. */
   private release(): void {
     const kind = this.state.kind;
     // A newer server event releases again (serverRevision): a lost edit stays lost.
+    // ponytail: an edit made inside the last tick before another build opened is not yet seen, so it reads as not
+    // lost; the 2 s tick bounds that window (as for leaving the page).
     const lost = (this.state.kind === "released" && this.state.lost) || this.candidate !== undefined ||
       kind === "save_failed" || kind === "conflict";
     this.candidate = undefined;
@@ -233,4 +243,38 @@ export class BuildSync {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+const REOPEN = "Reopen this build";
+
+/** The sync bar's text for a state. */
+export function describe(state: SyncState): string {
+  switch (state.kind) {
+    case "loading":
+      return "Loading build…";
+    case "failed":
+      return `Stopped: ${state.reason}`;
+    case "synced":
+      return `Saved · revision ${state.revision}`;
+    case "saving":
+      return "Saving…";
+    case "save_failed":
+      return state.retrying
+        ? `Not saved (${state.reason}); retrying`
+        : `Not saved: the server refused this version (${state.reason}). Change the build or reload the page.`;
+    case "conflict":
+      return `The build changed on the server (revision ${state.serverRevision}) while you were editing.`;
+    case "released":
+      return (state.lost ? "Your last change to this build was not saved. " : "") +
+        "Path of Building has another build open; nothing there is saved to this build. " +
+        `"${REOPEN}" replaces the build open there, unsaved changes included.`;
+    case "deleted":
+      return "This build was deleted on the server.";
+  }
+}
+
+/** The label of the button that loads this build again; null when the button is hidden. */
+export function retryLabel(state: SyncState): string | null {
+  if (state.kind === "released") return REOPEN;
+  return state.kind === "failed" ? "Try again" : null;
 }

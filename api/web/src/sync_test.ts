@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { BuildSync, type SyncApi, type SyncState, type SyncView } from "./sync.ts";
+import { BuildSync, describe, retryLabel, type SyncApi, type SyncState, type SyncView } from "./sync.ts";
 
 // A fake server holding one build, and a fake view (the Path of Building UI) holding a code.
 function setup() {
@@ -481,6 +481,8 @@ Deno.test("another build open when a remote change or keep mine arrives: release
   view.code = null;
   await sync.serverRevision(remoteEdit("B"));
   assertEquals(sync.state, { kind: "released", lost: false });
+  await sync.serverRevision(remoteEdit("B0")); // released again: still nothing lost
+  assertEquals(sync.state, { kind: "released", lost: false });
   assertEquals(server.loads, 1);
   await sync.start();
   view.code = "B1";
@@ -580,4 +582,68 @@ Deno.test("back-off starts again after a reload", async () => {
   await sync.poll(); // fails
   await sync.poll(); // the first retry after a reload is at once
   assertEquals(server.saves.length, before + 2);
+});
+
+Deno.test("a failed write undone in the view is saved again: nothing differs, nothing lost", async () => {
+  const { sync, view, server, api } = setup();
+  await sync.start();
+  api.save = () => Promise.reject(new Error("network down"));
+  view.code = "A1";
+  await sync.poll();
+  await sync.poll();
+  assertEquals(sync.state.kind, "save_failed");
+  view.code = "A"; // the user undoes the change
+  await sync.poll();
+  assertEquals(sync.state, { kind: "synced", revision: 1 });
+  assertEquals(sync.unsaved, false);
+  view.code = null;
+  await sync.poll();
+  assertEquals(sync.state, { kind: "released", lost: false });
+  assertEquals(server.saves, []);
+});
+
+Deno.test("try again after a stop while another build is open: released, nothing loaded over it", async () => {
+  const { sync, view, server, ui, remoteEdit } = setup();
+  await sync.start();
+  ui.load = () => Promise.reject(new Error("not a valid build code"));
+  await sync.serverRevision(remoteEdit("B"));
+  assertEquals(sync.state.kind, "failed");
+  view.code = null; // the user opened another build
+  await sync.start();
+  assertEquals(sync.state, { kind: "released", lost: false });
+  assertEquals([server.loads, view.loads.length], [2, 1]);
+});
+
+Deno.test("the bar's text and button for each state", () => {
+  const cases: Array<[SyncState, string, string | null]> = [
+    [{ kind: "loading" }, "Loading build…", null],
+    [{ kind: "failed", reason: "x" }, "Stopped: x", "Try again"],
+    [{ kind: "synced", revision: 3 }, "Saved · revision 3", null],
+    [{ kind: "saving", revision: 3 }, "Saving…", null],
+    [{ kind: "save_failed", revision: 3, reason: "x", retrying: true }, "Not saved (x); retrying", null],
+    [
+      { kind: "save_failed", revision: 3, reason: "x", retrying: false },
+      "Not saved: the server refused this version (x). Change the build or reload the page.",
+      null,
+    ],
+    [
+      { kind: "conflict", revision: 3, serverRevision: 4 },
+      "The build changed on the server (revision 4) while you were editing.",
+      null,
+    ],
+    [
+      { kind: "released", lost: false },
+      "Path of Building has another build open; nothing there is saved to this build. " +
+      '"Reopen this build" replaces the build open there, unsaved changes included.',
+      "Reopen this build",
+    ],
+    [
+      { kind: "released", lost: true },
+      "Your last change to this build was not saved. Path of Building has another build open; nothing there is " +
+      'saved to this build. "Reopen this build" replaces the build open there, unsaved changes included.',
+      "Reopen this build",
+    ],
+    [{ kind: "deleted" }, "This build was deleted on the server.", null],
+  ];
+  for (const [state, text, label] of cases) assertEquals([describe(state), retryLabel(state)], [text, label]);
 });
