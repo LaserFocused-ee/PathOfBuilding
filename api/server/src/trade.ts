@@ -97,6 +97,7 @@ export class TradeLimiter {
     p.queued++;
     try {
       await prev;
+      if (this.now() > deadline) throw limited(policy, 1000); // the request ahead took the time
       for (;;) {
         const wait = this.wait(policy, priority);
         if (wait <= 0) break;

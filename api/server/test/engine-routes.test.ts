@@ -69,7 +69,7 @@ void test("lookups page with offset and limit; the whole config catalogue fits a
 void test("every route refuses an unknown parameter, naming the ones it takes", async () => {
   for (const r of routes) {
     const path = r.path.replace(":id", fresh).replace(":nodeId", "1");
-    const res = r.method === "POST" ? await srv.call(r.method, path, { zzUnknown: 1 }) : await srv.call(r.method, `${path}?zzUnknown=1`);
+    const res = r.method === "POST" || r.method === "PUT" ? await srv.call(r.method, path, { zzUnknown: 1 }) : await srv.call(r.method, `${path}?zzUnknown=1`);
     assert.deepEqual([res.status, res.body.error?.code], [400, "invalid_input"], `${r.method} ${r.path}`);
     assert.match(res.body.error?.message ?? "", /unknown parameter zzUnknown; .* takes /, r.name);
   }
@@ -135,11 +135,12 @@ void test("the path's build id wins over an id in the body or the query: another
     const path = r.path.replace(":id", mine).replace(":nodeId", "1");
     for (const how of ["body", "query"]) {
       const res = how === "body" && r.method !== "DELETE" ? await srv.call(r.method, path, { id: other }) : await srv.call(r.method, `${path}?id=${other}`, r.method === "DELETE" ? undefined : {});
-      if (res.status === 200) accepted++;
+      if (how === "query" && r.method !== "DELETE") assert.deepEqual([res.status, res.body.error?.code], [400, "invalid_input"], `${r.name}: a POST or PUT refuses a query string`);
+      else if (res.status === 200) accepted++;
       else assert.ok(res.status === 400 || res.status === 404 || res.status === 409, `${r.name} by ${how}: ${res.status} ${JSON.stringify(res.body.error)}`);
       assert.equal(await revisionOf(), startRevision, `${r.name} with the other build's id in the ${how} moved that build`);
     }
   }
-  assert.ok(accepted >= 20, `${accepted} calls reached the build (the rest were refused for missing parameters)`);
+  assert.ok(accepted >= 14, `${accepted} calls reached the build (the rest were refused for missing parameters; a POST or PUT with a query string is refused above)`);
   assert.equal(ok(await srv.call<Created>("GET", `/v1/builds/${other}`)).build.id, other);
 });

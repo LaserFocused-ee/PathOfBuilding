@@ -6,7 +6,7 @@ Every `/v1` route and `POST /mcp` need `Authorization: Bearer <POB_API_TOKEN>`. 
 
 Replies are `{ "ok": true, "result": ..., "warnings": [...] }` or `{ "ok": false, "error": { "code", "message" } }`. Error codes: `not_found` 404, `invalid_input` 400, `unauthorized` 401, `stale_revision` 409, `payload_too_large` 413, `rate_limited` 429, `worker_error` 500, `unsupported` 501, `upstream_fetch_failed` 502, `worker_timeout` 504.
 
-GET inputs go in the query string (lists comma-separated); POST inputs are a JSON body; path parameters are part of the input.
+GET inputs go in the query string (lists comma-separated); POST and PUT inputs are a JSON body only (a query string on them is refused); path parameters are part of the input.
 
 ## MCP tools
 

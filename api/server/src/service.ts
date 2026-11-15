@@ -357,7 +357,13 @@ export class Service {
    * the call: the searches done so far are answered with `stopped` saying why and when to try again.
    */
   async tradeSearch(i: TradeSearchInput): Promise<Output> {
-    this.pobVersion ??= this.pool.run<{ pobVersion: string }>(LOOKUP_SESSION, "worker.ping").then((r) => r.result.pobVersion);
+    this.pobVersion ??= this.pool.run<{ pobVersion: string }>(LOOKUP_SESSION, "worker.ping").then(
+      (r) => r.result.pobVersion,
+      (e: unknown) => {
+        this.pobVersion = undefined; // a failed lookup is asked again next call
+        throw e;
+      },
+    );
     const userAgent = `Path of Building/${await this.pobVersion}`; // Launch.lua's client string
     const deadline = Date.now() + TRADE_CALL_MS;
     const searches: unknown[] = [];

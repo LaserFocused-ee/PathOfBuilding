@@ -202,7 +202,11 @@ export function createApp(svc: Service, log: Logger): express.Express {
     }
     app[method](route.path, async (req, res, next) => {
       try {
-        const fromQuery = coerce(req.query);
+        // A POST or PUT takes its input from the body only, so nothing it is given lands in a URL or an access log.
+        const sendsBody = route.method === "POST" || route.method === "PUT";
+        const queryKeys = Object.keys(req.query);
+        if (sendsBody && queryKeys.length) throw new ApiError("invalid_input", `${route.name} takes its input in the JSON body, not the query string (${queryKeys.join(", ")})`);
+        const fromQuery = sendsBody ? {} : coerce(req.query);
         const params = coerce(req.params);
         const body = (route.method === "POST" || route.method === "PUT") && req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {};
         const input = parseInput(route, { ...fromQuery, ...body, ...params });

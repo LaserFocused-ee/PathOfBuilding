@@ -71,6 +71,15 @@ void test("limiter: one request at a time per policy; background is refused whil
   release();
   await Promise.all([first, second]);
   assert.deepEqual(order, ["first sent", "second sent"]);
+  // A caller queued behind a request that outlasts its deadline is refused, not sent late.
+  let late = (): void => undefined;
+  const slow = l.run("search", "interactive", Date.now() + 60_000, () => new Promise<Response>((r) => (late = () => r(new Response("{}")))));
+  const behind = l.run("search", "interactive", Date.now() + 5, () => { order.push("late sent"); return Promise.resolve(new Response("{}")); });
+  await new Promise((r) => setTimeout(r, 20));
+  late();
+  await slow;
+  await assert.rejects(behind, (e: ApiError) => e.code === "rate_limited");
+  assert.ok(!order.includes("late sent"));
 });
 
 void test("limiter: Retry-After on a 4xx and a restricted window hold every caller", async () => {

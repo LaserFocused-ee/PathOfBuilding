@@ -99,7 +99,10 @@ local reach = { subScripts = 0, urls = 0, writes = {} }
 LaunchSubScript = function() reach.subScripts = reach.subScripts + 1; return nil end
 OpenURL = function() reach.urls = reach.urls + 1 end
 local l_open, l_remove, l_rename = io.open, os.remove, os.rename
-local function outside(path) return tostring(path):sub(1, #stateDir + 1) ~= stateDir .. "/" end
+local function outside(path)
+	local p = tostring(path)
+	return p:sub(1, #stateDir + 1) ~= stateDir .. "/" or p:find("..", 1, true) ~= nil
+end
 io.open = function(path, mode)
 	if mode and mode:find("[wa+]") and outside(path) then reach.writes[#reach.writes + 1] = tostring(path) end
 	return l_open(path, mode)

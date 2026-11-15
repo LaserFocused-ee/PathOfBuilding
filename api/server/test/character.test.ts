@@ -48,6 +48,8 @@ void test("characters on a public profile: list, then import one with its tree, 
   const before = requested.length;
   const inUrl = await srv.call("GET", "/v1/builds/import/characters?account=Test%230000");
   assert.deepEqual([inUrl.status, requested.length - before], [404, 0], "the account name is not taken from a URL");
+  const postQuery = await srv.call("POST", "/v1/builds/import/characters?account=Test%230000", {});
+  assert.deepEqual([postQuery.status, postQuery.body.error?.code, requested.length - before], [400, "invalid_input", 0], "a POST refuses a query string");
   assert.deepEqual(list.body.result.characters, [
     { name: "testCharacter", league: "Mirage", class: "Hierophant", level: 99 },
     { name: "smallWitch", league: "Standard", class: "Witch", level: 5 },
