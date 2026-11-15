@@ -3,18 +3,22 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { after, before, test } from "node:test";
+import { routes } from "../src/routes.js";
 import { ROOT, startServer, type TestServer } from "./helpers.js";
 
 type Reply<T> = { status: number; body: { ok: boolean; result: T; error?: { code: string; message: string } } };
 type Levers = {
   jewelSockets: { allocated: Array<{ nodeId: number; kind: string; itemName: string | null }>; empty: number; reachable: Array<{ nodeId: number; kind: string; points: number }> };
-  clusterJewels: Array<{ nodeId: number; base: string }>;
-  flasks: Array<{ slot: string; name: string | null; active: boolean }>;
+  clusterJewels: { large: number; medium: number; small: number; jewels: Array<{ nodeId: number; base: string }> };
+  flasks: { filled: number; active: number; slots: Array<{ slot: string; name: string | null; active: boolean }> };
   abyssalSockets: unknown[];
   anoints: Array<{ slot: string; allocates: string[] }>;
-  tattoos: Array<{ nodeId: number; name: string }>;
+  tattoos: { count: number; nodes: Array<{ nodeId: number; name: string }> };
   masteries: { allocated: number; selected: number; unselected: unknown[] };
-  config: { count: number; values: Record<string, unknown> };
+  config: { count: number; values: Record<string, unknown>; atDefault: Array<{ var: string; label: string }> };
+  gems: Array<{ name: string; level: number; maxLevel: number; quality: number }>;
+  gemSockets: Array<{ slot: string; sockets: number; gems: number; empty: number }>;
+  affixes: Array<{ slot: string; known: boolean; open: number; explicitLines?: number }>;
   unused: string[];
 };
 
@@ -23,7 +27,11 @@ const ok = <T>(r: Reply<T>) => {
   assert.equal(r.status, 200, JSON.stringify(r.body.error));
   return r.body.result;
 };
-const levers = async (id: string) => ok(await srv.call<Levers>("GET", `/v1/stats/${id}/levers`));
+const levers = async (id: string, query = "") => {
+  const r = ok(await srv.call<Levers>("GET", `/v1/stats/${id}/levers${query}`));
+  assert.ok(routes.find((x) => x.name === "stats.levers")?.output.safeParse(r).success, "the answer matches its declared output");
+  return r;
+};
 
 before(async () => {
   srv = await startServer();
@@ -37,27 +45,43 @@ void test("levers of a cluster build: sockets filled (cluster subgraph sockets i
   const id = ok(await srv.call<{ build: { id: string } }>("POST", "/v1/builds/import/xml", { xml })).build.id;
   const l = await levers(id);
   assert.deepEqual(l.jewelSockets.allocated.map((s) => s.kind), ["medium cluster", "medium cluster", "large cluster", "large cluster", "medium cluster", "basic", "medium cluster"]);
-  assert.deepEqual([l.jewelSockets.empty, l.jewelSockets.reachable.length, l.jewelSockets.reachable[0]?.points, l.clusterJewels.length], [0, 18, 2, 6]);
+  assert.deepEqual([l.jewelSockets.empty, l.jewelSockets.reachable.length, l.jewelSockets.reachable[0]?.points], [0, 18, 2]);
+  assert.deepEqual([l.clusterJewels.large, l.clusterJewels.medium, l.clusterJewels.small, l.clusterJewels.jewels.length], [2, 4, 0, 6]);
+  assert.equal((await levers(id, "?within=3")).jewelSockets.reachable.length, 7, "within narrows the reachable list");
   const points = l.jewelSockets.reachable.map((s) => s.points);
   assert.deepEqual(points, [...points].sort((a, b) => a - b), "nearest first");
-  assert.deepEqual(l.flasks.map((f) => [f.slot, f.active]), [["Flask 1", true], ["Flask 2", true], ["Flask 3", true], ["Flask 4", false], ["Flask 5", false]]);
+  assert.deepEqual([l.flasks.filled, l.flasks.active, l.flasks.slots.map((f) => [f.slot, f.active])], [4, 3, [["Flask 1", true], ["Flask 2", true], ["Flask 3", true], ["Flask 4", false], ["Flask 5", false]]]);
+  assert.deepEqual(l.gemSockets.filter((g) => g.empty > 0).map((g) => [g.slot, g.sockets, g.gems, g.empty]), [["Helmet", 4, 2, 2], ["Boots", 4, 3, 1]]);
+  assert.deepEqual(l.gems.find((g) => g.name === "Empower"), { group: 1, slot: "Weapon 1", name: "Empower", level: 4, maxLevel: 3, quality: 0 }, "level above top, quality under 20: listed");
+  assert.ok(l.affixes.every((a) => a.known && a.open === 0), "the fixture's rares carry their affix data, all six used");
+  assert.ok(l.config.atDefault.some((c) => c.var === "bandit"), "the bandit choice is an option this build shows");
   assert.deepEqual(l.anoints.map((a) => [a.slot, a.allocates]), [["Amulet", ["Corruption"]]]);
-  assert.deepEqual(l.unused, ["18 unallocated jewel sockets are reachable, the nearest 2 points away", "Flask 4 (The Writhing Jar, Hallowed Hybrid Flask) is not active", "Flask 5 is empty", "no tattoo"]);
+  assert.deepEqual(l.unused, [
+    "18 unallocated jewel sockets within 10 points, the nearest 2 points away", "Flask 4 (The Writhing Jar, Hallowed Hybrid Flask) is not active", "Flask 5 is empty", "no tattoo",
+    `${l.config.atDefault.length} config options this build shows are at default`, `${l.gems.length} gems are below top level or 20 quality`,
+    "Helmet (New Item, Lion Pelt) has 2 empty gem sockets", "Boots (Windscream, Reinforced Greaves) has 1 empty gem socket",
+  ]);
 });
 
 void test("levers of a new build, then a mastery, a tattoo and a config option pulled", async () => {
   const id = ok(await srv.call<{ build: { id: string } }>("POST", "/v1/builds", { className: "Witch", ascendancy: "Elementalist", level: 90, treeVersion: "3_30" })).build.id;
   const l = await levers(id);
-  assert.deepEqual([l.jewelSockets.allocated, l.clusterJewels, l.anoints, l.tattoos, l.masteries, l.config], [[], [], [], [], { allocated: 0, selected: 0, unselected: [] }, { count: 0, values: {} }]);
+  assert.deepEqual([l.jewelSockets.allocated, l.clusterJewels, l.anoints, l.tattoos, l.masteries, l.config.count, l.gems, l.gemSockets, l.affixes], [[], { large: 0, medium: 0, small: 0, jewels: [] }, [], { count: 0, nodes: [] }, { allocated: 0, selected: 0, unselected: [] }, 0, [], [], []]);
   assert.deepEqual(l.unused, [
-    `${l.jewelSockets.reachable.length} unallocated jewel sockets are reachable, the nearest 8 points away`,
+    `${l.jewelSockets.reachable.length} unallocated jewel sockets within 10 points, the nearest 8 points away`,
     "no cluster jewel", "Flask 1 is empty", "Flask 2 is empty", "Flask 3 is empty", "Flask 4 is empty", "Flask 5 is empty", "no tattoo", "no config option set",
+    `${l.config.atDefault.length} config options this build shows are at default`,
   ]);
+  // A pasted rare without the game's affix text: open affixes are 6 less its explicit lines, a lower bound.
+  ok(await srv.call("POST", `/v1/items/${id}/add`, { text: "Rarity: RARE\nDoom Crown\nLeather Hood\n--------\n+50 to maximum Life\n+30% to Fire Resistance", equip: "Helmet" }));
   ok(await srv.call("POST", `/v1/tree/${id}/allocate`, { nodes: ["Arcane Potency", 37671] }));
   ok(await srv.call("POST", `/v1/tree/${id}/set-mastery`, { nodeId: 16123, effectId: 61534 }));
   ok(await srv.call("POST", `/v1/tree/${id}/tattoo`, { node: 37671, tattoo: "valako stormrider" }));
   ok(await srv.call("POST", `/v1/config/${id}/set`, { values: { buffOnslaught: true } }));
   const p = await levers(id);
-  assert.deepEqual([p.masteries, p.tattoos.map((t) => [t.nodeId, t.name]), p.config], [{ allocated: 1, selected: 1, unselected: [] }, [[37671, "Tattoo of the Valako Stormrider"]], { count: 1, values: { buffOnslaught: true } }]);
+  assert.deepEqual([p.masteries, p.tattoos.count, p.tattoos.nodes.map((t) => [t.nodeId, t.name]), p.config.count, p.config.values], [{ allocated: 1, selected: 1, unselected: [] }, 1, [[37671, "Tattoo of the Valako Stormrider"]], 1, { buffOnslaught: true }]);
+  assert.ok(!p.config.atDefault.some((c) => c.var === "buffOnslaught"), "a set option is not at default");
+  assert.deepEqual(p.affixes.map((a) => [a.slot, a.known, a.explicitLines, a.open]), [["Helmet", false, 2, 4]]);
+  assert.ok(p.unused.includes("Helmet (Doom Crown, Leather Hood) has at least 4 open affixes"));
   assert.ok(!p.unused.includes("no tattoo") && !p.unused.includes("no config option set"));
 });

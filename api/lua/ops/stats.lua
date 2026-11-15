@@ -244,11 +244,13 @@ return function(W)
 		}
 	end
 
-	-- The build-quality levers a player checks: jewel sockets (filled, empty, reachable), cluster jewels, flasks,
-	-- config options set, anoints, tattoos and masteries, each as Path of Building holds it, and `unused` naming the
-	-- levers left unpulled. Sockets are tree nodes of type Socket, cluster subgraphs included; `points` is PassiveSpec's pathDist, the passive points
-	-- to allocate it (1000 when no path reaches it).
-	function ops.levers()
+	-- The build-quality levers a player checks: jewel sockets (filled, empty, reachable within `within` points), cluster jewels,
+	-- flasks, config options (set, and the ones the Configuration tab shows for this build still at default), anoints, tattoos,
+	-- masteries, gems under their top level or 20 quality, empty gem sockets and open affixes on equipped rares, each as Path of
+	-- Building holds it, and `unused` naming the levers left unpulled. Sockets are tree nodes of type Socket, cluster subgraphs
+	-- included; `points` is PassiveSpec's pathDist, the passive points to allocate it.
+	function ops.levers(args)
+		local within = tonumber(args and args.within) or 10
 		local json = W.json
 		local function arr(t) return setmetatable(t, { __jsontype = "array" }) end
 		local b = W.build()
@@ -264,7 +266,7 @@ return function(W)
 					sockets[#sockets + 1] = { nodeId = id, name = node.dn, kind = kind, item = item and item.id or json.null, itemName = item and item.name or json.null }
 					if not item then empty = empty + 1 end
 					if item and item.clusterJewel then clusters[#clusters + 1] = { nodeId = id, item = item.id, name = item.name, base = item.baseName } end
-				elseif node.pathDist and node.pathDist < 1000 then
+				elseif node.pathDist and node.pathDist <= within then
 					reachable[#reachable + 1] = { nodeId = id, name = node.dn, kind = kind, points = node.pathDist }
 				end
 			end
@@ -273,7 +275,7 @@ return function(W)
 		table.sort(clusters, function(x, y) return x.nodeId < y.nodeId end)
 		table.sort(reachable, function(x, y) if x.points ~= y.points then return x.points < y.points end return x.nodeId < y.nodeId end)
 
-		local flasks, abyss, anoints = {}, {}, {}
+		local flasks, abyss, anoints, gear = {}, {}, {}, {}
 		for _, slot in ipairs(tab.orderedSlots) do
 			local name = slot.slotName
 			if not slot.nodeId and slot:IsShown() then
@@ -282,13 +284,16 @@ return function(W)
 					flasks[#flasks + 1] = { slot = name, item = item and item.id or json.null, name = item and item.name or json.null, active = item ~= nil and slot.active == true }
 				elseif name:match("Abyssal Socket") then
 					abyss[#abyss + 1] = { slot = name, item = item and item.id or json.null, name = item and item.name or json.null }
-				elseif item and item.base and not item.base.cannotBeAnointed and item.base.subType ~= "Talisman" and (item.canBeAnointed or item.base.type == "Amulet") then
-					local allocates = {} -- ItemsTab's isAnointable test; the anoint is an enchant line "Allocates <notable>"
-					for _, line in ipairs(item.enchantModLines or {}) do
-						local notable = line.line:match("^Allocates (.+)$")
-						if notable then allocates[#allocates + 1] = notable end
+				elseif item then
+					if item.base and not item.base.cannotBeAnointed and item.base.subType ~= "Talisman" and (item.canBeAnointed or item.base.type == "Amulet") then
+						local allocates = {} -- ItemsTab's isAnointable test; the anoint is an enchant line "Allocates <notable>"
+						for _, line in ipairs(item.enchantModLines or {}) do
+							local notable = line.line:match("^Allocates (.+)$")
+							if notable then allocates[#allocates + 1] = notable end
+						end
+						anoints[#anoints + 1] = { slot = name, item = item.id, name = item.name, allocates = arr(allocates) }
 					end
-					anoints[#anoints + 1] = { slot = name, item = item.id, name = item.name, allocates = arr(allocates) }
+					gear[#gear + 1] = { slot = name, item = item }
 				end
 			end
 		end
@@ -309,11 +314,69 @@ return function(W)
 		local config = W.configValues(b)
 		local configCount = 0
 		for _ in pairs(config) do configCount = configCount + 1 end
+		local atDefault = {} -- the options the Configuration tab shows for this build (ConfigTab's own shown tests) left at default
+		for _, v in ipairs(require("Modules.ConfigOptions")) do
+			local control = v.var and b.configTab.varControls[v.var]
+			if control and config[v.var] == nil and control:IsShown() then atDefault[#atDefault + 1] = { var = v.var, label = strip(v.label or v.var):gsub(":$", "") } end
+		end
 
+		-- Gems in the socket groups the player made (not ones an item grants): below the gem's top natural level or 20 quality.
+		local gems, gemsBySlot = {}, {}
+		for i, g in ipairs(b.skillsTab.socketGroupList) do
+			if not g.source then
+				for _, gem in ipairs(g.gemList) do
+					if gem.gemData then
+						if g.slot then gemsBySlot[g.slot] = (gemsBySlot[g.slot] or 0) + 1 end
+						local top = gem.gemData.naturalMaxLevel or 20
+						if gem.enabled ~= false and g.enabled ~= false and ((gem.level or 0) < top or (gem.quality or 0) < 20) then
+							gems[#gems + 1] = { group = i, slot = g.slot or json.null, name = gem.gemData.name, level = gem.level, maxLevel = top, quality = gem.quality or 0 }
+						end
+					end
+				end
+			end
+		end
+
+		-- Equipped gear: gem sockets against the gems the slot's groups hold; open affixes on rares. Path of Building knows the
+		-- prefix/suffix split only for items with affix data (crafted in it, or pasted with the game's advanced mod text);
+		-- otherwise explicit lines bound the affixes used from above (a hybrid mod has two lines), so 6 - lines is a lower bound.
+		local gemSockets, affixes = {}, {}
+		for _, e in ipairs(gear) do
+			local item, slotName = e.item, e.slot
+			local n = 0
+			for _, sk in ipairs(item.sockets or {}) do if sk.color ~= "A" then n = n + 1 end end
+			if n > 0 then
+				local held = gemsBySlot[slotName] or 0
+				gemSockets[#gemSockets + 1] = { slot = slotName, name = item.name, sockets = n, gems = held, empty = math.max(0, n - held) }
+			end
+			if item.rarity == "RARE" and item.type ~= "Jewel" and item.type ~= "Flask" then
+				local row = { slot = slotName, name = item.name, corrupted = item.corrupted == true }
+				if item.crafted and item.affixLimit and item.affixLimit > 0 then
+					local function used(list) local c = 0; for _, a in ipairs(list) do if a.modId and a.modId ~= "None" then c = c + 1 end end; return c end
+					local pl, sl = item.prefixes.limit or item.affixLimit / 2, item.suffixes.limit or item.affixLimit / 2
+					row.known, row.prefixes, row.suffixes, row.prefixLimit, row.suffixLimit = true, used(item.prefixes), used(item.suffixes), pl, sl
+					row.open = (pl - row.prefixes) + (sl - row.suffixes)
+				else
+					local lines = 0
+					for _, l in ipairs(item.explicitModLines or {}) do if l.line and l.line:match("%S") then lines = lines + 1 end end
+					row.known, row.explicitLines, row.open = false, lines, math.max(0, 6 - lines)
+				end
+				affixes[#affixes + 1] = row
+			end
+		end
+
+		local bySize, filled, active = { ["large cluster"] = 0, ["medium cluster"] = 0, ["small cluster"] = 0 }, 0, 0
+		for _, c in ipairs(clusters) do
+			local size = c.base:match("^(%a+) Cluster Jewel$")
+			if size then bySize[size:lower() .. " cluster"] = bySize[size:lower() .. " cluster"] + 1 end
+		end
+		for _, f in ipairs(flasks) do
+			if f.item ~= json.null then filled = filled + 1 end
+			if f.active then active = active + 1 end
+		end
 		local unused = {}
 		local function say(s) unused[#unused + 1] = s end
 		if empty > 0 then say(empty .. " allocated jewel socket" .. (empty == 1 and " is" or "s are") .. " empty") end
-		if #reachable > 0 then say(#reachable .. " unallocated jewel socket" .. (#reachable == 1 and " is" or "s are") .. " reachable, the nearest " .. reachable[1].points .. " point" .. (reachable[1].points == 1 and "" or "s") .. " away") end
+		if #reachable > 0 then say(#reachable .. " unallocated jewel socket" .. (#reachable == 1 and "" or "s") .. " within " .. within .. " points, the nearest " .. reachable[1].points .. " point" .. (reachable[1].points == 1 and "" or "s") .. " away") end
 		if #clusters == 0 then say("no cluster jewel") end
 		for _, f in ipairs(flasks) do
 			if f.item == json.null then say(f.slot .. " is empty") elseif not f.active then say(f.slot .. " (" .. f.name .. ") is not active") end
@@ -323,12 +386,21 @@ return function(W)
 		if #tattoos == 0 then say("no tattoo") end
 		if #unselected > 0 then say(#unselected .. " allocated master" .. (#unselected == 1 and "y has" or "ies have") .. " no effect chosen") end
 		if configCount == 0 then say("no config option set") end
+		if #atDefault > 0 then say(#atDefault .. " config option" .. (#atDefault == 1 and " this build shows is" or "s this build shows are") .. " at default") end
+		if #gems > 0 then say(#gems .. " gem" .. (#gems == 1 and " is" or "s are") .. " below top level or 20 quality") end
+		for _, g in ipairs(gemSockets) do if g.empty > 0 then say(g.slot .. " (" .. g.name .. ") has " .. g.empty .. " empty gem socket" .. (g.empty == 1 and "" or "s")) end end
+		for _, a in ipairs(affixes) do
+			if a.open > 0 then say(a.slot .. " (" .. a.name .. ") has " .. (a.known and "" or "at least ") .. a.open .. " open affix" .. (a.open == 1 and "" or "es") .. (a.corrupted and " (corrupted)" or "")) end
+		end
 
 		return {
-			jewelSockets = { allocated = arr(sockets), empty = empty, reachable = arr(reachable) },
-			clusterJewels = arr(clusters), flasks = arr(flasks), abyssalSockets = arr(abyss), anoints = arr(anoints), tattoos = arr(tattoos),
+			jewelSockets = { allocated = arr(sockets), empty = empty, within = within, reachable = arr(reachable) },
+			clusterJewels = { large = bySize["large cluster"], medium = bySize["medium cluster"], small = bySize["small cluster"], jewels = arr(clusters) },
+			flasks = { filled = filled, active = active, slots = arr(flasks) }, abyssalSockets = arr(abyss), anoints = arr(anoints),
+			tattoos = { count = #tattoos, nodes = arr(tattoos) },
 			masteries = { allocated = masteries, selected = masteries - #unselected, unselected = arr(unselected) },
-			config = { count = configCount, values = config },
+			config = { count = configCount, values = config, atDefault = arr(atDefault) },
+			gems = arr(gems), gemSockets = arr(gemSockets), affixes = arr(affixes),
 			unused = arr(unused),
 		}
 	end
