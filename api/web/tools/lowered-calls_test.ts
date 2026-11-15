@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { hasLoweredCall } from "./lowered-calls.ts";
+import { hasLoweredCall, loweredFiles } from "./lowered-calls.ts";
 
 Deno.test("catches the statement form", () => {
   assertEquals(hasLoweredCall("(n=this.f)==null||n.call(this,{a:1})"), true);
@@ -15,4 +15,9 @@ Deno.test("leaves a native optional call alone", () => {
 
 Deno.test("leaves a call whose receiver is not this alone", () => {
   assertEquals(hasLoweredCall("a==null||b.call(c,d)"), false);
+});
+
+Deno.test("reads subdirectories; only .js files count", () => {
+  const dir = new URL("./testdata/lowered", import.meta.url).pathname;
+  assertEquals(loweredFiles(dir), [`${dir}/nested/lowered.js`]);
 });

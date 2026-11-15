@@ -18,6 +18,7 @@ export function staticHeaders(path: string, headers: Headers): Headers {
   headers.set("cross-origin-resource-policy", "same-origin");
   headers.set("x-content-type-options", "nosniff");
   headers.set("content-security-policy", CSP);
+  headers.set("referrer-policy", "no-referrer");
   if (path.endsWith(".wasm")) headers.set("content-type", "application/wasm");
   const immutable = path.startsWith("/assets/") || path.startsWith("/pob/");
   headers.set("cache-control", immutable ? "public, max-age=31536000, immutable" : "no-cache");
