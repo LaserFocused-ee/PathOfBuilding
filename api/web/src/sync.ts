@@ -201,7 +201,9 @@ export class BuildSync {
   /** The view holds another build: drop the claim on it; "Try again" loads this build again. */
   private release(): void {
     const kind = this.state.kind;
-    const lost = this.candidate !== undefined || kind === "save_failed" || kind === "conflict";
+    // A newer server event releases again (serverRevision): a lost edit stays lost.
+    const lost = (this.state.kind === "released" && this.state.lost) || this.candidate !== undefined ||
+      kind === "save_failed" || kind === "conflict";
     this.candidate = undefined;
     this.set({ kind: "released", lost });
   }

@@ -464,6 +464,8 @@ Deno.test("another build open in the view: nothing is written, and try again loa
   await sync.poll();
   assertEquals(sync.state, { kind: "released", lost: true }); // the edit seen once is said to be lost
   assertEquals(sync.unsaved, false);
+  await sync.serverRevision(4); // a newer server event releases again: the warning stays
+  assertEquals(sync.state, { kind: "released", lost: true });
   await sync.poll();
   await sync.serverRevision(5);
   await sync.start(); // "Try again"
