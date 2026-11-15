@@ -34,7 +34,9 @@ RUN set -e; a="$(uname -m)"; \
     curl -fsSL -o /tmp/deno.zip "https://github.com/denoland/deno/releases/download/v${DENO_VERSION}/deno-$a-unknown-linux-gnu.zip"; \
     echo "$sum  /tmp/deno.zip" | sha256sum -c -; \
     unzip -q /tmp/deno.zip -d /usr/local/bin; rm /tmp/deno.zip
-# Not /pob: build-web.sh refuses output that names the build directory, and the page serves /pob/<version>.
+# build-web.sh refuses output that names the build directory or $HOME; the page itself serves /pob/<version> and
+# pob-web's code holds "/app/root/", so neither /pob nor /root is used here.
+ENV HOME=/home/builder
 WORKDIR /work/PathOfBuilding
 COPY --from=build /pob/api/runtime/rt /opt/pob-rt
 COPY LICENSE.md manifest.xml changelog.txt help.txt ./
