@@ -83,6 +83,57 @@ return function(W)
 		return { text = (W.takeCopied() or ""):gsub("\r\n", "\n") }
 	end
 
+	-- The hover text of the group list (SkillsTab:AddSocketGroupTooltip).
+	function ops.group_tooltip(args)
+		local tab = W.build().skillsTab
+		local g = groupOf(tab, args.group)
+		return { group = args.group, label = g.label or "", lines = W.tooltip(function(t) tab:AddSocketGroupTooltip(t, g) end) }
+	end
+
+	-- args: group, skill? (position in the group's active skills; default its main one), query?, offset?, limit?
+	-- The support gems the gem box offers for an active skill: those calcLib says can support it, without the gems the box
+	-- hides (hideFromGemList; legacy and exceptional ones as the Skills tab's options show them; GemSelectControl:FilterSupport).
+	function ops.support_compatible(args)
+		local tab = W.build().skillsTab
+		local g = groupOf(tab, args.group)
+		local skills = g.displaySkillList or {}
+		local active = skills[args.skill or g.mainActiveSkill or 1]
+		if not active then W.fail("not_found", "group " .. args.group .. " has no active skill " .. tostring(args.skill or g.mainActiveSkill or 1)) end
+		local show = tab.showSupportGemTypes
+		local list = {}
+		for id, gem in pairs(data.gems) do
+			local ge = gem.grantedEffect
+			local exceptional = (ge.legacy and ge.plusVersionOf) or gem.tagString:match("Exceptional")
+			if ge.support and not ge.hideFromGemList and (tab.showLegacyGems or not ge.legacy)
+				and (show == "ALL" or (show == "NORMAL" and not exceptional) or (show == "EXCEPTIONAL" and exceptional))
+				and (args.query == nil or args.query == "" or gem.name:lower():find(args.query:lower(), 1, true))
+				and calcLib.canGrantedEffectSupportActiveSkill(ge, active) then
+				local tags = {}
+				for t in pairs(gem.tags or {}) do tags[#tags + 1] = t end
+				table.sort(tags)
+				list[#list + 1] = { name = gem.name, id = id, tags = tags }
+			end
+		end
+		table.sort(list, function(a, b)
+			if a.name ~= b.name then return a.name < b.name end
+			return a.id < b.id
+		end)
+		local out, offset = {}, math.max(0, math.floor(tonumber(args.offset) or 0))
+		local limit = math.max(1, math.min(200, math.floor(tonumber(args.limit) or 20)))
+		for i = offset + 1, math.min(#list, offset + limit) do out[#out + 1] = list[i] end
+		return { group = args.group, skill = active.activeEffect.grantedEffect.name, total = #list, offset = offset, gems = out }
+	end
+
+	-- The hover text of a gem name box (GemTooltip.AddGemTooltip).
+	function ops.gem_tooltip(args)
+		local b = W.build()
+		local g = groupOf(b.skillsTab, args.group)
+		local gem = g.gemList[args.gem]
+		if not gem then W.fail("not_found", "no gem " .. tostring(args.gem)) end
+		if not gem.gemData then W.fail("invalid_input", "gem " .. args.gem .. " of group " .. args.group .. " is not a known gem") end
+		return { group = args.group, gem = args.gem, name = gem.gemData.name, lines = W.tooltip(function(t) require("Classes.GemTooltip").AddGemTooltip(t, b, gem) end) }
+	end
+
 	-- args: text (the copy format: optional "Label: ..." and "Slot: ..." lines, then "<gem> <level>/<quality> [DISABLED] <count>"
 	-- lines), or gems ({ name, level?, quality?, enabled?, count? }) with label? and slot?. Ctrl+V on the group list.
 	ops.add_group = W.mutation(function(args, b)
@@ -105,6 +156,13 @@ return function(W)
 		tab:ProcessSocketGroup(g)
 		for _, gem in ipairs(g.gemList) do
 			if not gem.gemData then W.fail("invalid_input", "unknown gem " .. tostring(gem.nameSpec)) end
+		end
+		-- A gem given without a level gets the one the Default gem level box picks, as a gem added by hand does.
+		if args.text == nil then
+			for i, given in ipairs(args.gems) do
+				if given.level == nil and g.gemList[i] then g.gemList[i].level = tab:ProcessGemLevel(g.gemList[i].gemData) end
+			end
+			tab:ProcessSocketGroup(g)
 		end
 		return { group = #tab.socketGroupList }
 	end)

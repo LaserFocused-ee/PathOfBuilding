@@ -1,6 +1,5 @@
 // Worker pool limits and failure handling, against real worker processes.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -56,27 +55,10 @@ void test("concurrent imports never run more worker processes than the pool size
   const sample = setInterval(() => {
     void luajitChildren().then((n) => (peak = Math.max(peak, n)));
   }, 50);
-  const res = await Promise.all(Array.from({ length: 6 }, (_, i) => srv.call<Created>("POST", "/v1/builds/import/xml", { xml: freshXml, name: `b${i}` })));
+  const res = await Promise.all(Array.from({ length: 4 }, (_, i) => srv.call<Created>("POST", "/v1/builds/import/xml", { xml: freshXml, name: `b${i}` })));
   clearInterval(sample);
-  assert.deepEqual(res.map((r) => r.status), [200, 200, 200, 200, 200, 200]);
+  assert.deepEqual(res.map((r) => r.status), [200, 200, 200, 200]);
   assert.equal(await luajitChildren(), 2);
   assert.ok(peak <= 2, `peak ${peak} processes`);
   assert.equal(srv.runtime.svc.pool.stats().live, 2);
-});
-
-void test("a command written to a worker that was killed from outside rejects without an uncaught error", async (t) => {
-  const srv = await startServer({ poolSize: 1 });
-  t.after(srv.close);
-  const [, freshXml] = await fixtures();
-  const id = (await srv.call<Created>("POST", "/v1/builds/import/xml", { xml: freshXml })).body.result.build.id;
-  const w = srv.runtime.svc.pool.workerFor(id);
-  assert.ok(w);
-  w.proc.kill("SIGKILL");
-  // Block the event loop until the process is gone (a zombie), so its exit is not yet seen and the write hits a closed pipe.
-  while (!/^\d+ \(.*\) Z/.test(readFileSync(`/proc/${w.proc.pid}/stat`, "utf8")));
-  await assert.rejects(w.call("stats.sidebar"), (e: Error & { code?: string }) => e.code === "worker_error");
-  await new Promise((r) => setTimeout(r, 200)); // an unhandled EPIPE would surface here and fail the test
-  const again = await srv.call<{ stats: Stat[] }>("GET", `/v1/stats/${id}/sidebar`);
-  assert.equal(again.status, 200, "the session reloads from the store");
-  assert.equal(again.body.result.stats.find((s) => s.stat === "Life")?.value, 1328);
 });

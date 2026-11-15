@@ -204,8 +204,9 @@ export class Worker {
     if (msg.ok === true) {
       p.resolve({ result: msg.result, warnings, ms: Number(msg.ms ?? 0) });
     } else {
-      const err = (msg.error ?? {}) as { code?: unknown; message?: unknown };
+      const err = (msg.error ?? {}) as { code?: unknown; message?: unknown; detail?: unknown };
       const code = isErrorCode(err.code) ? err.code : "worker_error";
+      if (typeof err.detail === "string") this.log.warn({ event: "worker.error", pid: this.proc.pid, detail: err.detail.slice(0, 500) }, "engine error");
       p.reject(new ApiError(code, typeof err.message === "string" ? err.message : "worker command failed", warnings.length ? { warnings } : undefined));
     }
   }

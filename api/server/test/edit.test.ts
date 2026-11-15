@@ -145,6 +145,62 @@ void test("tree: masteries and the tree list (new, copy, rename, activate, delet
   fails(await srv.call("POST", `/v1/tree/${id}/convert`, { version: "3_28" }), 400, "invalid_input");
 });
 
+void test("tree: spec_move reorders the tree list and keeps the active tree; convert_all converts every tree", async () => {
+  const id = await newWitch();
+  const titles = async () => (await tree(id)).specs.map((s) => s.title);
+  ok(await srv.call("POST", `/v1/tree/${id}/spec-rename`, { index: 1, title: "A" }));
+  ok(await srv.call("POST", `/v1/tree/${id}/spec-new`, { title: "B" }));
+  ok(await srv.call("POST", `/v1/tree/${id}/spec-new`, { title: "C" }));
+  ok(await srv.call("POST", `/v1/tree/${id}/spec-activate`, { index: 2 }));
+  const moved = ok(await srv.call<Mutated<{ index: number; active: number }>>("POST", `/v1/tree/${id}/spec-move`, { index: 3, to: 1 }));
+  assert.deepEqual([moved.result.index, moved.result.active], [1, 3]);
+  assert.deepEqual(await titles(), ["C", "A", "B"]);
+  assert.deepEqual((await tree(id)).specs.map((s) => [s.title, s.active]), [["C", false], ["A", false], ["B", true]], "the active tree is still B");
+  const rev = await revisionOf(id);
+  for (const body of [{ index: 9, to: 1 }, { index: 1, to: 9 }]) fails(await srv.call("POST", `/v1/tree/${id}/spec-move`, body), 404, "not_found");
+  assert.equal(await revisionOf(id), rev, "a refused move changes nothing");
+  assert.deepEqual(await titles(), ["C", "A", "B"]);
+
+  const id2 = await newWitch();
+  ok(await srv.call("POST", `/v1/tree/${id2}/convert`, { version: "3_28" }));
+  ok(await srv.call("POST", `/v1/tree/${id2}/spec-new`, { title: "Latest" }));
+  assert.deepEqual((await tree(id2)).specs.map((s) => s.treeVersion), ["3_28", "3_30"]);
+  const all = ok(await srv.call<Mutated<{ converted: number; specs: Array<{ treeVersion: string }> }>>("POST", `/v1/tree/${id2}/convert-all`, {}));
+  assert.equal(all.result.converted, 1, "only the 3_28 tree needed converting");
+  assert.deepEqual(all.result.specs.map((s) => s.treeVersion), ["3_30", "3_30"]);
+  assert.deepEqual((await tree(id2)).specs.map((s) => s.treeVersion), ["3_30", "3_30"]);
+  fails(await srv.call("POST", `/v1/tree/${id2}/convert-all`, { version: "9_99" }), 400, "invalid_input");
+});
+
+void test("tree: tattoos through the Replace Modifier of Node dialog: options, add, reset one, remove all", async () => {
+  type Options = { node: { id: number; name: string; allocated: boolean }; current: string | null; tattoos: number; limit: number; options: Array<{ id: string; name: string; stats: string[]; legacy: boolean }> };
+  const id = await newWitch();
+  ok(await srv.call("POST", `/v1/tree/${id}/allocate`, { nodes: [37671] }));
+  const res0 = await output(id, "LightningResist");
+  const opts = ok(await srv.call<Options>("GET", `/v1/tree/${id}/tattoo-options?node=37671`));
+  assert.deepEqual([opts.node.name, opts.node.allocated, opts.current, opts.tattoos, opts.limit, opts.options.length], ["Intelligence", true, null, 0, 50, 16]);
+  assert.deepEqual(opts.options.find((o) => o.name === "Tattoo of the Valako Stormrider"), { id: "Tattoo of the Valako Stormrider", name: "Tattoo of the Valako Stormrider", stats: ["+6% to Lightning Resistance"], legacy: false });
+  const legacy = ok(await srv.call<Options>("GET", `/v1/tree/${id}/tattoo-options?node=37671&legacy=true`));
+  assert.ok(legacy.options.length > 16 && legacy.options.some((o) => o.legacy), "legacy tattoos listed when asked");
+  const added = ok(await srv.call<Mutated<{ nodeId: number; tattoo: string; tattoos: number }>>("POST", `/v1/tree/${id}/tattoo`, { node: 37671, tattoo: "valako stormrider" }));
+  assert.deepEqual([added.result.tattoo, added.result.tattoos], ["Tattoo of the Valako Stormrider", 1]);
+  assert.equal((await output(id, "LightningResist")).LightningResist, (res0.LightningResist ?? 0) + 6);
+  assert.equal(ok(await srv.call<Options>("GET", `/v1/tree/${id}/tattoo-options?node=37671`)).current, "Tattoo of the Valako Stormrider");
+  const reset = ok(await srv.call<Mutated<{ name: string; tattoos: number }>>("POST", `/v1/tree/${id}/untattoo`, { node: 37671 }));
+  assert.deepEqual([reset.result.name, reset.result.tattoos], ["Intelligence", 0]);
+  assert.equal((await output(id, "LightningResist")).LightningResist, res0.LightningResist);
+  ok(await srv.call("POST", `/v1/tree/${id}/tattoo`, { node: 37671, tattoo: "Tattoo of the Valako Stormrider" }));
+  ok(await srv.call("POST", `/v1/tree/${id}/tattoo`, { node: "Elemental Overload", tattoo: "Acrobatics" }));
+  assert.deepEqual(ok(await srv.call<Mutated<{ removed: number }>>("POST", `/v1/tree/${id}/remove-tattoos`, {})).result, { removed: 2 });
+  assert.equal(ok(await srv.call<Options>("GET", `/v1/tree/${id}/tattoo-options?node=37671`)).current, null);
+  const rev = await revisionOf(id);
+  fails(await srv.call("GET", `/v1/tree/${id}/tattoo-options?node=Melding`), 400, "invalid_input");
+  fails(await srv.call("POST", `/v1/tree/${id}/tattoo`, { node: 37671, tattoo: "Tattoo" }), 400, "invalid_input");
+  fails(await srv.call("POST", `/v1/tree/${id}/tattoo`, { node: 37671, tattoo: "Acrobatics" }), 400, "invalid_input");
+  fails(await srv.call("POST", `/v1/tree/${id}/untattoo`, { node: 37671 }), 400, "invalid_input");
+  assert.equal(await revisionOf(id), rev, "refusals change nothing");
+});
+
 void test("config: options by their controls, config sets, notes, level settings", async () => {
   const id = await newWitch();
   const low = ok(await srv.call<Mutated<{ values: Record<string, unknown> }>>("POST", `/v1/config/${id}/set`, { values: { conditionLowLife: true, enemyIsBoss: "Pinnacle" } }));

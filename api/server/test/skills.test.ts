@@ -197,6 +197,20 @@ void test("skill sets: new, copy, rename, activate, delete; the last set stays",
   assert.deepEqual(await titles(), [["Third", true]]);
 });
 
+void test("gems added without a level follow the Default gem level option (character level 25)", async () => {
+  const r = ok(await srv.call<{ build: { id: string } }>("POST", "/v1/builds", { className: "Witch", level: 25, treeVersion: "3_30" }));
+  const id = r.build.id;
+  ok(await post(id, "set-options", { defaultGemLevel: "characterLevel" }));
+  // Game data: Fireball level 8 needs character level 24 (level 9: 28); Added Cold Damage 6 needs 25; Controlled Destruction 2 needs 22.
+  ok(await post(id, "add-group", { gems: [{ name: "Fireball" }, { name: "Added Cold Damage" }, { name: "Spell Echo", level: 3 }] }));
+  const added = ok(await post(id, "set-gem", { group: 1, gem: 4, name: "Controlled Destruction" }));
+  assert.equal(added.result.level, 2);
+  assert.deepEqual((await skills(id)).groups[0]?.gems.map((x) => [x.name, x.level]), [["Fireball", 8], ["Added Cold Damage", 6], ["Spell Echo", 3], ["Controlled Destruction", 2]]);
+  // Copy text keeps its own levels.
+  ok(await post(id, "add-group", { text: "Fireball 20/0  1" }));
+  assert.equal((await skills(id)).groups[1]?.gems[0]?.level, 20);
+});
+
 void test("set_options changes the defaults get reports; imbued and socket tools need a socketed group", async () => {
   const id = await newWitch();
   ok(await post(id, "add-group", fireball));

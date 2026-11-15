@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import { callTool, toolDefs } from "../src/mcp.js";
 import { ROOT, startServer, TOKEN, type TestServer } from "./helpers.js";
 
 type Sample = { name: string; realm: string; class: string; league: string; level: number; equipment: unknown[]; jewels: unknown[]; passives: Record<string, unknown> };
@@ -12,16 +13,18 @@ type Created = { build: { id: string; source: Record<string, string> }; summary:
 
 let srv: TestServer;
 const requested: URL[] = [];
+const bodies: Record<string, string> = {};
+let sample: Sample;
 
 before(async () => {
-  const sample = (JSON.parse(await readFile(join(ROOT, "spec/System/SampleCharacter.json"), "utf8")) as { character: Sample }).character;
+  sample = (JSON.parse(await readFile(join(ROOT, "spec/System/SampleCharacter.json"), "utf8")) as { character: Sample }).character;
   const entry = (c: Sample) => ({ name: c.name, realm: c.realm, class: c.class, league: c.league, level: c.level });
   const characters = [entry(sample), { name: "smallWitch", realm: "pc", class: "Witch", league: "Standard", level: 5 }, { name: "onXbox", realm: "xbox", class: "Duelist", league: "Standard", level: 40 }];
-  const bodies: Record<string, string> = {
+  Object.assign(bodies, {
     "get-characters": JSON.stringify(characters),
     "get-passive-skills": JSON.stringify({ ...sample.passives, items: sample.jewels }),
     "get-items": JSON.stringify({ items: sample.equipment, character: entry(sample) }),
-  };
+  });
   const recorded = (input: string | URL | Request): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : input);
     requested.push(url);
@@ -42,8 +45,13 @@ after(async () => {
 });
 
 void test("characters on a public profile: list, then import one with its tree, jewels, items and skills", async () => {
-  const list = await srv.call<{ characters: Array<{ name: string; league: string; class: string; level: number }> }>("GET", "/v1/builds/import/characters?account=Test%230000");
+  const list = await srv.call<{ characters: Array<{ name: string; league: string; class: string; level: number }> }>("POST", "/v1/builds/import/characters", { account: "Test#0000" });
   assert.equal(list.status, 200, JSON.stringify(list.body.error));
+  const before = requested.length;
+  const inUrl = await srv.call("GET", "/v1/builds/import/characters?account=Test%230000");
+  assert.deepEqual([inUrl.status, requested.length - before], [404, 0], "the account name is not taken from a URL");
+  const postQuery = await srv.call("POST", "/v1/builds/import/characters?account=Test%230000", {});
+  assert.deepEqual([postQuery.status, postQuery.body.error?.code, requested.length - before], [400, "invalid_input", 0], "a POST refuses a query string");
   assert.deepEqual(list.body.result.characters, [
     { name: "testCharacter", league: "Mirage", class: "Hierophant", level: 99 },
     { name: "smallWitch", league: "Standard", class: "Witch", level: 5 },
@@ -69,13 +77,50 @@ void test("characters on a public profile: list, then import one with its tree, 
   assert.deepEqual([stat("Life"), stat("EnergyShield"), stat("Mana")], [1, 8385, 8614]);
 });
 
+void test("reimport: the stored build takes the character's current items from the profile; a non-character build and a stale revision change nothing", async () => {
+  const got = await srv.call<Created>("POST", "/v1/builds/import/character", { account: "Test#0000", character: "testCharacter" });
+  const id = got.body.result.build.id;
+  const sidebar = async () => (await srv.call<{ stats: Stat[] }>("GET", `/v1/stats/${id}/sidebar`)).body.result.stats;
+  const base = (await sidebar()).find((s) => s.stat === "Life")?.value;
+  assert.equal(base, 1);
+
+  // The character takes its belt off: the same profile now answers get-items without it.
+  const worn = bodies["get-items"] ?? "";
+  bodies["get-items"] = JSON.stringify({ items: sample.equipment.filter((e) => (e as { inventoryId?: string }).inventoryId !== "Belt"), character: sample });
+  try {
+    const before = requested.length;
+    const stale = await srv.call("POST", `/v1/builds/${id}/reimport`, { baseRevision: 7 });
+    assert.deepEqual([stale.status, stale.body.error?.code, requested.length - before], [409, "stale_revision", 0], "a stale call asks the site nothing");
+    const after = await srv.call<{ revision: number; changed: Record<string, { before: number | null; after: number | null }> }>("POST", `/v1/builds/${id}/reimport`, { baseRevision: 1 });
+    assert.equal(after.status, 200, JSON.stringify(after.body.error));
+    assert.equal(after.body.result.revision, 2);
+    const { changed } = after.body.result;
+    assert.deepEqual(Object.keys(changed).sort(), ["AverageDamage", "CombinedDPS", "Dex", "Evasion", "ImpaleDPS", "ManaLeechGainRate", "MirageDPS", "ReqDex", "ReqStr", "Str", "TotalDPS"], "the belt's loss moves attributes, requirements and damage");
+    assert.deepEqual([changed.Dex, changed.Str, changed.Evasion, changed.ReqDex, changed.ReqStr], [
+      { before: 175, after: 107 }, { before: 153, after: 93 }, { before: 20, after: 18 }, { before: null, after: 130 }, { before: null, after: 111 },
+    ]);
+    assert.equal(requested.length - before, 3, "get-characters, get-passive-skills and get-items, once each");
+    const history = await srv.call<{ history: Array<{ revision: number }> }>("GET", `/v1/builds/${id}/history`);
+    assert.equal(history.body.result.history.length, 2, "the stale call stored nothing");
+  } finally {
+    bodies["get-items"] = worn;
+  }
+
+  const made = await srv.call<Created>("POST", "/v1/builds", { name: "Scratch" });
+  const asked = requested.length;
+  const plain = await srv.call("POST", `/v1/builds/${made.body.result.build.id}/reimport`, {});
+  assert.deepEqual([plain.status, plain.body.error?.code], [400, "invalid_input"]);
+  assert.match(plain.body.error?.message ?? "", /not imported from a character/);
+  assert.equal(requested.length, asked, "no upstream request for a build that has no character");
+});
+
 void test("character import errors: no discriminator, private profile, unknown account, unknown character, rate limit, wrong case", async () => {
   const before = requested.length;
-  const noTag = await srv.call("GET", "/v1/builds/import/characters?account=Test");
+  const noTag = await srv.call("POST", "/v1/builds/import/characters", { account: "Test" });
   assert.deepEqual([noTag.status, noTag.body.error?.code], [400, "invalid_input"]);
   assert.match(noTag.body.error?.message ?? "", /discriminator/);
   assert.equal(requested.length, before, "no request without a discriminator");
-  const hidden = await srv.call("GET", "/v1/builds/import/characters?account=Hidden%230001");
+  const hidden = await srv.call("POST", "/v1/builds/import/characters", { account: "Hidden#0001" });
   assert.deepEqual([hidden.status, hidden.body.error?.code], [403, "profile_private"]);
   const gone = await srv.call("POST", "/v1/builds/import/character", { account: "Gone#0002", character: "x" });
   assert.deepEqual([gone.status, gone.body.error?.code], [404, "not_found"]);
@@ -85,10 +130,10 @@ void test("character import errors: no discriminator, private profile, unknown a
   const wrongCase = await srv.call("POST", "/v1/builds/import/character", { account: "test#0000", character: "testCharacter" });
   assert.deepEqual([wrongCase.status, wrongCase.body.error?.code], [404, "not_found"]);
   assert.match(wrongCase.body.error?.message ?? "", /case-sensitive/);
-  const busy = await fetch(`http://127.0.0.1:${srv.port}/v1/builds/import/characters?account=Busy%230003`, { headers: { authorization: `Bearer ${TOKEN}` } });
+  const busy = await fetch(`http://127.0.0.1:${srv.port}/v1/builds/import/characters`, { method: "POST", headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" }, body: JSON.stringify({ account: "Busy#0003" }) });
   assert.deepEqual([busy.status, busy.headers.get("retry-after")], [429, "30"]);
   const asked = requested.length;
-  const held = await fetch(`http://127.0.0.1:${srv.port}/v1/builds/import/characters?account=Test%230000`, { headers: { authorization: `Bearer ${TOKEN}` } });
+  const held = await fetch(`http://127.0.0.1:${srv.port}/v1/builds/import/characters`, { method: "POST", headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" }, body: JSON.stringify({ account: "Test#0000" }) });
   assert.equal(held.status, 429, "the site's pause holds for every account");
   assert.ok(Number(held.headers.get("retry-after")) >= 29);
   assert.equal(requested.length, asked, "no request to the site during its pause");
@@ -110,27 +155,74 @@ void test("POST /v1/fetch relays the page's imports: allowlisted paths only, its
     assert.equal(got.status, 200, JSON.stringify(got.body.error));
     assert.deepEqual(got.body.result, { status: 200, headers: { "content-type": "application/json", "x-rate-limit-rules": "Ip", "x-rate-limit-ip": "5:10:60", "x-rate-limit-ip-state": "1:10:0" }, body: '[{"name":"a"}]' });
     assert.deepEqual(seen[0], { url: "https://www.pathofexile.com/character-window/get-characters?accountName=Some%231234&realm=pc", method: "GET", headers: { accept: "application/json", "user-agent": "pob-api/0.1 (Path of Building API; build imports on request)" }, body: undefined });
-    await call({ url: "https://pobb.in/abc/raw", body: "x=1", headers: { "content-type": "application/x-www-form-urlencoded" } });
+    await call({ url: "https://pobb.in/pob/", body: "x=1", headers: { "content-type": "application/x-www-form-urlencoded" } });
     assert.deepEqual([seen[1]?.method, seen[1]?.body, seen[1]?.headers["content-type"]], ["POST", "x=1", "application/x-www-form-urlencoded"]);
+    // each site's download (and upload) URL as BuildSiteTools.lua builds it
+    for (const url of ["https://maxroll.gg/poe/api/pob/abc", "https://api.pob.codes/abc/raw", "https://pastebin.com/raw/abc", "https://pastebinp.com/raw/abc", "https://rentry.co/paste/abc/raw", "https://poedb.tw/pob/abc/raw"]) {
+      assert.equal((await call({ url })).status, 200, url);
+    }
+    for (const url of ["https://maxroll.gg/poe/api/pob", "https://api.pob.codes/pob/plain", "https://poedb.tw/pob/api/gen"]) {
+      assert.equal((await call({ url, body: "x=1" })).status, 200, url);
+    }
 
     reply = () => new Response("", { status: 403 });
-    const priv = await call({ url: "https://www.pathofexile.com/account/view-profile/Some-1234/characters" });
+    const priv = await call({ url: "https://www.pathofexile.com/character-window/get-items?accountName=Some%231234&character=a" });
     assert.deepEqual([priv.status, priv.body.result.status], [200, 403], "the site's own status, for Path of Building to read");
 
     const before = seen.length;
-    for (const url of ["https://api.pathofexile.com/profile", "https://www.pathofexile.com/oauth/authorize", "https://www.pathofexile.com/character-window/get-stash-items", "https://www.pathofexile.com/character-window/get-itemsX", "https://www.pathofexile.com/character-window/get-items/../get-stash-items", "https://www.pathofexile.com/account/view-profile", "http://pobb.in/abc", "https://example.com/", "not a url"]) {
+    for (const url of ["https://api.pathofexile.com/profile", "https://www.pathofexile.com/oauth/authorize", "https://www.pathofexile.com/character-window/get-stash-items", "https://www.pathofexile.com/character-window/get-itemsX", "https://www.pathofexile.com/character-window/get-items/../get-stash-items", "https://www.pathofexile.com/account/view-profile", "https://www.pathofexile.com/account/view-profile/Some-1234/characters", "http://pobb.in/abc", "https://example.com/", "not a url"]) {
       const r = await call({ url });
       assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], url);
     }
+    for (const url of ["https://pobb.in/abc", "https://maxroll.gg/poe/build-guides", "https://pastebin.com/abc", "https://rentry.co/abc", "https://poedb.tw/us/Glimpse_of_Chaos"]) {
+      const r = await call({ url });
+      assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], `${url}: only the download and upload paths Path of Building uses`);
+    }
+    // a site whose docs rule out third-party use of its endpoint is not a share host: refused as any host off the list, before any request
+    for (const url of ["https://poe.ninja/poe1/pob/raw/abc", "https://poe.ninja/poe1/pob/api/upload", "https://poe.ninja/builds"]) {
+      const r = await call({ url, ...(url.endsWith("upload") ? { body: "x=1" } : {}) });
+      assert.deepEqual([r.status, r.body.error?.code, r.body.error?.message], [400, "invalid_input", "host poe.ninja is not on the allowlist"], url);
+    }
+    for (const url of ["https://pastebin.com/raw/abc", "https://rentry.co/paste/abc/raw"]) {
+      const r = await call({ url, body: "x=1" });
+      assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], `${url}: a download-only site takes no POST`);
+    }
     const post = await call({ url: "https://www.pathofexile.com/character-window/get-items", body: "character=a" });
     assert.deepEqual([post.status, post.body.error?.code], [400, "invalid_input"], "the game site is GET only");
-    const extra = await call({ url: "https://pobb.in/abc", method: "DELETE" });
+    const extra = await call({ url: "https://pobb.in/pob/abc", method: "DELETE" });
     assert.match(extra.body.error?.message ?? "", /unknown parameter\(s\) method; fetch takes url, headers, body/);
     assert.equal(seen.length, before, "nothing off the allowlist is requested");
 
+    // An encoded separator or dot in the path is refused in any case, before any request.
+    for (const seg of ["%2f", "%2F", "%5c", "%5C", "%2e", "%2E"]) {
+      for (const url of [`https://www.pathofexile.com/character-window/get-items/${seg}${seg}oauth`, `https://pobb.in/pob/abc${seg}raw`, `https://www.pathofexile.com/character-window/get-items${seg}x`]) {
+        const r = await call({ url });
+        assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], url);
+      }
+    }
+    assert.equal(seen.length, before, "no encoded path reached the upstream");
+
+    reply = () => new Response("{}", { headers: { "content-type": "application/json", "cf-mitigated": "challenge" } });
+    const challenged = await call({ url: "https://www.pathofexile.com/character-window/get-items?character=a" });
+    assert.equal(challenged.body.result.headers["cf-mitigated"], "challenge", "the page sees a challenge");
+
     reply = () => new Response(null, { status: 302, headers: { location: "https://www.pathofexile.com/oauth/authorize" } });
+    const redirectFrom = seen.length;
     const off = await call({ url: "https://www.pathofexile.com/character-window/get-items?character=a" });
     assert.deepEqual([off.status, off.body.error?.code], [502, "upstream_fetch_failed"], "a redirect off the allowlist");
+    assert.equal(seen.length - redirectFrom, 1, "refused at the hop, not at the redirect limit");
+    const fromShare = seen.length;
+    const hop = await call({ url: "https://pobb.in/pob/abc" });
+    assert.deepEqual([hop.status, hop.body.error?.code], [502, "upstream_fetch_failed"], "a share host sending the page to a game-site path off its list");
+    assert.equal(seen.length - fromShare, 1, "one upstream request, the game-site hop is never made");
+    assert.match(hop.body.error?.message ?? "", /off the allowlist/);
+    // A share host's fetcher never leaves the share hosts: a 307 (method and body kept) or a 302 to a listed game-site path is refused at the hop.
+    for (const status of [307, 302]) {
+      reply = () => new Response(null, { status, headers: { location: "https://www.pathofexile.com/character-window/get-items?character=a" } });
+      const from = seen.length;
+      const posted = await call({ url: "https://pobb.in/pob/abc", body: "x=1" });
+      assert.deepEqual([posted.status, posted.body.error?.code, seen.length - from], [502, "upstream_fetch_failed", 1], String(status));
+    }
 
     reply = () => new Response("[]", { headers: { "x-rate-limit-rules": "Ip", "x-rate-limit-ip": "5:10:60", "x-rate-limit-ip-state": "5:10:0" } });
     assert.equal((await call({ url: "https://www.pathofexile.com/character-window/get-characters?accountName=Some%231234" })).body.result.status, 200);
@@ -138,12 +230,61 @@ void test("POST /v1/fetch relays the page's imports: allowlisted paths only, its
     const held = await call({ url: "https://www.pathofexile.com/character-window/get-characters?accountName=Some%231234" });
     assert.deepEqual([held.status, held.body.error?.code], [429, "rate_limited"], "at the site's limit, the next request waits");
     assert.equal(seen.length, asked);
-    assert.equal((await call({ url: "https://pobb.in/abc/raw" })).status, 200, "other hosts are not held");
+    assert.equal((await call({ url: "https://pobb.in/pob/abc" })).status, 200, "other hosts are not held");
 
     const logs = relay.lines.filter((l) => l.event === "fetch.done");
-    assert.ok(logs.some((l) => l.purpose === "relay:/account/view-profile/" && l.status === 403));
+    assert.ok(logs.some((l) => l.purpose === "relay:/character-window/get-items" && l.status === 403));
     assert.ok(!JSON.stringify(relay.lines).includes("Some"), "no account name in the logs");
   } finally {
     await relay.close();
+  }
+});
+
+void test("POST /v1/fetch and DELETE /v1/session sit outside the route table and still refuse a request without the bearer token, with no upstream request", async () => {
+  const asked = requested.length;
+  const base = `http://127.0.0.1:${srv.port}`;
+  const relayBody = JSON.stringify({ url: "https://www.pathofexile.com/character-window/get-characters?accountName=Some%231234&realm=pc" });
+  for (const auth of [undefined, `Bearer ${TOKEN}x`, TOKEN]) {
+    const headers: Record<string, string> = auth ? { authorization: auth } : {};
+    const relay = await fetch(`${base}/v1/fetch`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: relayBody });
+    assert.equal(relay.status, 401, `POST /v1/fetch with ${auth ? "a wrong" : "no"} token`);
+    await relay.body?.cancel();
+    const session = await fetch(`${base}/v1/session`, { method: "DELETE", headers });
+    assert.equal(session.status, 401, `DELETE /v1/session with ${auth ? "a wrong" : "no"} token`);
+    assert.equal(session.headers.get("set-cookie"), null, "a refused request clears nothing");
+    await session.body?.cancel();
+  }
+  assert.equal(requested.length, asked, "no upstream request for a refused relay call");
+});
+
+void test("MCP: a failing upstream (a 5xx) comes back as an isError result with its code, never a thrown error", async () => {
+  const down = await startServer({ poolSize: 1 }, { fetch: () => Promise.reject(new TypeError("connection refused")) });
+  try {
+    // Straight into callTool: the pob_build tool's own input schema does not take this call (reported to the owner).
+    const def = toolDefs().find((d) => d.name === "pob_build");
+    assert.ok(def);
+    const res = await callTool(down.runtime.svc, def, { action: "characters", account: "Test#0000", realm: "pc" });
+    assert.equal(res.isError, true);
+    assert.deepEqual(res.structuredContent, { ok: false, error: { code: "upstream_fetch_failed", message: "request to www.pathofexile.com failed: TypeError" } });
+    assert.ok(down.lines.some((l) => l.event === "mcp.tool" && l.action === "characters" && l.ok === false && l.code === "upstream_fetch_failed"));
+    const http = await down.call("POST", "/v1/builds/import/characters", { account: "Test#0000" });
+    assert.equal(http.status, 502, "the same failure over HTTP is a 5xx");
+  } finally {
+    await down.close();
+  }
+});
+
+void test("POST /v1/builds/import/link refuses a poe.ninja link with a note to paste the build code, and sends no request", async () => {
+  const seen: string[] = [];
+  const s = await startServer({}, { fetch: (input: string | URL | Request) => { seen.push(input instanceof Request ? input.url : input.toString()); return Promise.resolve(new Response("", { status: 500 })); } });
+  try {
+    for (const url of ["https://poe.ninja/poe1/pob/abc123", "https://www.poe.ninja/poe1/pob/abc123", "https://poe.ninja/poe1/builds/x/character/a/b"]) {
+      const r = await s.call("POST", "/v1/builds/import/link", { url });
+      assert.deepEqual([r.status, r.body.error?.code], [400, "invalid_input"], url);
+      assert.match(r.body.error?.message ?? "", /^poe\.ninja links are not fetched .*; paste the build code instead/, url);
+    }
+    assert.deepEqual(seen, [], "no upstream request");
+  } finally {
+    await s.close();
   }
 });

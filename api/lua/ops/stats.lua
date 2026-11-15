@@ -142,6 +142,76 @@ return function(W)
 		return { key = args.key, value = W.plain(actor.output[args.key]), breakdown = W.plain(bd) }
 	end
 
+	-- The experience multiplier table of the character level box's hover (Build.lua characterLevel.tooltipFunc).
+	function ops.xp()
+		local b = W.build()
+		local areas = setmetatable({}, { __jsontype = "array" })
+		for _, line in ipairs(W.tooltip(function(t) b.controls.characterLevel.tooltipFunc(t) end)) do
+			local level, tier, pct = line:match("^(%d+) %(Tier (%d+)%): ([%d%.]+)%%$")
+			if not level then level, pct = line:match("^(%d+): ([%d%.]+)%%$") end
+			if level then areas[#areas + 1] = { areaLevel = tonumber(level), tier = tonumber(tier), percent = tonumber(pct) } end
+		end
+		return { level = b.characterLevel, areas = areas }
+	end
+
+	-- The Calcs tab's sections with the rows and cells it draws (CalcSectionControl:DrawContent): the same visibility
+	-- checks and cell text, for the actor the tab shows. Collapsed state is a view setting and is ignored.
+	-- args: section? (a section id, else part of a subsection label, any case)
+	function ops.sections(args)
+		local b = W.build()
+		local tab = b.calcsTab
+		local actor = tab.input.showMinion and tab.calcsEnv.minion or tab.calcsEnv.player
+		local want = type(args.section) == "string" and args.section:lower() or nil
+		local labels, sections = {}, setmetatable({}, { __jsontype = "array" })
+		local byId = false -- a section id wins over label matches
+		for _, sec in ipairs(tab.sectionList) do
+			if tostring(sec.id):lower() == want then byId = true end
+		end
+		for _, sec in ipairs(tab.sectionList) do
+			local first = sec.subSection[1].label or ""
+			labels[#labels + 1] = strip(first)
+			local match = want == nil or tostring(sec.id):lower() == want
+			if not byId then
+				for _, subSec in ipairs(sec.subSection) do
+					if (subSec.label or ""):lower():find(want or "", 1, true) then match = true end
+				end
+			end
+			if match and tab:CheckFlag(sec) then
+				local subs = setmetatable({}, { __jsontype = "array" })
+				for _, subSec in ipairs(sec.subSection) do
+					local rows = setmetatable({}, { __jsontype = "array" })
+					for _, rowData in ipairs(subSec.data) do
+						if tab:CheckFlag(rowData) then
+							local values = setmetatable({}, { __jsontype = "array" })
+							for _, colData in ipairs(rowData) do
+								if colData.format and tab:CheckFlag(colData) then
+									local ok, str = pcall(formatCalcStr, colData.format, actor, colData)
+									values[#values + 1] = ok and strip(tostring(str)) or ""
+								end
+							end
+							if #values > 0 then rows[#rows + 1] = { label = strip(rowData.label or ""), values = values } end
+						end
+					end
+					if #rows > 0 then
+						local sub = { label = strip(subSec.label or ""), rows = rows }
+						if subSec.data.extra then
+							local ok, str = pcall(formatCalcStr, subSec.data.extra, actor)
+							if ok and str ~= "" then sub.extra = strip(str) end
+						end
+						subs[#subs + 1] = sub
+					end
+				end
+				if #subs > 0 then sections[#sections + 1] = { id = sec.id, label = strip(first), subsections = subs } end
+			end
+		end
+		if want and #sections == 0 then
+			local shown = {}
+			for i = 1, math.min(#labels, 30) do shown[i] = labels[i] end
+			W.fail("not_found", "no Calcs section matches " .. args.section .. "; sections: " .. table.concat(shown, ", "))
+		end
+		return { sections = sections }
+	end
+
 	-- Attribute requirements and resistances from the main output.
 	function ops.defences()
 		local o = W.build().calcsTab.mainOutput

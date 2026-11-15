@@ -1,7 +1,7 @@
 // Unit tests: config, auth compare, build-code decoding, the fetch allowlist, the store, API.md drift.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 import { deflateSync } from "node:zlib";
@@ -11,7 +11,7 @@ import { decodeBuildCode, Fetcher } from "../src/fetch.js";
 import { apiDoc, readmeWithRoutes } from "../src/gen-api-doc.js";
 import { FailureWindow, secretMatches } from "../src/http.js";
 import { toolDefs } from "../src/mcp.js";
-import { parseInput, routes } from "../src/routes.js";
+import { action, parseInput, routes } from "../src/routes.js";
 import { openRuntime, startTime } from "../src/runtime.js";
 import { BuildStore, TRASH_DAYS } from "../src/store.js";
 import { memoryLogger, ROOT, tempDir, testConfig, TOKEN } from "./helpers.js";
@@ -78,6 +78,9 @@ void test("fetch: only https on allowlisted hosts, redirects re-checked, size ca
   await assert.rejects(f.text("https://pobb.in/abc/raw", "t"), (e) => e instanceof ApiError && e.code === "upstream_fetch_failed" && !e.message.includes("gone"));
   next = () => new Response("short");
   assert.equal(await f.text("https://pobb.in/abc/raw", "t"), "short");
+  next = () => new Response(new ReadableStream({ pull: (c) => c.error(new TypeError("socket closed")) }), { headers: { "content-type": "text/plain" } });
+  await assert.rejects(f.text("https://pobb.in/abc/raw", "t"), (e) => e instanceof ApiError && e.code === "upstream_fetch_failed" && e.message.includes("reading the response from pobb.in failed") && !e.message.includes("socket closed"));
+  assert.ok(lines.some((l) => l.event === "fetch.body_failed" && l.host === "pobb.in"));
   assert.ok(lines.some((l) => l.event === "fetch.done" && l.host === "pobb.in" && l.status === 200));
 });
 
@@ -142,6 +145,101 @@ void test("store: delete is recoverable for 7 days, then purged with its history
   await assert.rejects(store.restore("../../builds/x"), rejects("not_found"));
 });
 
+void test("store: a purge beside an unfinished trash entry keeps it, and never sees staging", async (t) => {
+  const dir = await tempDir("trash-purge");
+  t.after(dir.remove);
+  const store = new BuildStore(dir.path, 3);
+  await store.init();
+  const id = "0123456789abcdef";
+  const entry = join(dir.path, "trash", id);
+  await mkdir(entry);
+  await writeFile(join(entry, "build.json"), "{}");
+  const staging = join(dir.path, "trash", `.${id}.deleting`);
+  await mkdir(staging);
+  const old = new Date(Date.now() - 8 * 86_400_000);
+  await utimes(staging, old, old);
+  assert.deepEqual(await store.purgeTrash(), [], "no marker, fresh directory: kept");
+  assert.ok(existsSync(staging), "staging is left alone");
+  await utimes(entry, old, old);
+  assert.deepEqual(await store.purgeTrash(), [id], "no marker, old directory: purged");
+  assert.ok(existsSync(staging), "staging is left alone");
+});
+
+/** A stored build with two revisions, and where its live files are. */
+async function twoRevisions(store: BuildStore, dir: string) {
+  const a = await store.create("A", "<x>1</x>", { kind: "xml" });
+  await store.update(a.id, { xml: "<x>2</x>", cause: "edit" });
+  const live = { meta: join(dir, "builds", `${a.id}.json`), xml: join(dir, "builds", `${a.id}.xml`), history: join(dir, "history", a.id) };
+  const trash = join(dir, "trash", a.id);
+  return { id: a.id, live, trash };
+}
+
+void test("store: a delete stopped after k moves is finished by recover and restores whole", async (t) => {
+  for (const k of [1, 2, 3]) {
+    const dir = await tempDir(`delete-resume-${k}`);
+    t.after(dir.remove);
+    const store = new BuildStore(dir.path, 3);
+    await store.init();
+    const { id, live } = await twoRevisions(store, dir.path);
+    const stage = join(dir.path, "trash", `.${id}.deleting`);
+    await mkdir(stage);
+    await writeFile(join(stage, "deleted.json"), JSON.stringify({ deletedAt: new Date().toISOString() }));
+    await rename(live.meta, join(stage, "build.json"));
+    if (k >= 2) await rename(live.xml, join(stage, "build.xml"));
+    if (k >= 3) await rename(live.history, join(stage, "history"));
+    assert.deepEqual(await store.recover(), [id], `k=${k}`);
+    assert.deepEqual(await store.recover(), [], "idempotent");
+    assert.deepEqual((await store.listTrash()).map((m) => [m.id, m.revision]), [[id, 2]], `k=${k}`);
+    await store.restore(id);
+    assert.deepEqual((await store.get(id)).history.map((h) => h.revision), [1, 2], `k=${k}`);
+    assert.deepEqual([await store.xml(id), await store.xml(id, 1)], ["<x>2</x>", "<x>1</x>"], `k=${k}`);
+  }
+});
+
+void test("store: a delete stopped before any file moved leaves the build live", async (t) => {
+  const dir = await tempDir("delete-resume-0");
+  t.after(dir.remove);
+  const store = new BuildStore(dir.path, 3);
+  await store.init();
+  const { id } = await twoRevisions(store, dir.path);
+  await mkdir(join(dir.path, "trash", `.${id}.deleting`));
+  await store.recover();
+  assert.equal((await store.get(id)).revision, 2);
+  assert.deepEqual(await store.listTrash(), []);
+});
+
+void test("store: a restore stopped after k moves is finished by recover", async (t) => {
+  for (const k of [1, 2, 3]) {
+    const dir = await tempDir(`restore-resume-${k}`);
+    t.after(dir.remove);
+    const store = new BuildStore(dir.path, 3);
+    await store.init();
+    const { id, live, trash } = await twoRevisions(store, dir.path);
+    await store.delete(id);
+    const stage = join(dir.path, "trash", `.${id}.restoring`);
+    await rename(trash, stage);
+    await rename(join(stage, "history"), live.history);
+    if (k >= 2) await rename(join(stage, "build.xml"), live.xml);
+    if (k >= 3) await rename(join(stage, "build.json"), live.meta);
+    assert.deepEqual(await store.recover(), [id], `k=${k}`);
+    assert.deepEqual((await store.list()).map((m) => m.id), [id], `k=${k}`);
+    assert.deepEqual([await store.xml(id), await store.xml(id, 1)], ["<x>2</x>", "<x>1</x>"], `k=${k}`);
+    assert.deepEqual(await store.listTrash(), []);
+    assert.deepEqual(await readdir(join(dir.path, "trash")), []);
+  }
+});
+
+void test("store: parallel deletes beside purges lose no build and fail no call", async (t) => {
+  const dir = await tempDir("delete-parallel");
+  t.after(dir.remove);
+  const store = new BuildStore(dir.path, 3);
+  await store.init();
+  const ids = await Promise.all(Array.from({ length: 20 }, (_, i) => store.create(`b${i}`, "<x/>", { kind: "xml" }).then((m) => m.id)));
+  await Promise.all(ids.map(async (id) => { await store.delete(id); await store.purgeTrash(); }));
+  assert.deepEqual((await store.listTrash()).map((m) => m.id).sort(), [...ids].sort());
+  assert.deepEqual(await store.list(), []);
+});
+
 void test("failed credential window: limit inside a minute, then clear", () => {
   const w = new FailureWindow(3, 60_000);
   assert.equal(w.retryAfterSeconds(0), 0);
@@ -153,7 +251,7 @@ void test("failed credential window: limit inside a minute, then clear", () => {
 
 void test("mcp: tools come from the route table with accurate read-only hints", () => {
   const defs = toolDefs();
-  assert.deepEqual(defs.map((d) => d.name), ["pob_build", "pob_stats", "pob_tree", "pob_skills", "pob_items", "pob_config", "pob_evaluate", "pob_lookup"]);
+  assert.deepEqual(defs.map((d) => d.name), ["pob_build", "pob_stats", "pob_tree", "pob_skills", "pob_items", "pob_config", "pob_evaluate", "pob_lookup", "pob_trade"]);
   assert.equal(defs.find((d) => d.name === "pob_build")?.readOnly, false);
   assert.equal(defs.find((d) => d.name === "pob_stats")?.readOnly, true);
   assert.ok(!defs.some((d) => d.routes.some((r) => r.stream)), "the event stream is not an MCP action");
@@ -173,6 +271,9 @@ void test("mcp: a parameter shared by several actions accepts what each of them 
   for (const d of toolDefs()) {
     for (const r of d.routes) {
       for (const k of Object.keys(r.input.shape)) assert.ok(k in d.input.shape, `${d.name} lists ${r.name}'s ${k}`);
+      // The tool's own `action` selector must take every action's name (a route parameter called `action` would replace it).
+      const sel = d.input.safeParse({ action: action(r) });
+      assert.ok(sel.success || !sel.error.issues.some((i) => i.path[0] === "action"), `${d.name} cannot select ${action(r)}`);
     }
   }
 });
@@ -206,6 +307,26 @@ void test("data directory lock: stale when it names this process, a reused pid o
   await assert.rejects(openRuntime(cfg, log), /in use by process/);
 });
 
+void test("data directory lock: the old form (a pid alone) is stale for this process, held for a live other one; a reused pid's lock is replaced", async (t) => {
+  const dir = await tempDir("lock-old");
+  t.after(dir.remove);
+  const cfg = testConfig(dir.path, { poolSize: 1 });
+  const { log } = memoryLogger();
+  const lockFile = join(dir.path, "server.lock");
+  const self = async () => `${process.pid} ${await startTime(process.pid)}`;
+  await writeFile(lockFile, String(process.pid)); // no start time, this process: a restart after an unclean stop
+  let rt = await openRuntime(cfg, log);
+  assert.equal(await readFile(lockFile, "utf8"), await self(), "this process's old lock is replaced, not refused");
+  await rt.close();
+  await writeFile(lockFile, String(process.ppid)); // no start time, a live process: it cannot be told apart, so it holds
+  await assert.rejects(openRuntime(cfg, log), new RegExp(`in use by process ${process.ppid}`));
+  assert.equal(await readFile(lockFile, "utf8"), String(process.ppid), "a held lock is left as it was");
+  await writeFile(lockFile, `${process.ppid} 1`); // a live process that started at another time: the pid was reused
+  rt = await openRuntime(cfg, log);
+  assert.equal(await readFile(lockFile, "utf8"), await self(), "a reused pid's lock is replaced");
+  await rt.close();
+});
+
 void test("every error code the Lua worker raises is a registered code", async () => {
   const dir = join(ROOT, "api/lua");
   const files = [join(dir, "worker.lua"), ...(await readdir(join(dir, "ops"))).filter((f) => f.endsWith(".lua")).map((f) => join(dir, "ops", f))];
@@ -215,4 +336,18 @@ void test("every error code the Lua worker raises is a registered code", async (
   }
   assert.ok(codes.size >= 4, [...codes].join(","));
   assert.deepEqual([...codes].filter((c) => !isErrorCode(c)), []);
+});
+
+void test("no write route declares its result as any or unknown", () => {
+  const loose = (t: { def: { type: string } }) => ["any", "unknown"].includes(t.def.type);
+  const writes = routes.filter((r) => !r.readOnly);
+  assert.ok(writes.length >= 80, `${writes.length} write routes`);
+  let mutations = 0;
+  for (const r of writes) {
+    assert.ok(!loose(r.output), `${r.name} declares no output shape`);
+    const result = (r.output as { shape?: Record<string, { def: { type: string } }> }).shape?.result;
+    if (result) mutations += 1;
+    if (result) assert.ok(!loose(result), `${r.name} declares no result shape`);
+  }
+  assert.ok(mutations >= 70, `${mutations} mutation routes carry a result`);
 });

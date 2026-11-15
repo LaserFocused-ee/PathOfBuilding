@@ -65,12 +65,7 @@ return function(W)
 		return summary(b)
 	end
 
-	-- args: xml, name?
-	-- args: character (its character-window/get-characters entry), passives and items (the get-passive-skills
-	-- and get-items response bodies), name?, clearJewels?, clearItems?, clearSkills?, ignoreWeaponSwap? (default:
-	-- the Import tab's boxes). A new build on the latest tree, then the Import tab's two account imports in the
-	-- order a user clicks them, with the charData their download callbacks build (ImportTab.lua:838-884).
-	function ops.import_character(args)
+	local function decodeCharacter(args)
 		local char = args.character
 		if type(char) ~= "table" or type(char.name) ~= "string" or type(char.class) ~= "string" or type(char.league) ~= "string" then
 			W.fail("invalid_input", "character is a get-characters entry (name, class, league)")
@@ -78,10 +73,19 @@ return function(W)
 		local passives = type(args.passives) == "string" and dkjson.decode(args.passives)
 		local items = type(args.items) == "string" and dkjson.decode(args.items)
 		if type(passives) ~= "table" or type(items) ~= "table" then W.fail("upstream_fetch_failed", "the character data could not be read") end
-		main:SetMode("BUILD", false, args.name or char.name)
-		local b = settledOrFail("worker_error")
+		return char, passives, items
+	end
+
+	-- The Import tab's two account imports in the order a user clicks them, with the charData their download
+	-- callbacks build (ImportTab.lua:838-884). clear: nil = the clear boxes' current state (unless args sets
+	-- one), true = jewels, items and skills all cleared (what the Compare tab's Re-import sets).
+	local function importInto(b, char, passives, items, args, clear)
 		local tab = b.importTab
-		local function opt(v, box) if v == nil then return tab.controls[box].state end return v == true end
+		local function box(v, name)
+			if v == nil then return tab.controls[name].state end
+			return v == true
+		end
+		local function opt(v, name) return clear or box(v, name) end
 		-- Account-name imports omit quest choices, so keep the build's current values.
 		passives.bandit_choice = passives.bandit_choice or b.configTab.input.bandit
 		passives.pantheon_major = passives.pantheon_major or b.configTab.input.pantheonMajorGod
@@ -94,10 +98,28 @@ return function(W)
 		itemData.equipment = items.items or {}
 		itemData.guardian = items.guardian
 		tab:ImportItemsAndSkills(itemData, opt(args.clearItems, "siteCharImportItemsClearItems"), opt(args.clearSkills, "siteCharImportItemsClearSkills"),
-			opt(args.ignoreWeaponSwap, "siteCharImportItemsIgnoreWeaponSwap"))
+			box(args.ignoreWeaponSwap, "siteCharImportItemsIgnoreWeaponSwap"))
+	end
+
+	-- args: character (its character-window/get-characters entry), passives and items (the get-passive-skills
+	-- and get-items response bodies), name?, clearJewels?, clearItems?, clearSkills?, ignoreWeaponSwap? (default:
+	-- the Import tab's boxes). A new build on the latest tree, then the Import tab's two account imports.
+	function ops.import_character(args)
+		local char, passives, items = decodeCharacter(args)
+		main:SetMode("BUILD", false, args.name or char.name)
+		local b = settledOrFail("worker_error")
+		importInto(b, char, passives, items, args)
 		b = settledOrFail("worker_error")
 		return summary(b)
 	end
+
+	-- args: character, passives, items, ignoreWeaponSwap? (as import_character). The Compare tab's Re-import: the held
+	-- build's tree, jewels, items and skills are replaced by the character's (all three clear boxes on).
+	ops.reimport = W.mutation(function(args, b)
+		local char, passives, items = decodeCharacter(args)
+		importInto(b, char, passives, items, args, true)
+		return summary(settledOrFail("worker_error"))
+	end)
 
 	-- args: xml. Replaces the held build's content with this build (the name stays), as a mutation, so the
 	-- server stores it as the next revision with the sidebar stats that changed.

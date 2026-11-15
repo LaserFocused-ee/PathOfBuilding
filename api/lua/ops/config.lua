@@ -142,5 +142,78 @@ return function(W)
 		return function(built) return { level = built.characterLevel, autoLevel = built.characterLevelAutoMode == true } end
 	end)
 
+	-- The Configuration tab's custom modifier groups of the active config set, each line marked as Path of Building reads it
+	-- (ConfigTab.lua: a line counts when modLib.parseMod parses it whole; the box shows the others as unsupported).
+	local function customGroups(b)
+		local out = {}
+		for i, block in ipairs(b.configTab.configSets[b.configTab.activeConfigSetId].customModsList or {}) do
+			local lines = {}
+			for line in (block.text or ""):gmatch("([^\n]*)\n?") do
+				local stripped = StripEscapes(line):match("^%s*(.-)%s*$")
+				if stripped ~= "" then
+					local mods, extra = modLib.parseMod(stripped)
+					lines[#lines + 1] = { text = stripped, supported = (mods and not extra) and true or false }
+				end
+			end
+			out[i] = { title = block.title or "Default", enabled = block.enabled ~= false, text = block.text or "", lines = setmetatable(lines, { __jsontype = "array" }) }
+		end
+		return out
+	end
+	function ops.custom_mods()
+		local b = W.build()
+		return { configSet = b.configTab.activeConfigSetId, groups = customGroups(b) }
+	end
+	-- args: groups (1-20 of { title, enabled?, text }). Replaces the active config set's groups, as editing the boxes does.
+	ops.set_custom_mods = W.mutation(function(args, b)
+		if type(args.groups) ~= "table" or #args.groups == 0 then W.fail("invalid_input", "groups is a list of { title, enabled?, text }") end
+		local list = {}
+		for i, g in ipairs(args.groups) do
+			if type(g) ~= "table" or type(g.text) ~= "string" then W.fail("invalid_input", "group " .. i .. " needs its text") end
+			list[i] = { title = type(g.title) == "string" and g.title or ("Group " .. i), enabled = g.enabled ~= false, text = g.text }
+		end
+		local tab = b.configTab
+		tab.configSets[tab.activeConfigSetId].customModsList = list
+		tab:UpdateCustomModsControls()
+		tab:AddUndoState()
+		tab:BuildModList()
+		b.buildFlag = true
+		return function(built) return { configSet = built.configTab.activeConfigSetId, groups = customGroups(built) } end
+	end)
+
+	-- What the build would export for party play with the Import tab's Export Support box on (PartyTab:exportBuffs).
+	-- The calculation only fills the exports while the flag is on, so it is switched on, recalculated, read, and put
+	-- back (and recalculated again) even when something fails; the build itself is not changed.
+	function ops.party_export()
+		local b = W.build()
+		local tab = b.partyTab
+		local was = tab.enableExportBuffs == true
+		local exports = setmetatable({}, { __jsontype = "object" })
+		local ok, err = pcall(function()
+			tab.enableExportBuffs = true
+			b.buildFlag = true
+			W.pump()
+			for _, kind in ipairs({ "PlayerMods", "Aura", "Curse", "Warcry", "Link", "EnemyConditions", "EnemyMods" }) do
+				exports[kind] = W.strip(tab:exportBuffs(kind) or "")
+			end
+		end)
+		tab.enableExportBuffs = was
+		b.buildFlag = true
+		local okPump, errPump = pcall(W.pump)
+		if not ok then error(err, 0) end
+		if not okPump then error(errPump, 0) end
+		return { enabled = was, exports = exports }
+	end
+
+	-- args: xml, label (the other build, filled in by the server). The Compare tab's Copy config: every Configuration tab
+	-- input of the compared build set on this build (inputs this build has and the other does not stay as they are).
+	ops.copy_from = W.mutation(function(args, b)
+		local count = 0
+		W.compared(args, function(tab, entry)
+			for _ in pairs(entry.configTab.input) do count = count + 1 end
+			tab:CopyCompareConfig()
+		end)
+		return { copied = count }
+	end)
+
 	return ops
 end

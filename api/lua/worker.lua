@@ -93,8 +93,34 @@ GetRuntimePath = function() return stateDir end
 local copied
 Copy = function(text) copied = text end
 Paste = function() return nil end
-LaunchSubScript = function() return nil end
-OpenURL = function() end
+-- The ways out of the Lua state: sub-scripts (Launch.lua's downloads), links, and files written outside the state dir.
+-- None of them goes anywhere: a write outside the state dir is refused as a failed open (Path of Building's own callers
+-- already handle that, e.g. the timeless jewel data loader's uncompressed cache in src/Data). Each is counted so a test
+-- can show what a control reached (`worker.reach`).
+local reach = { subScripts = 0, urls = 0, writes = {} }
+LaunchSubScript = function() reach.subScripts = reach.subScripts + 1; return nil end
+OpenURL = function() reach.urls = reach.urls + 1 end
+local l_open, l_remove, l_rename = io.open, os.remove, os.rename
+local function outside(path)
+	local p = tostring(path)
+	return p:sub(1, #stateDir + 1) ~= stateDir .. "/" or p:find("..", 1, true) ~= nil
+end
+local function refuse(path)
+	reach.writes[#reach.writes + 1] = tostring(path)
+	return nil, tostring(path) .. ": writes outside the state directory are refused"
+end
+io.open = function(path, mode)
+	if mode and mode:find("[wa+]") and outside(path) then return refuse(path) end
+	return l_open(path, mode)
+end
+os.remove = function(path)
+	if outside(path) then return refuse(path) end
+	return l_remove(path)
+end
+os.rename = function(from, to)
+	if outside(from) or outside(to) then return refuse(to) end
+	return l_rename(from, to)
+end
 function GetVirtualScreenSize() return 1920, 1080 end
 __callbackTable__ = {}
 function runCallback(name, ...)
@@ -142,6 +168,21 @@ function W.fail(code, message)
 end
 function W.strip(s)
 	return type(s) == "string" and StripEscapes(s) or s
+end
+-- The lines a Tooltip would draw, colour codes stripped; a separator becomes one "" between two text lines.
+function W.tooltip(fn)
+	local t = new("Tooltip"):Tooltip()
+	fn(t)
+	local list = setmetatable({}, { __jsontype = "array" })
+	for _, line in ipairs(t.lines) do
+		if line.text then
+			list[#list + 1] = W.strip(line.text)
+		elseif #list > 0 and list[#list] ~= "" then
+			list[#list + 1] = ""
+		end
+	end
+	if list[#list] == "" then list[#list] = nil end
+	return list
 end
 function W.build()
 	local b = main.modes.BUILD
@@ -226,6 +267,61 @@ function W.clickPopup(label)
 	end
 	W.fail("worker_error", "dialog has no " .. label .. " button")
 end
+-- Loads another build (args.xml, from the store) into the Compare tab as the compared build for fn(tab, entry), then takes
+-- it out again, so the compare list is as it was. args.otherSets {tree, skills, items, config} (1-based, in list order) picks
+-- the compared build's sets with the Compare tab's set dropdowns first.
+function W.compared(args, fn)
+	local tab = W.build().compareTab
+	local keep = { index = tab.activeCompareIndex, results = tab.comparePowerResults, n = #tab.compareEntries }
+	if type(args.xml) ~= "string" or not tab:ImportBuild(args.xml, args.label or "Compared") then W.fail("invalid_input", "the other build could not be loaded for comparison") end
+	local ok, out = pcall(function()
+		local entry = tab.compareEntries[#tab.compareEntries]
+		local sets = args.otherSets or {}
+		for _, p in ipairs({ { "tree", "compareSpecSelect", entry.treeTab.specList }, { "skills", "compareSkillSetSelect", entry.skillsTab.skillSetOrderList },
+			{ "items", "compareItemSetSelect", entry.itemsTab.itemSetOrderList }, { "config", "compareConfigSetSelect", entry.configTab.configSetOrderList } }) do
+			local i = sets[p[1]]
+			if i ~= nil then
+				if not p[3][i] then W.fail("invalid_input", "the other build has no " .. p[1] .. " set " .. tostring(i) .. " (it has " .. #p[3] .. ")") end
+				tab.controls[p[2]].selFunc(i)
+			end
+		end
+		if entry.buildFlag then entry:Rebuild() end
+		return fn(tab, entry)
+	end)
+	while #tab.compareEntries > keep.n do tab:RemoveBuild(#tab.compareEntries) end
+	tab.activeCompareIndex, tab.comparePowerResults = keep.index, keep.results
+	tab:UpdateBuildSelector()
+	if not ok then error(out, 0) end
+	return out
+end
+-- The timeless jewels (Legion and Abyss uniques: the ones whose text says "Conquered by"), as the unique list holds them, by
+-- name: { name, base, raw, radius (label, none for the Abyss jewels), seedMin, seedMax (as written on the item; Elegant Hubris
+-- 2000-160000), conquerors = [{ name, keystone?, variant? }] }. The seed line is the one with a "(min-max)" range; its
+-- {variant:n} tags name the Variant line that gives the keystone ("Kaom (Strength of Blood)").
+function W.timelessJewels()
+	local out = {}
+	for _, item in pairs(main.uniqueDB.list) do
+		if item.raw:find("onquered by", 1, true) then
+			local variants, jewel = {}, { name = item.title, base = item.baseName, raw = item.raw, conquerors = {},
+				radius = item.jewelRadiusIndex and data.jewelRadius[item.jewelRadiusIndex].label or nil }
+			for line in (item.raw .. "\n"):gmatch("(.-)\n") do
+				local variant = line:match("^Variant: (.+)$")
+				if variant then variants[#variants + 1] = variant end
+				local tag, text = line:match("^{variant:([%d,]+)}(.*)$")
+				local min, max = (text or line):match("%((%d+)%-(%d+)%)")
+				if min then
+					jewel.seedMin, jewel.seedMax = tonumber(min), tonumber(max)
+					local first = tag and tonumber(tag:match("%d+"))
+					local keystone = first and variants[first] and variants[first]:match("^%S+ %((.-)%)")
+					jewel.conquerors[#jewel.conquerors + 1] = { name = (text or line):match("(%S+)$"), keystone = keystone, variant = first }
+				end
+			end
+			out[#out + 1] = jewel
+		end
+	end
+	table.sort(out, function(a, b) return a.name < b.name end)
+	return out
+end
 -- Opens a list manager's rename/new dialog through its button, types the name, and saves it.
 function W.listAction(list, button, index, title)
 	if index then
@@ -274,13 +370,19 @@ local function takePrompt()
 end
 
 local ops = {}
-for _, domain in ipairs({ "builds", "stats", "lookup", "tree", "config", "skills", "items", "evaluate", "party", "ui" }) do
+for _, domain in ipairs({ "builds", "stats", "lookup", "tree", "config", "skills", "items", "evaluate", "party", "ui", "loadouts" }) do
 	for name, fn in pairs(dofile(here .. "/ops/" .. domain .. ".lua")(W)) do
 		ops[domain .. "." .. name] = fn
 	end
 end
 ops["worker.ping"] = function()
 	return { pobVersion = launch.versionNumber, latestTreeVersion = latestTreeVersion, heapKB = collectgarbage("count") }
+end
+-- What reached a way out since the last call (see the stubs above), then counted from zero again.
+ops["worker.reach"] = function()
+	local r = { subScripts = reach.subScripts, urls = reach.urls, writes = setmetatable(reach.writes, { __jsontype = "array" }) }
+	reach = { subScripts = 0, urls = 0, writes = {} }
+	return r
 end
 ops["worker.gc"] = function()
 	collectgarbage("collect")
@@ -301,7 +403,8 @@ for line in io.lines() do
 		local started = nowMs()
 		local ok, res = xpcall(ops[req.op], function(e)
 			if type(e) == "table" then return e end
-			return { code = "worker_error", message = tostring(e), trace = debug.traceback("", 2) }
+			-- the Lua text names server files: it goes to the server log, the caller gets the op only
+			return { code = "worker_error", message = "the engine failed while running " .. req.op, detail = tostring(e), trace = debug.traceback("", 2) }
 		end, type(req.args) == "table" and req.args or {})
 		local prompt = takePrompt()
 		local warnings = drainPopups()
@@ -311,7 +414,7 @@ for line in io.lines() do
 			warnings[#warnings + 1] = prompt
 		end
 		if not ok and res.trace then
-			stderr:write(res.message, res.trace, "\n")
+			stderr:write(res.detail, res.trace, "\n")
 			res.trace = nil
 		end
 		if ok then

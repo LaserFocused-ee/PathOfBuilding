@@ -1,4 +1,4 @@
-// The only module that makes outbound requests. Host allowlist, https only, a timeout, a size cap,
+// Outbound requests for build imports and the browser view's relay (trade.ts is the other outbound module). Host allowlist, https only, a timeout, a size cap,
 // a descriptive User-Agent, redirects followed by hand only to allowlisted hosts, and a per-host pause
 // whenever a host signals one (Retry-After, X-Rate-Limit-* state).
 import { unzipSync } from "node:zlib";
@@ -6,8 +6,8 @@ import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
 import type { Logger } from "./log.js";
 
-/** Download hosts of the build sites in src/Modules/BuildSiteTools.lua. */
-export const SHARE_HOSTS = ["maxroll.gg", "api.pob.codes", "pobb.in", "poe.ninja", "pastebin.com", "pastebinp.com", "rentry.co", "poedb.tw"] as const;
+/** Download hosts of the build sites in src/Modules/BuildSiteTools.lua, less the one whose docs rule out third-party use of its endpoint (build import by link refuses it with a note to paste the build code). */
+export const SHARE_HOSTS = ["maxroll.gg", "api.pob.codes", "pobb.in", "pastebin.com", "pastebinp.com", "rentry.co", "poedb.tw"] as const;
 
 /** The game site: character import (character-window endpoints, as src/Classes/ImportTab.lua uses). */
 export const GAME_HOST = "www.pathofexile.com";
@@ -18,15 +18,22 @@ export const GAME_HOST = "www.pathofexile.com";
  * builds; the game site is read only).
  */
 export const RELAY_PATHS: Readonly<Record<string, { paths: readonly string[]; post: boolean }>> = {
-  [GAME_HOST]: { paths: ["/character-window/get-characters", "/character-window/get-passive-skills", "/character-window/get-items", "/account/view-profile/"], post: false },
-  ...Object.fromEntries(SHARE_HOSTS.map((h) => [h, { paths: ["/"], post: true }])),
-};
+  [GAME_HOST]: { paths: ["/character-window/get-characters", "/character-window/get-passive-skills", "/character-window/get-items"], post: false },
+  // the downloadURL and postUrl of each site in BuildSiteTools.lua; api.pob.codes serves builds at /<id>/raw, so its whole (API-only) host
+  "maxroll.gg": { paths: ["/poe/api/pob"], post: true },
+  "api.pob.codes": { paths: ["/"], post: true },
+  "pobb.in": { paths: ["/pob/"], post: true },
+  "pastebin.com": { paths: ["/raw/"], post: false },
+  "pastebinp.com": { paths: ["/raw/"], post: false },
+  "rentry.co": { paths: ["/paste/"], post: false },
+  "poedb.tw": { paths: ["/pob/"], post: true },
+} satisfies Record<(typeof SHARE_HOSTS)[number] | typeof GAME_HOST, unknown>;
 
 const relayEntry = (url: URL): string | undefined =>
   RELAY_PATHS[url.hostname]?.paths.find((p) => (p.endsWith("/") ? url.pathname.startsWith(p) : url.pathname === p || url.pathname.startsWith(`${p}/`)));
 
 /** Response headers handed back to the page from a relayed request. */
-const RELAY_HEADERS = /^(content-type|retry-after|x-rate-limit-[a-z0-9-]+)$/;
+const RELAY_HEADERS = /^(content-type|retry-after|cf-mitigated|x-rate-limit-[a-z0-9-]+)$/;
 
 export interface Relayed {
   status: number;
@@ -66,6 +73,7 @@ export class Fetcher {
 
   private relayCheck(raw: string): URL {
     const url = this.check(raw);
+    if (/%(2f|5c|2e)/i.test(url.pathname)) throw new ApiError("invalid_input", "an encoded separator or dot is not relayed");
     if (relayEntry(url) === undefined) throw new ApiError("invalid_input", `that path on ${url.hostname} is not on the allowlist`);
     return url;
   }
@@ -176,7 +184,7 @@ export class Fetcher {
   }
 }
 
-async function readCapped(res: Response, max: number, host: string): Promise<string> {
+export async function readCapped(res: Response, max: number, host: string): Promise<string> {
   const declared = Number(res.headers.get("content-length") ?? 0);
   if (declared > max) throw new ApiError("upstream_fetch_failed", `${host} response is larger than ${max} bytes`);
   const chunks: Uint8Array[] = [];

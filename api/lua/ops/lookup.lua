@@ -179,5 +179,331 @@ return function(W)
 		return { total = matched, offset = offset, options = out }
 	end
 
+	-- args: table (one of dataTables), query? (name or any line of a row), offset?, limit?
+	-- Path of Building's own game-data tables, one flat row each: name, plus fields as plain JSON.
+	local function lineList(list)
+		local out = {}
+		for i, line in ipairs(list or {}) do out[i] = strip(line) end
+		return out
+	end
+	local function sortedKeys(set)
+		local out = {}
+		for k in pairs(set or {}) do out[#out + 1] = k end
+		table.sort(out)
+		return out
+	end
+	local function modRow(id, mod)
+		local lines = lineList(mod)
+		return { name = table.concat(lines, "/"), id = id, type = mod.type, affix = mod.affix, level = mod.level, group = mod.group, lines = lines, tags = lineList(mod.modTags) }
+	end
+	local function modsOf(mods, add)
+		for id, mod in pairs(mods) do add(modRow(id, mod), id) end
+	end
+	-- Drop-restricted mods: the data file names each mod and the item types it drops on.
+	local function dropOnly(file, mods, add)
+		for id, entry in pairs(require(file)) do
+			local mod = mods[id]
+			if mod then
+				local row = modRow(id, mod)
+				row.categories = lineList(entry.categories)
+				add(row, id)
+			end
+		end
+	end
+	local function numbers(src, names)
+		local out = {}
+		for _, k in ipairs(names) do out[k] = src[k] end
+		return out
+	end
+	local minionFields = { "life", "energyShield", "armour", "fireResist", "coldResist", "lightningResist", "chaosResist", "damage", "damageSpread", "attackTime", "attackRange", "accuracy" }
+	local function minionRow(id, minion)
+		local row = numbers(minion, minionFields)
+		row.name, row.id, row.limit = minion.name, id, minion.limit
+		row.skills, row.tags = lineList(minion.skillList), lineList(minion.monsterTags)
+		return row
+	end
+	local function treeNodes(add, wanted)
+		local spec = W.build().spec
+		for id, node in pairs(spec.nodes) do
+			if wanted(node) then add({ name = node.dn, id = id, lines = lineList(node.sd), recipe = node.recipe and lineList(node.recipe) or nil }, id) end
+		end
+	end
+
+	local dataTables = {
+		rare_templates = function(add)
+			for name, item in pairs(W.main.rareDB.list) do
+				local lines = {}
+				for _, list in ipairs({ item.implicitModLines, item.explicitModLines }) do
+					for _, modLine in ipairs(list) do lines[#lines + 1] = strip(modLine.line) end
+				end
+				add({ name = name, base = item.baseName, type = item.type, lines = lines }, name)
+			end
+		end,
+		bench_crafts = function(add)
+			for i, craft in ipairs(data.masterMods) do
+				local row = modRow(nil, craft)
+				row.types = sortedKeys(craft.types)
+				add(row, string.format("%08d", i))
+			end
+		end,
+		essences = function(add)
+			for id, essence in pairs(data.essences) do
+				local lines = {}
+				for _, slot in ipairs(sortedKeys(essence.mods)) do
+					local mod = data.itemMods.Item[essence.mods[slot]]
+					lines[#lines + 1] = slot .. ": " .. (mod and table.concat(lineList(mod), "/") or essence.mods[slot])
+				end
+				add({ name = essence.name, id = id, tier = essence.tier, type = essence.type, lines = lines }, id)
+			end
+		end,
+		veiled = function(add) modsOf(data.veiledMods, add) end,
+		necropolis = function(add) modsOf(data.necropolisMods, add) end,
+		beastcraft = function(add) modsOf(data.beastCraft, add) end,
+		delve = function(add) dropOnly("Data.DelveDropOnly", data.itemMods.Delve, add) end,
+		incursion = function(add) dropOnly("Data.IncursionDropOnly", data.itemMods.Explicit, add) end,
+		fossil = function(add)
+			for id, mod in pairs(data.itemMods.Delve) do
+				if mod.affix == "Subterranean" or mod.affix == "of the Underground" then add(modRow(id, mod), id) end
+			end
+		end,
+		enchantments = function(add)
+			-- The seven item groups Data.lua loads; its other keys (Flask, one per weapon type) repeat these.
+			for _, slot in ipairs({ "Belt", "Body Armour", "Boots", "Gloves", "Helmet", "UtilityFlask", "Weapon" }) do
+				local function lines(source, skill, list)
+					for i, entry in ipairs(list) do
+						local text = type(entry) == "table" and table.concat(lineList(entry), "/") or strip(entry)
+						add({ name = text, text = text, slot = slot, source = source, skill = skill, types = type(entry) == "table" and sortedKeys(entry.types) or nil },
+							string.format("%s|%s|%s|%08d", slot, skill or "", source, i))
+					end
+				end
+				for source, list in pairs(data.enchantments[slot]) do
+					if slot == "Helmet" then
+						-- Helmet enchantments: skill, then tier.
+						for tier, tierList in pairs(list) do lines(tier, source, tierList) end
+					else
+						lines(source, nil, list)
+					end
+				end
+			end
+		end,
+		cluster_notables = function(add)
+			for name, info in pairs(data.clusterJewelInfoForNotable) do
+				local skills, seen = {}, {}
+				for size in pairs(info.size) do
+					for _, tag in ipairs(info.jewelTypes) do
+						local skill = data.clusterJewels.jewels[size].skills[tag]
+						if skill and not seen[skill.name] then seen[skill.name] = true; skills[#skills + 1] = skill.name end
+					end
+				end
+				table.sort(skills)
+				add({ name = name, sizes = sortedKeys(info.size), skills = skills }, name)
+			end
+		end,
+		anoint_recipes = function(add) treeNodes(add, function(node) return node.recipe ~= nil end) end,
+		keystones = function(add) treeNodes(add, function(node) return node.type == "Keystone" end) end,
+		pantheons = function(add)
+			for id, god in pairs(data.pantheons) do
+				local lines = {}
+				for _, soul in ipairs(god.souls) do
+					for _, mod in ipairs(soul.mods) do lines[#lines + 1] = strip(soul.name .. ": " .. mod.line) end
+				end
+				add({ name = id, major = god.isMajorGod or false, lines = lines }, id)
+			end
+		end,
+		map_mods = function(add)
+			local kind = {}
+			for _, which in ipairs({ "Prefix", "Suffix" }) do
+				for _, item in ipairs(data.mapMods[which]) do kind[item.val] = which end
+			end
+			for name, affix in pairs(data.mapMods.AffixData) do
+				add({ name = name, kind = kind[name], type = affix.type, label = strip(affix.label), lines = lineList(affix.tooltipLines), values = W.plain(affix.values) }, name)
+			end
+		end,
+		minions = function(add)
+			for id, minion in pairs(data.minions) do
+				if not data.spectres[id] then add(minionRow(id, minion), id) end
+			end
+		end,
+		spectres = function(add)
+			for id, minion in pairs(data.spectres) do add(minionRow(id, minion), id) end
+		end,
+		-- One row per timeless jewel type: the seed range as written on the item, the conquerors and the keystone each variant line names.
+		timeless = function(add)
+			for _, jewel in ipairs(W.timelessJewels()) do
+				local names, keystones = {}, setmetatable({}, { __jsontype = "object" })
+				for i, c in ipairs(jewel.conquerors) do
+					names[i] = c.name
+					keystones[c.name] = c.keystone
+				end
+				add({ name = jewel.name, base = jewel.base, radius = jewel.radius, seedMin = jewel.seedMin, seedMax = jewel.seedMax, conquerors = names, keystones = keystones }, jewel.name)
+			end
+		end,
+		bosses = function(add)
+			for id, boss in pairs(data.bosses) do add({ name = id, armourMult = boss.armourMult, evasionMult = boss.evasionMult, isUber = boss.isUber or false }, id) end
+		end,
+	}
+
+	function ops.data(args)
+		local source = dataTables[args.table]
+		if not source then W.fail("not_found", "no data table " .. tostring(args.table) .. "; tables: " .. table.concat(sortedKeys(dataTables), ", ")) end
+		local list = {}
+		source(function(row, key)
+			if has(row.name, args.query) then
+				list[#list + 1] = { row = row, key = key }
+				return
+			end
+			for _, line in ipairs(row.lines or {}) do
+				if has(line, args.query) then list[#list + 1] = { row = row, key = key }; return end
+			end
+		end)
+		table.sort(list, function(a, b)
+			if a.row.name ~= b.row.name then return a.row.name < b.row.name end
+			return a.key < b.key
+		end)
+		local out, offset, limit = {}, pageOf(args, 20)
+		for i = offset + 1, math.min(#list, offset + limit) do out[#out + 1] = list[i].row end
+		return { table = args.table, total = #list, offset = offset, rows = out }
+	end
+
+	local function array() return setmetatable({}, { __jsontype = "array" }) end
+
+	-- args: base, ilvl? (default 100), type? (Prefix or Suffix), influence? (an Influence dropdown entry, e.g. Shaper), query?, offset?, limit?
+	-- The mods a rare of this base can roll: the affix pool the Items tab's affix boxes draw from (ItemsTab:UpdateAffixControl),
+	-- in force when CanHaveMod holds and the base's spawn weight is above 0, up to the item level.
+	function ops.mods_for_base(args)
+		if not data.itemBases[args.base] then W.fail("not_found", "no item base " .. tostring(args.base)) end
+		if args.type ~= nil and args.type ~= "Prefix" and args.type ~= "Suffix" then W.fail("invalid_input", "type is Prefix or Suffix") end
+		local item = new("Item"):Item("Rarity: RARE\nX\n" .. args.base)
+		if not item.base or not item.affixes then W.fail("not_found", args.base .. " has no mods to roll") end
+		if args.influence ~= nil then
+			-- The Influence dropdowns' entries for this item (ItemsTab.lua:2133).
+			local eldritch = item.canHaveEldritchInfluence or item.type == "Helmet" or item.type == "Body Armour" or item.type == "Gloves" or item.type == "Boots"
+			local key
+			for _, info in ipairs(itemLib.influenceInfo[eldritch and "all" or "default"]) do
+				if info.display:lower() == args.influence:lower() or info.key == args.influence:lower() then key = info.key end
+			end
+			if not item.canBeInfluenced or not key then W.fail("invalid_input", args.base .. " cannot take the influence " .. args.influence) end
+			item[key] = true
+		end
+		local ilvl = tonumber(args.ilvl) or 100
+		local list = {}
+		for id, mod in pairs(item.affixes) do
+			if (mod.type == "Prefix" or mod.type == "Suffix") and (args.type == nil or mod.type == args.type) and (mod.level or 0) <= ilvl
+				and not item:CheckIfModIsDelve(mod) and item:CanHaveMod(mod) then
+				local row = modRow(id, mod)
+				row.weight, row.tags = item:GetModSpawnWeight(mod), nil
+				if row.weight > 0 and has(row.name, args.query) then list[#list + 1] = row end
+			end
+		end
+		table.sort(list, function(a, b)
+			if a.type ~= b.type then return a.type < b.type end
+			if a.group ~= b.group then return (a.group or "") < (b.group or "") end
+			if a.level ~= b.level then return a.level < b.level end
+			return a.id < b.id
+		end)
+		local out, offset, limit = {}, pageOf(args, 20)
+		for i = offset + 1, math.min(#list, offset + limit) do out[#out + 1] = list[i] end
+		return { base = args.base, ilvl = ilvl, total = #list, offset = offset, mods = out }
+	end
+
+	-- args: lines (the text of mod lines). Each line as the calculator reads it (modLib.parseMod): the mods it makes and the
+	-- text left over that it could not read.
+	function ops.parse_mod(args)
+		local out = array()
+		for i, line in ipairs(args.lines) do
+			local modList, extra = modLib.parseMod(line)
+			local mods = array()
+			for _, mod in ipairs(modList or {}) do
+				local tags = array()
+				for j, tag in ipairs(mod) do tags[j] = W.plain(tag) end
+				mods[#mods + 1] = { name = mod.name, type = mod.type, value = W.plain(mod.value), flags = mod.flags, keywordFlags = mod.keywordFlags, tags = tags }
+			end
+			out[i] = { line = line, mods = mods, extra = extra or W.json.null, supported = modList ~= nil and extra == nil }
+		end
+		return { lines = out }
+	end
+
+	-- args: lines (mod text), type? (the trade site's stat group, default explicit). Each line's trade stat ids as the Buy similar popup
+	-- finds them (TradeHelpers findTradeIdOption, else findTradeHash with the ids the trade site's stat list has): `option` for a
+	-- stat the site offers as a choice, `value` the number the popup puts in the filter (the count for a timeless jewel line),
+	-- `inverted` when the filter takes the value negated.
+	local tradeStatIds
+	function ops.trade_stats(args)
+		local helpers = require("Classes.TradeHelpers")
+		if not tradeStatIds then
+			tradeStatIds = {}
+			for _, group in ipairs(helpers.getTradeStats()) do
+				for _, entry in ipairs(group.entries) do tradeStatIds[entry.id] = true end
+			end
+		end
+		local kind = args.type or "explicit"
+		local out = array()
+		for i, line in ipairs(args.lines) do
+			local ids = array()
+			local row = { line = line, ids = ids, value = W.json.null, found = false, inverted = false }
+			local optionId, optionValue = helpers.findTradeIdOption(line, kind)
+			if optionId then
+				ids[1] = optionId
+				if optionId:find("timeless", 1, true) then row.value = optionValue else row.option = optionValue end
+			else
+				local hashes, value, negate = helpers.findTradeHash(line)
+				for _, hash in ipairs(hashes or {}) do
+					local id = ("%s.stat_%s"):format(kind, hash)
+					if tradeStatIds[id] then ids[#ids + 1] = id end
+				end
+				row.value, row.inverted = value or W.json.null, negate == true
+			end
+			row.found = #ids > 0
+			out[i] = row
+		end
+		return { type = kind, lines = out }
+	end
+
+	-- The scopes describeStats may load: the one the application's own descriptions use and the one each skill names.
+	local statScopes
+	-- args: stats ([stat id]: number), scope? (default stat_descriptions). The game text for stat values (data.describeStats).
+	function ops.describe_stats(args)
+		if not statScopes then
+			statScopes = { stat_descriptions = true }
+			for _, skill in pairs(data.skills) do
+				if skill.statDescriptionScope then statScopes[skill.statDescriptionScope] = true end
+			end
+		end
+		local scope = args.scope or "stat_descriptions"
+		if not statScopes[scope] then W.fail("invalid_input", "no stat description scope " .. tostring(scope) .. "; scopes: " .. table.concat(sortedKeys(statScopes), ", ")) end
+		local lines = array()
+		for i, line in ipairs((data.describeStats(args.stats, scope))) do lines[i] = strip(line) end
+		return { scope = scope, lines = lines }
+	end
+
+	-- args: realm, league, static (the trade site's static data), exchange ({ markets } of one exchange hour), both fetched by the
+	-- server. Path of Building's own conversion (TradeQuery:PullCXData), its two downloads answered from these and nothing else
+	-- sent: divines per one of each currency in the league, by the trade site's short id.
+	local staticUrl = "https://www.pathofexile.com/api/trade/data/static"
+	function ops.currency_rates(args)
+		if type(args.static) ~= "table" or type(args.exchange) ~= "table" or type(args.league) ~= "string" then W.fail("invalid_input", "static, exchange and league are given by the server") end
+		local realm = args.realm or "pc"
+		local exchangePrefix = "https://web.poecdn.com/api/currency-exchange" .. (realm ~= "pc" and "/" .. realm or "") .. "/"
+		local bodies = { [staticUrl] = W.json.encode(args.static) }
+		local exchangeBody = W.json.encode(args.exchange)
+		new("TradeQuery") -- loads the class; PullCXData reads only the fields of q
+		local notice
+		local q = { pbRealm = realm, pbCurrencyConversion = {}, controls = {}, SetNotice = function(_, _, msg) notice = msg end }
+		local download = W.launch.DownloadPage
+		W.launch.DownloadPage = function(_, url, callback)
+			local hour = url:sub(1, #exchangePrefix) == exchangePrefix and url:sub(#exchangePrefix + 1):match("^%d+$")
+			local body = bodies[url] or (hour and exchangeBody)
+			if not body then error("Path of Building asked for " .. url .. ", which the server did not fetch", 0) end
+			callback({ body = body }, nil)
+		end
+		local ok, err = pcall(common.classes.TradeQuery.PullCXData, q)
+		W.launch.DownloadPage = download
+		if not ok then error(err, 0) end
+		if notice then W.fail("upstream_fetch_failed", "Path of Building could not read the currency rates: " .. W.strip(notice)) end
+		local rates = q.pbCurrencyConversion[realm] and q.pbCurrencyConversion[realm][args.league]
+		if not rates then W.fail("upstream_fetch_failed", "the currency exchange gives no rates for " .. args.league .. " in Path of Building's conversion") end
+		return { rates = rates }
+	end
+
 	return ops
 end

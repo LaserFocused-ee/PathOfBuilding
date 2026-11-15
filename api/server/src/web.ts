@@ -86,6 +86,7 @@ export function mountWeb(app: express.Express, dir: string, log: Logger): void {
         res.setHeader("cross-origin-embedder-policy", "require-corp");
         res.setHeader("cross-origin-resource-policy", "same-origin");
         res.setHeader("x-content-type-options", "nosniff");
+        res.setHeader("referrer-policy", "no-referrer");
         res.setHeader("content-security-policy", CSP);
         res.setHeader("content-type", TYPES[extname(path).toLowerCase()] ?? "application/octet-stream");
         const rel = `/${relative(root, path).split(sep).join("/")}`;

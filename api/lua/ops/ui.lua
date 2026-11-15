@@ -20,6 +20,7 @@ return function(W)
 		["import.importCodeGo"] = "may download from a link (use the build import routes)", ["import.generateCodeByLink"] = "uploads the build to a share site",
 		["items.priceDisplayItem"] = "opens the trade site", ["items.displayItemBuySimilar"] = "opens the trade site",
 		["party.importCodeGo"] = "may download from a link (use party import)",
+		["tree.findTimelessJewel"] = "opens the timeless jewel finder, which asks the trade site for its leagues",
 	}
 	-- A button labelled like this is refused too, whatever it is called (popups and dynamic buttons).
 	local deniedLabel = { "^save", "^open", "close", "^exit", "^quit", "^back", "^<< ", "fetch", "download", "upload", "authori[sz]e", "log ?out", "^share", "^buy", "^trade" }
@@ -111,14 +112,14 @@ return function(W)
 		return { tab = args.tab, total = #names, offset = offset, controls = setmetatable(list, { __jsontype = "array" }) }
 	end
 
-	-- args: tab, control, action (click | set_text | set_state | select), value? (text; true or false; a dropdown's 1-based
+	-- args: tab, control, operation (click | set_text | set_state | select), value? (text; true or false; a dropdown's 1-based
 	-- number or label). Refused: unknown tab or control, an action the control does not take, a hidden or disabled control, the
 	-- deny list above.
 	ops.invoke = W.mutation(function(args, b)
 		if not tabs[args.tab] then W.fail("invalid_input", "tab is one of build, tree, skills, items, calcs, config, notes, party, import") end
 		local ctrl = named(b, args.tab)[args.control]
 		if not ctrl then W.fail("invalid_input", "no control " .. tostring(args.control) .. " on the " .. args.tab .. " tab (see ui controls)") end
-		local action, value = args.action, args.value
+		local action, value = args.operation, args.value
 		local can = kinds(ctrl)
 		local takes = false
 		for _, k in ipairs(can) do if k == action then takes = true end end
@@ -154,7 +155,7 @@ return function(W)
 		end
 		return function()
 			local d = describe(args.tab, args.control, ctrl)
-			return { tab = args.tab, control = args.control, action = action, text = d.text, state = d.state, selected = d.selected }
+			return { tab = args.tab, control = args.control, operation = action, text = d.text, state = d.state, selected = d.selected }
 		end
 	end)
 

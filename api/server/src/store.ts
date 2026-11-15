@@ -1,7 +1,7 @@
 // Build store: the source of truth. One XML file and one JSON metadata file per build, plus the last
 // N revisions (and every save point) under history/<id>/. Writes are atomic (temp file + rename).
 import { randomBytes } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ApiError } from "./errors.js";
 
@@ -142,21 +142,70 @@ export class BuildStore {
     return meta;
   }
 
-  /** Moves a build to trash/<id>/ (restorable until purgeTrash drops it, TRASH_DAYS later). */
+  /**
+   * Moves a build to trash/<id>/ (restorable until purgeTrash drops it, TRASH_DAYS later). The files are
+   * gathered in a staging directory that purgeTrash and listTrash never see, metadata first (the build
+   * stops being listed in one step), and the directory takes its trash name last. A stop anywhere leaves
+   * the build live or in a staging directory that recover() finishes.
+   */
   async delete(id: string, baseRevision?: number): Promise<BuildMeta> {
-    const p = this.paths(id);
     const meta = await this.get(id);
     if (baseRevision !== undefined && baseRevision !== meta.revision) {
       throw new ApiError("stale_revision", `build ${id} is at revision ${meta.revision}, not ${baseRevision}`, { revision: meta.revision });
     }
-    const t = this.trashPaths(id);
-    await rm(t.dir, { recursive: true, force: true });
-    await mkdir(t.dir, { recursive: true });
-    await this.atomicWrite(t.deleted, JSON.stringify({ deletedAt: new Date().toISOString() }));
-    await rename(p.history, t.history);
-    await rename(p.xml, t.xml);
-    await rename(p.meta, t.meta);
+    const stage = this.stagePath(id, "deleting");
+    await mkdir(stage, { recursive: true });
+    await this.atomicWrite(join(stage, "deleted.json"), JSON.stringify({ deletedAt: new Date().toISOString() }));
+    await this.finishDelete(id);
     return meta;
+  }
+
+  private stagePath(id: string, kind: "deleting" | "restoring"): string {
+    return join(this.dir, "trash", `.${id}.${kind}`);
+  }
+
+  /** Renames a file or directory; a source that is already gone is a step an earlier run finished. */
+  private async moveIfThere(from: string, to: string): Promise<void> {
+    try {
+      await rename(from, to);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    }
+  }
+
+  private async finishDelete(id: string): Promise<void> {
+    const p = this.paths(id);
+    const stage = this.stagePath(id, "deleting");
+    await this.moveIfThere(p.meta, join(stage, "build.json"));
+    await this.moveIfThere(p.xml, join(stage, "build.xml"));
+    await this.moveIfThere(p.history, join(stage, "history"));
+    const t = this.trashPaths(id);
+    if (await stat(t.dir).then(() => true, () => false)) throw new ApiError("worker_error", `trash already holds build ${id}`);
+    await rename(stage, t.dir);
+  }
+
+  private async finishRestore(id: string): Promise<void> {
+    const p = this.paths(id);
+    const stage = this.stagePath(id, "restoring");
+    await this.moveIfThere(join(stage, "history"), p.history);
+    await this.moveIfThere(join(stage, "build.xml"), p.xml);
+    await this.moveIfThere(join(stage, "build.json"), p.meta); // last: the build is live again only when complete
+    await rm(stage, { recursive: true, force: true }); // only deleted.json is left
+  }
+
+  /** Finishes deletes and restores a stop interrupted. Idempotent; returns the ids it finished. Run at start. */
+  async recover(): Promise<string[]> {
+    const done: string[] = [];
+    for (const name of await readdir(join(this.dir, "trash"))) {
+      const m = /^\.([a-f0-9]{16})\.(deleting|restoring)$/.exec(name);
+      if (!m) continue;
+      const [, id = "", kind] = m;
+      if (kind === "restoring") await this.finishRestore(id);
+      else if (await stat(join(this.dir, "trash", name, "deleted.json")).then(() => true, () => false)) await this.finishDelete(id);
+      else await rm(join(this.dir, "trash", name), { recursive: true, force: true }); // stopped before any file moved: the build is still live
+      done.push(id);
+    }
+    return done;
   }
 
   private trashPaths(id: string) {
@@ -186,7 +235,6 @@ export class BuildStore {
 
   async restore(id: string): Promise<BuildMeta> {
     const t = this.trashPaths(id);
-    const p = this.paths(id);
     let meta: BuildMeta;
     try {
       meta = JSON.parse(await readFile(t.meta, "utf8")) as BuildMeta;
@@ -194,10 +242,9 @@ export class BuildStore {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") throw new ApiError("not_found", `no deleted build ${id}`);
       throw e;
     }
-    await rename(t.history, p.history);
-    await rename(t.xml, p.xml);
-    await rename(t.meta, p.meta);
-    await rm(t.dir, { recursive: true, force: true });
+    // Out of the purge's sight, then back piece by piece.
+    await rename(t.dir, this.stagePath(id, "restoring"));
+    await this.finishRestore(id);
     return meta;
   }
 
@@ -206,13 +253,19 @@ export class BuildStore {
     const purged: string[] = [];
     for (const id of (await readdir(join(this.dir, "trash"))).filter(isBuildId)) {
       const t = this.trashPaths(id);
+      // Dated by its marker, else by the directory's age: an entry is never dated 0.
       const deletedAt = await readFile(t.deleted, "utf8").then(
-        (s) => Date.parse((JSON.parse(s) as { deletedAt: string }).deletedAt),
-        () => 0, // ponytail: an entry without its marker is a half-finished delete; purge it
+        (j) => Date.parse((JSON.parse(j) as { deletedAt: string }).deletedAt),
+        () => NaN,
       );
-      if (now - deletedAt > TRASH_MS) {
+      const at = Number.isNaN(deletedAt) ? await stat(t.dir).then((s) => s.mtimeMs, () => NaN) : deletedAt;
+      if (!(now - at > TRASH_MS)) continue;
+      try {
         await rm(t.dir, { recursive: true, force: true });
         purged.push(id);
+      } catch (e) {
+        // Something else is moving files there: leave it for the next round.
+        if (!["ENOTEMPTY", "ENOENT"].includes((e as NodeJS.ErrnoException).code ?? "")) throw e;
       }
     }
     return purged;

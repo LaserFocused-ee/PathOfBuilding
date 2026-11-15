@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { LEAGUE_NAME } from "./trade.js";
 
 // dist/src/config.js -> repository root is four levels up (api/server/dist/src).
 const here = dirname(fileURLToPath(import.meta.url));
@@ -29,6 +30,19 @@ const schema = z.object({
   POB_HISTORY_KEEP: int(50),
   POB_MAX_XML_BYTES: int(5_000_000),
   POB_FETCH_USER_AGENT: z.string().min(1).default("pob-api/0.1 (Path of Building API; build imports on request)"),
+  POB_API_TRADE_CONTACT: z
+    .string()
+    .max(120)
+    .regex(/^[\x20-\x7e]+$/, "printable ASCII only")
+    .optional()
+    .describe("Contact for the trade site's operator (an email address or URL), added to the client string as `(api; fork +<contact>)`; unset: `(api; fork)`"),
+  POB_API_TRADE_LEAGUE: z
+    .string()
+    .trim()
+    .max(64)
+    .regex(LEAGUE_NAME, "a league name is letters, digits, spaces, ' and -")
+    .optional()
+    .describe("The trade league being played, e.g. the current challenge league; the only league trade searches and trade links are made for. Unset: those calls are refused"),
   POB_FETCH_TIMEOUT_MS: int(10_000),
   POB_FETCH_MAX_BYTES: int(2_000_000),
   MCP_MAX_RESULT_CHARS: int(90_000),
@@ -60,6 +74,10 @@ export interface Config {
   maxXmlBytes: number;
   fetchUserAgent: string;
   fetchTimeoutMs: number;
+  /** Contact added to the trade client string; absent = none. */
+  tradeContact: string | undefined;
+  /** The league being played; absent = trade searches and links are refused. */
+  tradeLeague: string | undefined;
   fetchMaxBytes: number;
   mcpMaxResultChars: number;
   healthToken: string | undefined;
@@ -99,6 +117,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     maxXmlBytes: e.POB_MAX_XML_BYTES,
     fetchUserAgent: e.POB_FETCH_USER_AGENT,
     fetchTimeoutMs: e.POB_FETCH_TIMEOUT_MS,
+    tradeContact: e.POB_API_TRADE_CONTACT,
+    tradeLeague: e.POB_API_TRADE_LEAGUE,
     fetchMaxBytes: e.POB_FETCH_MAX_BYTES,
     mcpMaxResultChars: e.MCP_MAX_RESULT_CHARS,
     healthToken: e.POB_HEALTH_TOKEN,
