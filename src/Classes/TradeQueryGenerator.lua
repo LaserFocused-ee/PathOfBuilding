@@ -368,7 +368,10 @@ end
 function TradeQueryGeneratorClass:InitMods()
 	local queryModFilePath = "Data/QueryMods.lua"
 
-	local file = io.open(queryModFilePath,"r")
+	-- Fork only (api/docs/UPSTREAM-PATCHES.md): REGENERATE_QUERY_MODS=1 rebuilds QueryMods.lua from the committed
+	-- TradeSiteStats.lua, without downloading.
+	local fromFile = os.getenv("REGENERATE_QUERY_MODS") == "1"
+	local file = not fromFile and io.open(queryModFilePath,"r")
 	if file then
 		file:close()
 		---@module "src.Data.QueryMods"
@@ -376,42 +379,47 @@ function TradeQueryGeneratorClass:InitMods()
 		return
 	end
 
-	-- Download stats JSON from GGG API. Do not use launch:DownloadPage here as it is async, and QueryMods.lua must use the freshly downloaded stats.
-	local tradeStats = ""
-	local easy = curl.easy()
-	easy:setopt_url("https://www.pathofexile.com/api/trade/data/stats")
-	easy:setopt_useragent("Path of Building/" .. launch.versionNumber)
-	easy:setopt_writefunction(function(data)
-		tradeStats = tradeStats .. data
-		return true
-	end)
-	local ok = easy:perform()
-	easy:close()
-	if not ok or tradeStats == "" then
-		error("Error while downloading stats.json")
-	end
-	local body = dkjson.decode(tradeStats)
-
-	if body.error then
-		error("Error received from api/trade/data/stats: " .. body.error.message)
-	end
-
-	local f = io.open("./Data/TradeSiteStats.lua", "w")
-	if not f then
-		error("Could not open file for writing trade stat data")
-	end
-
-	for catIdx, _ in ipairs(body.result) do
-		table.sort(body.result[catIdx].entries, function(a, b)
-			if a.text == b.text then
-				return a.id < b.id
-			end
-			return a.text < b.text
+	local body
+	if fromFile then
+		body = { result = LoadModule("Data/TradeSiteStats.lua") }
+	else
+		-- Download stats JSON from GGG API. Do not use launch:DownloadPage here as it is async, and QueryMods.lua must use the freshly downloaded stats.
+		local tradeStats = ""
+		local easy = curl.easy()
+		easy:setopt_url("https://www.pathofexile.com/api/trade/data/stats")
+		easy:setopt_useragent("Path of Building/" .. launch.versionNumber)
+		easy:setopt_writefunction(function(data)
+			tradeStats = tradeStats .. data
+			return true
 		end)
-	end
+		local ok = easy:perform()
+		easy:close()
+		if not ok or tradeStats == "" then
+			error("Error while downloading stats.json")
+		end
+		body = dkjson.decode(tradeStats)
 
-	local description = "This file contains the trade site data from https://www.pathofexile.com/api/trade/data/stats"
-	utils.saveTableToFile("./Data/TradeSiteStats.lua", body.result, description)
+		if body.error then
+			error("Error received from api/trade/data/stats: " .. body.error.message)
+		end
+
+		local f = io.open("./Data/TradeSiteStats.lua", "w")
+		if not f then
+			error("Could not open file for writing trade stat data")
+		end
+
+		for catIdx, _ in ipairs(body.result) do
+			table.sort(body.result[catIdx].entries, function(a, b)
+				if a.text == b.text then
+					return a.id < b.id
+				end
+				return a.text < b.text
+			end)
+		end
+
+		local description = "This file contains the trade site data from https://www.pathofexile.com/api/trade/data/stats"
+		utils.saveTableToFile("./Data/TradeSiteStats.lua", body.result, description)
+	end
 	self.modData = {
 		["Explicit"] = {},
 		["Implicit"] = {},
