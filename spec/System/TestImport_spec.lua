@@ -76,6 +76,28 @@ describe("TestImport", function()
 		assert.equals(build.configTab.input.pantheonMinorGod, "None")
 	end)
 
+	it("shows the import result after an account-name import", function()
+		local importData = copyTable(sampleData)
+		build.importTab.controls.siteAccountName.buf = "Test#0000"
+		build.importTab.controls.siteCharSelect.list = { { char = importData } }
+		build.importTab.controls.siteCharSelect.selIndex = 1
+		build.importTab.lastLeague = importData.league
+
+		local downloadPage = launch.DownloadPage
+		launch.DownloadPage = function(_, _, callback)
+			callback({ body = dkjson.encode(importData.passives) })
+		end
+		build.importTab:DownloadPassiveTree({ hostName = "", realmCode = "pc" })
+		assert.is_truthy(build.importTab.charImportStatus:find("Passive tree and jewels successfully imported.", 1, true))
+
+		launch.DownloadPage = function(_, _, callback)
+			callback({ body = dkjson.encode({ items = importData.equipment }) })
+		end
+		build.importTab:DownloadItems({ hostName = "", realmCode = "pc" })
+		launch.DownloadPage = downloadPage
+		assert.is_truthy(build.importTab.charImportStatus:find("Items and skills successfully imported.", 1, true))
+	end)
+
 	it("imports with correct jewels", function()
 		build.importTab:ImportPassiveTreeAndJewels(sampleData, true)
 		runCallback("OnFrame")
@@ -231,5 +253,43 @@ Implicits: 0]])
 			assert.is_false(tab.modFlag)
 		end)
 	end
+
+	it("keeps Wickerman items separate through import and save/load", function()
+		-- Live OAuth structure and Lesser names; IDs and boundary-case rolls are synthetic.
+		local examples = {
+			{ "Ravenous Skull", "Head", "Every 3 seconds, Consume a Corpse within 5 metres to Recover 4% of Life" },
+			{ "Lesser Warden's Arm", "Upper Limb", "+43 to maximum Life" },
+			{ "Greater Sirus' Head", "Head", "+10 to Strength" },
+			{ "Lesser Blackened Lungs", "Torso", "12% increased Warcry Speed", "VisceraBody" },
+			{ "Lesser Pocked Leg", "Lower Limb", "20% increased Armour from Equipped Helmet and Gloves", "VisceraLeg" },
+			{ "Artificial Appendage", "Upper Limb", "25% increased Effect of Chill" },
+			{ "Artificial Appendage", "Upper Limb", "18% increased Area of Effect for Attacks" },
+			{ "Artificial Appendage", "Upper Limb", "Minions have 30% increased Critical Strike Chance" },
+		}
+		local equipped, items = { }, { }
+		for i, example in ipairs(examples) do
+			local slot = "Wickerman " .. example[2]
+			local item = { id = "synthetic-wickerman-" .. i, name = "", typeLine = example[1], baseType = example[1], frameType = 15, ilvl = 83,
+				inventoryId = example[4] or (example[2] == "Head" and "VisceraHead" or "VisceraArm"), implicitMods = { { description = example[3] } } }
+			table.insert(items, item)
+			equipped[slot] = item.id
+		end
+		local character = { level = 80, equipment = { }, wickerman = items }
+		build.importTab:ImportItemsAndSkills(character, true, false)
+		build.importTab:ImportItemsAndSkills(character, false, false) -- Replace only matching IDs.
+		loadBuildFromXML(build:SaveDB("code"))
+		assert.equals(#examples, #build.itemsTab.itemOrderList)
+		for i, example in ipairs(examples) do
+			local item = build.itemsTab.items[build.itemsTab.itemOrderList[i]]
+			assert.equals("synthetic-wickerman-" .. i, item.uniqueID)
+			assert.equals(example[1], item.baseName)
+			assert.equals("NORMAL", item.rarity)
+			assert.equals("Wickerman " .. example[2], item.type)
+			assert.equals(example[3], item.implicitModLines[1].line)
+		end
+		for slot, id in pairs(equipped) do
+			assert.equals(id, build.itemsTab.items[build.itemsTab.slots[slot].selItemId].uniqueID)
+		end
+	end)
 
 end)

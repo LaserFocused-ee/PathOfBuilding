@@ -199,13 +199,17 @@ local function getWeaponFlags(env, weaponData, weaponTypes)
 	end
 	if weaponTypes then
 		for _, types in ipairs(weaponTypes) do
-			if not types[weaponData.type] and
+			if not types[weaponData.type] and not (weaponData.canUseClawAttacks and types["Claw"]) and
 			(not weaponData.countsAsAll1H or not (types["Claw"] or types["Dagger"] or types["One Handed Axe"] or types["One Handed Mace"] or types["One Handed Sword"])) then
 				return nil, info
 			end
 		end
 	end
 	local flags = ModFlag[info.flag]
+	if weaponData.canUseClawAttacks then
+		-- Attacking as though using a Claw: "with Claws" modifiers apply as well as unarmed ones
+		flags = bor(flags, ModFlag.Claw)
+	end
 	if weaponData.countsAsAll1H then
 		flags = bor(ModFlag.Axe, ModFlag.Claw, ModFlag.Dagger, ModFlag.Mace, ModFlag.Sword)
 	end

@@ -234,7 +234,7 @@ void test("lookup.config relevantOnly keeps only the options that apply to the b
   };
   const all = await pages("");
   const rel = await pages("&relevantOnly=true");
-  assert.deepEqual([all.total, rel.total], [586, 81]);
+  assert.deepEqual([all.total, rel.total], [588, 81]); // 588 with the two options lf-src-fixes adds (Missing unreserved Life %, Consumed 8 Steel Shards Recently)
   // The filter keeps exactly the options the full list marks relevant, in the same order.
   assert.deepEqual(rel.options.map((o) => o.var), all.options.filter((o) => o.relevant === true).map((o) => o.var));
 });

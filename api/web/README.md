@@ -11,21 +11,30 @@ tree the API server's workers run, so the page and the API calculate the same nu
   are written back with the revision they were based on; if the server moved on in the meantime the page shows the
   conflict and offers to load the server's version or overwrite it. Logic and tests: `src/sync.ts`.
 
-Path of Building's own network features (import from a link, character import) are off in the page; import through the
-API instead. Builds saved with Path of Building's own Save button stay in the browser's storage.
+Path of Building's own downloads (import from a build-site link, character import by account name) go through the
+server's relay, never from the browser to those sites. Character import by account name: the page answers Path of
+Building's profile-page request itself with the name as typed (the game site screens that page from the server), so the
+name must match exactly, upper and lower case and the #number included; an empty or refused character list says so above
+the view, with the status. Nothing is retried. Sign-in with a Path of Exile account is not available in the page. Builds
+saved with Path of Building's own Save button stay in the browser's storage. Logic and tests: `src/account-import.ts`.
 
 ## Build
 
 Requirements: git, gcc, cmake, ninja, python3 (for emsdk) and [Deno](https://deno.com) 2.9 or later. No root access: the
 toolchain (Emscripten through emsdk) and pob-web's dependencies are installed into `api/web/.build` (about 5 GB plus
-about 1 GB per packed commit, gitignored).
+about 1 GB per packed commit, gitignored). Superseded staged trees move to `.build/stale-old/`; delete them by hand when
+you need the space.
 
 ```sh
 api/web/build-web.sh            # packs the sources at HEAD
 api/web/build-web.sh <commit>   # or at another commit: use the commit the API server runs
 ```
 
-Output: `api/web/dist` (about 620 MB, mostly tree and item art), a static site. The packed sources live under
+Environment: `POB_WEB_BUILD` sets the cache directory (default `api/web/.build`) and `POB_WEB_DIST` the output directory
+(default `api/web/dist`; the build empties it, so point it at a directory used for nothing else).
+
+Output: `api/web/dist` (about 620 MB, mostly tree and item art), a static site. The licence texts of this project and
+its components are in `dist/licenses/` (serve them at `/licenses/`). The packed sources live under
 `dist/pob/<version>/`, where `<version>` is the first ten characters of the commit; `pack-manifest.json` there lists the
 source commit, the pob-web commit, every rewrite and every packed file with its SHA-256.
 
@@ -38,6 +47,13 @@ The pack step:
    file that does not parse;
 4. packs with pob-web's packer and writes the manifest;
 5. builds the page (`src/`) inside pob-web's workspace with Vite, after a type check against the driver.
+
+Before the driver build, `patches/*.patch` are applied to pob-web (each change is explained in its patch);
+`pob-web-load-build.patch` lets the page pass the server's build name with a build code, so Path of Building's "Current
+build" field shows it instead of "Imported build", and makes a load of a code Path of Building cannot read fail instead
+of leaving the previous build on screen. The driver is rebuilt when a patch or a pin changes. The software BC7 texture
+decoder (used on GPUs without BPTC) is rebuilt from source without dynamic code, so the Content-Security-Policy below
+holds without `'unsafe-eval'`; `BPTC_SUPPORT_OVERRIDE=false build-web.sh` forces that decoder for testing.
 
 Checks for this directory: `cd api/web && deno task check` (format, lint, type check, unit tests).
 
@@ -53,6 +69,7 @@ on a cross-origin isolated page:
 | `Cross-Origin-Opener-Policy`   | `same-origin`                                                                                                                                                                                                                                                          |
 | `Cross-Origin-Embedder-Policy` | `require-corp`                                                                                                                                                                                                                                                         |
 | `Cross-Origin-Resource-Policy` | `same-origin`                                                                                                                                                                                                                                                          |
+| `Referrer-Policy`              | `no-referrer` (the page links out to third-party sites and must not send its URL, which names build ids; it also sets `<meta name="referrer" content="no-referrer">`)                                                                                                  |
 | `X-Content-Type-Options`       | `nosniff`                                                                                                                                                                                                                                                              |
 | `Content-Security-Policy`      | `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'` |
 | `Cache-Control`                | `public, max-age=31536000, immutable` under `/assets/` and `/pob/`; `no-cache` elsewhere                                                                                                                                                                               |
@@ -64,7 +81,9 @@ Content types by extension: `.html` `text/html; charset=utf-8`, `.js` `text/java
 
 The page calls these API routes, all same-origin: `POST /v1/session`, `GET /v1/builds`, `GET /v1/builds/:id`,
 `GET /v1/builds/:id/code`, `PUT /v1/builds/:id/code` with `{ code, baseRevision }` (409 `stale_revision` when the base
-is old) and the event stream `GET /v1/builds/:id/events` (`hello`, `change` and `deleted` events carrying `revision`).
+is old), the event stream `GET /v1/builds/:id/events` (`hello`, `change` and `deleted` events carrying `revision`) and
+`POST /v1/fetch`, which relays Path of Building's own downloads (public-profile character import, build-site links); the
+server only relays to its allowlist.
 
 Session: when a call answers 401 the page asks for the API token once and sends it to `POST /v1/session` in an
 `Authorization: Bearer` header; the page never stores it. The server answers 204 with a session cookie and from then on
@@ -82,7 +101,9 @@ the page opens only `http` and `https` links, without an opener.
 ## Development
 
 `tools/dev-server.ts` (development only) serves `dist/` with the headers above on a loopback port and proxies `/v1` to a
-running API server, adding the API token, so no session is needed:
+running API server (default `POB_API_URL` is `http://127.0.0.1:8730`), adding the API token, so no session is needed. It
+answers 403 unless the `Host` header is `127.0.0.1:<port>` or `localhost:<port>` and, for anything but GET and HEAD, the
+`Origin` header is that same origin:
 
 ```sh
 POB_API_URL=http://127.0.0.1:8730 POB_API_TOKEN=<token> \

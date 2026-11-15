@@ -15,6 +15,22 @@ describe("TestAttacks", function()
 		assert.are.equals(build.calcsTab.mainOutput.CritChance, 5.5 * build.calcsTab.mainOutput.HitChance / 100)
 	end)
 
+	it("adds triple damage chance on crit to triple damage chance", function()
+		-- No item or passive grants this stat yet, so feed it through a cached custom modifier line.
+		local line = "Test: 50% chance to deal Triple Damage on Critical Strike"
+		modLib.parseModCache[line] = { { modLib.createMod("TripleDamageChanceOnCrit", "BASE", 50, "Test") } }
+		build.configTab.input.customMods = "+50% to Critical Strike Chance\n" .. line
+		build.configTab:BuildModList()
+		runCallback("OnFrame")
+		modLib.parseModCache[line] = nil
+
+		-- Per-hand attack values live under MainHand
+		local output = build.calcsTab.mainOutput.MainHand
+		assert.is_true(output.CritChance > 0)
+		assert.are.equals(50, output.TripleDamageChanceOnCrit)
+		assert.are.equals(50 * output.CritChance / 100, output.TripleDamageChance)
+	end)
+
 	it("creates an item and has the correct crit multi", function()
 		assert.are.equals(1.5, build.calcsTab.mainOutput.CritMultiplier)
 		build.itemsTab:CreateDisplayItemFromRaw("New Item\nAssassin Bow\nCrafted: true\nPrefix: None\nPrefix: None\nPrefix: None\nSuffix: None\nSuffix: None\nSuffix: None\nQuality: 20\nSockets: G-G-G-G-G-G\nLevelReq: 62\nImplicits: 1\n{tags:damage,critical}{range:0.5}+(15-25)% to Global Critical Strike Multiplier")
