@@ -29,6 +29,12 @@ entry here: which file, what and why, its upstream status and how to drop it.
   Tiki, Replica Dragonfang's Flight, Thirst for Horrors twice, Timetwist, Vivinsect twice, Wall of Brambles). None is in
   the 3.30 patch notes' unique changes; most are no-longer-obtainable or variant lines, and the same-shaped game mods
   belong to other versions. Path of Building's values stay.
+- Open reading, not changed: three Hungry Loop mods in `src/Data/ModItemExclusive.lua`
+  (`HungryLoopSupportedByCastOnCrit`, `...CastOnKill`, `...CastWhileChannelling`) hold only "Has Consumed 1 Gem"; the
+  game grants Level 20 Cast On Critical Strike, Cast on Melee Kill and Cast while Channelling Support, and the other
+  Hungry Loop mods carry that second line (for example Hextouch, statOrder 250). The file is export output and the
+  cause in the export script is not checked; the only use found is the stat order of an imported Hungry Loop's lines
+  (`Item.lua`, unique mod order), so a regenerated export is the fix, not a hand edit.
 
 Which lines Path of Building turns into numbers (from its own parser; "not used" lines show red in the item and change
 nothing):
