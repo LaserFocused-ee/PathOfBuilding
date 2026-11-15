@@ -138,9 +138,11 @@ void test("trade client: a search with no match (result and total left out or nu
     assert.deepEqual([r.searchId, r.total, r.entries.length, sent.length], [body.id ?? "", 0, 0, 1], JSON.stringify(body));
   }
   // an id with other printable characters is taken and goes into the fetch URL encoded
-  const odd = site((x) => (x.method === "POST" ? { headers: generous, body: { id: "Ab-3_x/9", result: ids(1), total: 1 } } : { headers: generous, body: { result: [entry(ids(1)[0] ?? "")] } }));
+  // (the site's current form: 270 characters of letters, digits, "_" and "-")
+  const long = `Ab-3_x/9${"aZ0_-".repeat(54)}`;
+  const odd = site((x) => (x.method === "POST" ? { headers: generous, body: { id: long, result: ids(1), total: 1 } } : { headers: generous, body: { result: [entry(ids(1)[0] ?? "")] } }));
   const got = await new TradeClient({ fetchTimeoutMs: 1000, fetchMaxBytes: 1_000_000 }, memoryLogger().log, odd.fetch).search(search());
-  assert.deepEqual([got.searchId, got.entries.length, odd.sent[1]?.url.endsWith("?query=Ab-3_x%2F9")], ["Ab-3_x/9", 1, true]);
+  assert.deepEqual([got.searchId, got.entries.length, odd.sent[1]?.url.endsWith(`?query=${encodeURIComponent(long)}`)], [long, 1, true]);
   // results without an id cannot be fetched: still a stop
   const { fetch } = site(() => ({ headers: generous, body: { id: "", result: ids(2), total: 2 } }));
   await assert.rejects(new TradeClient({ fetchTimeoutMs: 1000, fetchMaxBytes: 1_000_000 }, memoryLogger().log, fetch).search(search()), /expected shape \(id: custom\)/);
