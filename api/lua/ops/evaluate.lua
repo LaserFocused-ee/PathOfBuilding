@@ -719,37 +719,10 @@ return function(W)
 
 	-- The generator run as its Execute button runs it: StartQuery against `slot`, every mod weighed (ExecuteQuery, to the end),
 	-- FinishQuery's search, then the weighed mods best first with where the generator found each (text at `quality`, range, kind).
-	-- `rollable(modType, key)` ranks, among entries of one trade stat, the ones that can be rolled; `decorate(m, found)` adds a family's fields to each mod;
+	-- `decorate(m, found)` adds a family's fields to each mod;
 	-- `steady` rounds each gain and weight to 1e-9 before the search is built (the calculator's last digits differ with the order the mods were weighed in,
 	-- which changes from process to process, and would order mods that gain the same differently), so equal mods are ordered by trade id on every run.
-	local function weigh(gen, slot, options, quality, rollable, decorate, steady)
-		-- One entry per trade id and mod type for the category: the generator takes whichever its pairs() meets first, which
-		-- changes from process to process; here the one that can be rolled, then the widest range, then the key.
-		local function oneEach(modData, category)
-			local out = {}
-			for modType, entries in pairs(modData) do
-				local best = {}
-				for key, entry in pairs(entries) do
-					if entry.tradeMod and entry[category] then
-						local id, cur = entry.tradeMod.id, best[entry.tradeMod.id]
-						local function rank(k)
-							local e = entries[k]
-							return (rollable and rollable(modType, k)) and 1 or 0, e[category].max, k
-						end
-						if not cur then best[id] = key else
-							local r1, m1, k1 = rank(key)
-							local r2, m2, k2 = rank(cur)
-							if r1 > r2 or (r1 == r2 and (m1 > m2 or (m1 == m2 and k1 < k2))) then best[id] = key end
-						end
-					end
-				end
-				local kept = {}
-				for _, key in pairs(best) do kept[key] = entries[key] end
-				out[modType] = kept
-			end
-			return out
-		end
-
+	local function weigh(gen, slot, options, quality, decorate, steady)
 		local prevQuality, popups = main.defaultItemAffixQuality, #main.popups
 		local query, queryErr
 		gen.requesterCallback = function(_, q, e) query, queryErr = q, e end
@@ -758,28 +731,29 @@ return function(W)
 			gen:StartQuery(slot, options)
 			if not gen.calcContext.co then bad("Path of Building does not generate a weighted search for " .. slot.slotName) end
 			gen.calcContext.co = nil
-			gen.modData = oneEach(gen.modData, gen.calcContext.itemCategory) -- a copy: the loaded QueryMods table is shared
 			drain(gen.ExecuteQuery, gen)
 			if steady then
 				for _, w in ipairs(gen.modWeights) do
 					w.meanStatDiff, w.weight = math.floor(w.meanStatDiff * 1e9 + 0.5) / 1e9, math.floor(w.weight * 1e9 + 0.5) / 1e9
 				end
 			end
-			-- FinishQuery's sort leaves ties in the order the weighing met them (pairs order); give it a fixed one
-			table.sort(gen.modWeights, function(x, y) return x.tradeModId < y.tradeModId end)
 			gen:FinishQuery()
 		end)
 		main.defaultItemAffixQuality = prevQuality
 		while #main.popups > popups do main:ClosePopup() end
 		if not ok then error(err, 0) end
 
-		-- trade id -> where the generator found it (QueryMods entry), for text, range and kind
+		-- trade id -> where the generator found it (QueryMods entry), for text, range and kind: its choice, the highest max, then the first key
 		local ctx = gen.calcContext
 		local found = {}
 		for _, modType in ipairs(modTypeOrder) do
-			for key, entry in pairs(gen.modData[modType] or {}) do
-				if entry.tradeMod and entry[ctx.itemCategory] and not found[entry.tradeMod.id] then found[entry.tradeMod.id] = { key = key, entry = entry, modType = modType } end
+			local here = {}
+			for key, entry in pairsSortByKey(gen.modData[modType] or {}) do
+				local range = entry.tradeMod and entry[ctx.itemCategory]
+				local cur = range and here[entry.tradeMod.id]
+				if range and (not cur or range.max > cur.entry[ctx.itemCategory].max) then here[entry.tradeMod.id] = { key = key, entry = entry, modType = modType } end
 			end
+			for id, f in pairs(here) do found[id] = found[id] or f end
 		end
 		local weighed = {}
 		for i, w in ipairs(gen.modWeights) do weighed[i] = w end
@@ -984,11 +958,11 @@ return function(W)
 				end
 			end
 			local types = next(rolled) and rolled or any -- the affix of the tiers a base rolls, else of any tier
-			affixCache[key] = { group = group, bases = on, rollable = next(on) ~= nil,
+			affixCache[key] = { group = group, bases = on,
 				affix = (types.Prefix and types.Suffix) and "Either" or types.Prefix and "Prefix" or types.Suffix and "Suffix" or json.null }
 			return affixCache[key]
 		end
-		local weighed = weigh(gen, slot, options, quality, listName and function(modType, key) return modType == "Explicit" and affixOf(key).rollable end, function(m, f)
+		local weighed = weigh(gen, slot, options, quality, function(m, f)
 			m.affix, m.group, m.bases = json.null, json.null, {}
 			if f and listName and f.modType == "Explicit" then
 				local a = affixOf(f.key)
@@ -1129,7 +1103,7 @@ return function(W)
 		options.requiredMods = statRows(args.requiredMods, "requiredMods", valid)
 		options.blockedMods = statRows(args.blockedMods, "blockedMods", valid)
 
-		local weighed = weigh(gen, slot, options, o.quality, nil, nil, true)
+		local weighed = weigh(gen, slot, options, o.quality, nil, true)
 		local mods = {}
 		for i = 1, math.min(limit, #weighed.mods) do mods[i] = weighed.mods[i] end
 		local query = weighed.query
