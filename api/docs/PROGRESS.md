@@ -151,12 +151,12 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | `items.cluster_jewel` | S | done | `items.cluster_jewel`; items2.test.ts |
 | `items.range_lines` | S | done | `items.modify` (`ranges`), `items.get`; items.test.ts |
 | `items.tooltip` (+ diff) | S | done | `items.get` (text, mods); differences: `evaluate.compare_item`; evaluate.test.ts |
-| `items.mod_diff_tooltip` | S | open | No route |
+| `items.mod_diff_tooltip` | S | done | The same measure as the tooltip (the item in its slot with the mod added, against without): `items.affix_options` with `sort` gives it per choice and tier (items2.test.ts); `evaluate.compare_item` with the item text plus the mod gives every changed stat (evaluate.test.ts) |
 | `items.sets.*` | S | done | `items.set_new`, `set_copy`, `set_rename`, `set_delete`, `set_activate` (list in `items.list`); items.test.ts |
 | `items.weapon_swap` / `set_tree_link` | S | done | `items.weapon_set`; the Items tab's tree box activates a tree as `tree.spec_activate` does; items.test.ts |
-| `items.shared.*` | S | open | Shared item lists are not routed |
+| `items.shared.*` | S | not needed | Path of Building keeps a shared item list beside its build files for moving items between builds; here every build is in the store and `items.copy_from` copies an item from another stored build (compare.test.ts) |
 | `items.flask_toggle` / `tincture_toggle` | H | done | `items.set_active`; items.test.ts |
-| `items.socket_line` | H | open | No route |
+| `items.socket_line` | H | done | `sockets` on every item answer (`R-G-B B`: colours, `-` links, space between groups; the line's text without colour codes); items.test.ts |
 
 ### config
 
@@ -265,14 +265,14 @@ Tier is the inventory's tier: H (a direct call of Path of Building's own code), 
 | import / export | 14 | 8 | 1 | 0 | 0 | 0 | 5 |
 | tree | 27 | 25 | 0 | 0 | 0 | 1 | 1 |
 | skills | 17 | 16 | 0 | 0 | 0 | 1 | 0 |
-| items and crafting | 30 | 27 | 0 | 0 | 0 | 0 | 3 |
+| items and crafting | 30 | 29 | 0 | 0 | 1 | 0 | 0 |
 | config | 6 | 6 | 0 | 0 | 0 | 0 | 0 |
 | calcs | 13 | 13 | 0 | 0 | 0 | 0 | 0 |
 | compare and power | 12 | 6 | 0 | 0 | 4 | 1 | 1 |
 | trade | 11 | 3 | 0 | 0 | 0 | 8 | 0 |
 | notes, party, settings | 10 | 8 | 0 | 0 | 2 | 0 | 0 |
 | data | 17 | 4 | 0 | 0 | 0 | 13 | 0 |
-| **Total** | 187 | 133 | 1 | 9 | 8 | 24 | 12 |
+| **Total** | 187 | 135 | 1 | 9 | 9 | 24 | 10 |
 
 ## MCP tools
 
