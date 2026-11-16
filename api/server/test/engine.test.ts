@@ -253,11 +253,18 @@ void test("config: an override of 0 survives save and duplicate (an absent box m
 void test("stats.ailments: the shock the main skill applies to the configured enemy", async () => {
   const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
   const id = ok(await srv.call<Created>("POST", "/v1/builds/import/xml", { xml })).build.id;
-  type Ailments = { enemy: string; skill?: string; ailments: Array<{ ailment: string; effect: number; maximum: number; applies: boolean; threshold?: number }> };
+  type Ailments = { enemy: string; skill?: string; ailments: Array<{ ailment: string; hand?: string; effect: number; maximum: number; applies: boolean; threshold?: number }> };
   const pinnacle = ok(await srv.call<Ailments>("GET", `/v1/stats/${id}/ailments`));
   assert.deepEqual([pinnacle.enemy, pinnacle.skill, pinnacle.ailments.map((a) => [a.ailment, a.effect, a.maximum, a.applies, a.threshold])], ["Pinnacle", "Fireball", [["Shock", 1, 50, false, 6349995]]]);
   ok(await srv.call("POST", `/v1/config/${id}/set`, { values: { enemyIsBoss: "None" } }));
   const normal = ok(await srv.call<Ailments>("GET", `/v1/stats/${id}/ailments`));
   assert.equal(normal.enemy, "None");
   assert.ok((normal.ailments[0]?.effect ?? 0) > 1 && (normal.ailments[0]?.threshold ?? Infinity) < 6349995, JSON.stringify(normal.ailments));
+  // an attack keeps its ailment table per weapon
+  ok(await srv.call("POST", `/v1/items/${id}/add`, { text: "Rarity: RARE\nShock Edge\nRusted Sword\nAdds 10 to 300 Lightning Damage", equip: "Weapon 1" }));
+  ok(await srv.call("POST", `/v1/skills/${id}/add-group`, { gems: [{ name: "Static Strike" }], includeInFullDPS: true }));
+  ok(await srv.call("POST", `/v1/ui/${id}/invoke`, { tab: "build", control: "mainSocketGroup", operation: "select", value: "Static Strike" }));
+  const attack = ok(await srv.call<Ailments>("GET", `/v1/stats/${id}/ailments`));
+  assert.equal(attack.skill, "Static Strike");
+  assert.deepEqual(attack.ailments.map((a) => [a.ailment, a.hand]), [["Shock", "MainHand"]], JSON.stringify(attack.ailments));
 });

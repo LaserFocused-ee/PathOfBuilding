@@ -162,6 +162,18 @@ return function(W)
 		if (out.sharedGuardAbsorbRate or 0) > 0 or out.AnyGuard then
 			note("a guard buff counts as always up in TotalEHP and maximum hit taken; disable its group for the guard-off figures")
 		end
+		-- Config boxes that stand in for a skill effect Path of Building does not model
+		local input, active = b.configTab.input, {}
+		for _, skill in ipairs(env and env.player.activeSkillList or {}) do
+			if skill.activeEffect and skill.activeEffect.grantedEffect and not skill.skillFlags.disable then active[skill.activeEffect.grantedEffect.name] = true end
+		end
+		if active["Enduring Cry"] and input.useEnduranceCharges then
+			local set = (input.overrideEnduranceCharges or 0) > 0 and tostring(input.overrideEnduranceCharges) or "maximum"
+			note("Endurance Charges count at the Config box's " .. set .. "; Enduring Cry grants one per 5 monster power, which Path of Building does not model")
+		end
+		if active["Zealotry"] and (input.conditionEnemyOnConsecratedGround or input.conditionOnConsecratedGround) then
+			note("Consecrated Ground counts as always there from the Config box; Zealotry creates it on 10% of hits against rare or unique enemies, which Path of Building does not model")
+		end
 		if env and env.modDB and env.modDB:Sum("BASE", nil, "LeftActiveMagicUtilityFlasks", "RightActiveMagicUtilityFlasks") > 0 then
 			note("the belt's magic utility flasks apply always, ticked Active or not; toggling them changes nothing")
 		end
@@ -358,15 +370,22 @@ return function(W)
 		local actor = b.calcsTab.mainEnv and b.calcsTab.mainEnv.player
 		local out, bd = actor and actor.output or {}, actor and actor.breakdown or {}
 		local list = setmetatable({}, { __jsontype = "array" })
+		-- an attack keeps its breakdowns per weapon (CalcSections: MainHand.ShockDPS, OffHand.ShockDPS); a spell at the top
+		local passes = { { bd = bd, out = out }, { hand = "MainHand", bd = bd.MainHand, out = out.MainHand }, { hand = "OffHand", bd = bd.OffHand, out = out.OffHand } }
 		for _, name in ipairs({ "Shock", "Chill", "Scorch", "Brittle", "Sap" }) do
-			local data, rows = data.nonDamagingAilment[name], bd[name .. "DPS"] and bd[name .. "DPS"].rowList
-			for _, row in ipairs(rows or {}) do
-				if type(row.thresh) == "string" and row.thresh:find("%^8%(") then
-					local effect = tonumber(row.effect:match("^([%d%.]+)%%"))
-					local maximum = out["Maximum" .. name] or data.max
-					list[#list + 1] = { ailment = name, effect = math.min(effect, maximum), uncapped = effect, maximum = maximum,
-						minimum = data.min, applies = effect >= data.min, threshold = tonumber(row.thresh:match("^(%d+)")),
-						chanceOnHit = out[name .. "ChanceOnHit"], chanceOnCrit = out[name .. "ChanceOnCrit"], duration = out[name .. "Duration"] }
+			local data = data.nonDamagingAilment[name]
+			for _, pass in ipairs(passes) do
+				local pout = pass.out or {}
+				local rows = pass.bd and pass.bd[name .. "DPS"] and pass.bd[name .. "DPS"].rowList
+				for _, row in ipairs(rows or {}) do
+					if type(row.thresh) == "string" and row.thresh:find("%^8%(") then
+						local effect = tonumber(row.effect:match("^([%d%.]+)%%"))
+						local maximum = pout["Maximum" .. name] or out["Maximum" .. name] or data.max
+						list[#list + 1] = { ailment = name, hand = pass.hand, effect = math.min(effect, maximum), uncapped = effect, maximum = maximum,
+							minimum = data.min, applies = effect >= data.min, threshold = tonumber(row.thresh:match("^(%d+)")),
+							chanceOnHit = pout[name .. "ChanceOnHit"] or out[name .. "ChanceOnHit"], chanceOnCrit = pout[name .. "ChanceOnCrit"] or out[name .. "ChanceOnCrit"],
+							duration = pout[name .. "Duration"] or out[name .. "Duration"] }
+					end
 				end
 			end
 		end

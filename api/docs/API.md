@@ -19,6 +19,7 @@ Path of Building's own calculation, kept as it is; `stats/sidebar` and `stats/wa
 - Typed minion counts (Raise Spectre's count box) are not capped at the minion limit, so Full DPS counts every typed minion.
 - Gems in a group are not capped at the item's sockets, so every enabled gem counts.
 - Trigger supports' level limit (Cast when Damage Taken: local_support_gem_max_skill_level_requirement_to_support) is not mapped, so a supported skill above it (Steelskin 20 with Empower) still counts as triggered.
+- Enduring Cry's endurance charges per monster power and Zealotry's consecrated ground on hit (create_consecrated_ground_on_hit_%_vs_rare_or_unique_enemy) are not modelled: the Config boxes stand in for them, at full value.
 - Config custom modifiers apply with nothing behind them; a creator's file can carry rage, added damage or resistances this way.
 - Calculator comparisons (what_if, compare_item, trade scoring) leave out the skills a swapped-in item grants; the swapped-out item's granted skills are left out by this API, as equipping it does.
 
@@ -328,12 +329,12 @@ How one output value is built (the Calcs tab breakdown), for the sidebar's main 
 
 ### `GET /v1/stats/:id/ailments`
 
-Shock, chill, scorch, brittle and sap the main skill's hits apply to the enemy the config sets (`enemy`: enemyIsBoss), from the Calcs tab's ailment table (for the sidebar's main skill, `skill`) at that enemy's ailment threshold. `effect` is capped at `maximum`; under `minimum` it does not apply. Path of Building does not use this figure in the build's own damage: set config conditionEnemyShocked true and conditionShockEffect to `effect` (and the like) to count the build's own shock. Empty when the skill applies none.
+Shock, chill, scorch, brittle and sap the main skill's hits apply to the enemy the config sets (`enemy`: enemyIsBoss), from the Calcs tab's ailment table (for the sidebar's main skill, `skill`) at that enemy's ailment threshold. An attack lists each weapon's figure (`hand`: MainHand, OffHand). `effect` is capped at `maximum`; under `minimum` it does not apply. Path of Building does not use this figure in the build's own damage: set config conditionEnemyShocked true and conditionShockEffect to `effect` (and the like) to count the build's own shock. Empty when the skill applies none.
 
 - Name: `stats.ailments` (MCP `pob_stats` action `ailments`)
 - Read-only: yes; worker: `stats.ailments`
 - Input: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{16}$","description":"Build id"}},"required":["id"]}`
-- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"enemy":{"type":"string"},"skill":{"type":"string"},"ailments":{"type":"array","items":{"type":"object","properties":{"ailment":{"type":"string"},"effect":{"type":"number"},"uncapped":{"type":"number"},"maximum":{"type":"number"},"minimum":{"type":"number"},"applies":{"type":"boolean"},"threshold":{"type":"number"},"chanceOnHit":{"type":"number"},"chanceOnCrit":{"type":"number"},"duration":{"type":"number"}},"required":["ailment","effect","uncapped","maximum","minimum","applies"]}}},"required":["enemy","ailments"]}`
+- Result: `{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"enemy":{"type":"string"},"skill":{"type":"string"},"ailments":{"type":"array","items":{"type":"object","properties":{"ailment":{"type":"string"},"hand":{"type":"string","enum":["MainHand","OffHand"]},"effect":{"type":"number"},"uncapped":{"type":"number"},"maximum":{"type":"number"},"minimum":{"type":"number"},"applies":{"type":"boolean"},"threshold":{"type":"number"},"chanceOnHit":{"type":"number"},"chanceOnCrit":{"type":"number"},"duration":{"type":"number"}},"required":["ailment","effect","uncapped","maximum","minimum","applies"]}}},"required":["enemy","ailments"]}`
 
 ### `GET /v1/stats/:id/warnings`
 

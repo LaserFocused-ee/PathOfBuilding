@@ -392,15 +392,20 @@ void test("tooltip: an item's hover text, a flask's effective stats and uptime",
   assert.ok(m.estimatedUptime > 0);
 });
 
-void test("warnings: engine notes for no ascendancy, custom modifiers, typed minion counts, gems over sockets and a trigger support's level limit", async () => {
+void test("warnings: engine notes for no ascendancy, custom modifiers, typed minion counts, gems over sockets, a trigger support's level limit and unmodelled config boxes", async () => {
   const id = ok(await srv.call<{ build: { id: string } }>("POST", "/v1/builds", { className: "Witch", level: 95, treeVersion: "3_30" })).build.id;
   ok(await srv.call("POST", `/v1/config/${id}/set-custom-mods`, { groups: [{ title: "Flat", text: "+100 to maximum Life" }, { title: "Off", enabled: false, text: "+5 to maximum Mana" }] }));
   ok(await post(id, "add", { text: "Rarity: NORMAL\nSilk Gloves\nSockets: B-B-B-B", equip: "Gloves" }));
   ok(await srv.call("POST", `/v1/skills/${id}/add-group`, { slot: "Gloves", gems: [{ name: "Raise Zombie", count: 20 }, { name: "Minion Damage" }, { name: "Melee Splash" }, { name: "Brutality" }, { name: "Feeding Frenzy" }, { name: "Elemental Army", enabled: false }], includeInFullDPS: true }));
   ok(await srv.call("POST", `/v1/skills/${id}/add-group`, { gems: [{ name: "Cast when Damage Taken", level: 20 }, { name: "Steelskin", level: 20 }, { name: "Empower", level: 2 }] }));
+  ok(await srv.call("POST", `/v1/skills/${id}/add-group`, { gems: [{ name: "Enduring Cry" }] }));
+  ok(await srv.call("POST", `/v1/skills/${id}/add-group`, { gems: [{ name: "Zealotry" }] }));
+  ok(await srv.call("POST", `/v1/config/${id}/set`, { values: { useEnduranceCharges: true, overrideEnduranceCharges: 3, conditionEnemyOnConsecratedGround: true } }));
   const w = ok(await srv.call<{ warnings: string[] }>("GET", `/v1/stats/${id}/warnings`)).warnings.filter((x) => x.startsWith("Engine note:"));
   const limit = Number(ok(await srv.call<{ output: Record<string, number> }>("GET", `/v1/stats/${id}/output?fields=ActiveMinionLimit`)).output.ActiveMinionLimit);
   assert.deepEqual(w, [
+    "Engine note: Consecrated Ground counts as always there from the Config box; Zealotry creates it on 10% of hits against rare or unique enemies, which Path of Building does not model",
+    "Engine note: Endurance Charges count at the Config box's 3; Enduring Cry grants one per 5 monster power, which Path of Building does not model",
     "Engine note: Gloves Silk Gloves holds 5 enabled gems in 4 sockets; Path of Building counts every gem",
     `Engine note: Raise Zombie: 20 minions counted in Full DPS against a limit of ${limit}; Path of Building counts every typed one`,
     "Engine note: Steelskin level 21 needs character level 72, over Cast when Damage Taken's limit of 70: the game does not trigger it, Path of Building counts it",

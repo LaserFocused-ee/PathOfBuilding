@@ -30,6 +30,7 @@ export function apiDoc(): string {
     "- Typed minion counts (Raise Spectre's count box) are not capped at the minion limit, so Full DPS counts every typed minion.",
     "- Gems in a group are not capped at the item's sockets, so every enabled gem counts.",
     "- Trigger supports' level limit (Cast when Damage Taken: local_support_gem_max_skill_level_requirement_to_support) is not mapped, so a supported skill above it (Steelskin 20 with Empower) still counts as triggered.",
+    "- Enduring Cry's endurance charges per monster power and Zealotry's consecrated ground on hit (create_consecrated_ground_on_hit_%_vs_rare_or_unique_enemy) are not modelled: the Config boxes stand in for them, at full value.",
     "- Config custom modifiers apply with nothing behind them; a creator's file can carry rage, added damage or resistances this way.",
     "- Calculator comparisons (what_if, compare_item, trade scoring) leave out the skills a swapped-in item grants; the swapped-out item's granted skills are left out by this API, as equipping it does.",
     "",
