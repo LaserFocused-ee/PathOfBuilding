@@ -160,6 +160,27 @@ main.disableDevAutoSave = true
 main.userPath = stateDir .. "/"
 main.buildPath = stateDir .. "/Builds/"
 
+-- ConfigTab:Save writes an input only when it differs from its default (0 for numbers), so a countAllowZero override
+-- of 0 (inspiration charges, sigil stages, enemy resistances) was dropped on save, duplicate and export and read back
+-- as the computed value. During Save those options have no default, so every input of theirs is written.
+do
+	if not common.classes.ConfigTab then LoadModule("Classes/ConfigTab") end
+	local class, allowZero = common.classes.ConfigTab, {}
+	for _, varData in ipairs(require("Modules.ConfigOptions")) do
+		if varData.type == "countAllowZero" then allowZero[varData.var] = true end
+	end
+	local save, default = class.Save, class.GetDefaultState
+	function class:Save(xml)
+		self.GetDefaultState = function(tab, var, varType)
+			if allowZero[var] then return nil end
+			return default(tab, var, varType)
+		end
+		local ok, err = pcall(save, self, xml)
+		self.GetDefaultState = nil
+		if not ok then error(err, 0) end
+	end
+end
+
 -- Shared helpers for ops/<domain>.lua.
 local W = { json = json, inflate = zInflate, deflate = zDeflate, now = nowMs, main = main, launch = launch }
 
