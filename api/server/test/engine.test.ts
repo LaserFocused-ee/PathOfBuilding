@@ -226,6 +226,7 @@ void test("stats.sections lists the Calcs tab's sections as displayed and filter
   assert.ok(routes.find((r) => r.name === "stats.sections")?.output.safeParse(all).success);
   const life = ok(await srv.call("GET", `/v1/stats/${fresh}/sections?section=Life`));
   assert.deepEqual(life, {
+    skill: "Fireball", // the sidebar's main skill (mode calcs: the Calcs tab's own pick)
     sections: [{ id: "Life", label: "Life", subsections: [{ label: "Life", extra: "1,328/1,328", rows: [
       { label: "Base from Gear", values: ["0"] }, { label: "Inc. from Tree", values: ["18%"] }, { label: "Total Base", values: ["1,125"] },
       { label: "Total Increased", values: ["18%"] }, { label: "Total More", values: ["0%"] }, { label: "Total", values: ["1,328"] },

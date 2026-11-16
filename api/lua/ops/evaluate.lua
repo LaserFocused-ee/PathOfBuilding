@@ -80,8 +80,25 @@ return function(W)
 		return changed
 	end
 
+	-- CalcSetup adds and drops the skill groups an item grants (Shattershard's skill, Asenath's curses) only in its MAIN
+	-- pass, so a calculator call that swaps an item would keep the old item's granted skills: they are switched off for
+	-- the call. ponytail: the new item's own granted skills are not added (PoB's calculator leaves them out too).
 	local function calculator(b)
-		return b.calcsTab:GetMiscCalculator()
+		local calcFunc, calcBase = b.calcsTab:GetMiscCalculator()
+		return function(o, ...)
+			local off = {}
+			if o and o.repSlotName then
+				for _, g in ipairs(b.skillsTab.socketGroupList) do
+					if g.sourceItem and g.enabled and g.slot == o.repSlotName and g.sourceItem ~= o.repItem then
+						off[#off + 1], g.enabled = g, false
+					end
+				end
+			end
+			local ok, res = pcall(calcFunc, o, ...)
+			for _, g in ipairs(off) do g.enabled = true end
+			if not ok then error(res, 0) end
+			return res
+		end, calcBase
 	end
 
 	-- The damage over time cap (data.misc.DotDpsCap): TotalDot, TotalDotDPS and the figures built on them (CombinedDPS,
@@ -976,7 +993,7 @@ return function(W)
 				end
 			end
 		end
-		local calcFunc, baseOutput = b.calcsTab:GetMiscCalculator()
+		local calcFunc, baseOutput = calculator(b)
 		gen.modWeights, gen.alreadyWeightedMods = {}, {}
 		gen.calcContext = { calcFunc = calcFunc, baseOutput = baseOutput, options = options,
 			baseStatValue = gen.WeightedRatioOutputs(baseOutput, baseOutput, options.statWeights) * 1000 }

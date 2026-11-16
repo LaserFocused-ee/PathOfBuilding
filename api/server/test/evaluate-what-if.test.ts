@@ -173,6 +173,17 @@ void test("what_if an item in a slot equals equipping it for real, by text and b
   assert.deepEqual((await ev<{ changed: Changed }>(base, "what-if", { slot: "Helmet", item: 3 })).changed, wi.changed);
 });
 
+void test("what_if replacing an item that grants a skill leaves the skill out, as equipping for real does", async () => {
+  const id = await dup(base);
+  await mutate("items", id, "add", { text: "Rarity: RARE\nGranted\nIron Ring\nGrants Level 20 Anger Skill", equip: "Ring 1" });
+  const plain = "Rarity: NORMAL\nIron Ring";
+  const wi = await ev<{ changed: Changed }>(id, "what-if", { slot: "Ring 1", text: plain, fields: ["CombinedDPS"] });
+  const dps = wi.changed.CombinedDPS;
+  assert.ok(dps && Number(dps.after) < Number(dps.before), JSON.stringify(wi.changed));
+  const real = await mutate("items", await dup(id), "add", { text: plain, equip: "Ring 1" });
+  assert.deepEqual(wi.changed.CombinedDPS, real.changed.CombinedDPS);
+});
+
 void test("compare_item: every slot the item fits, against equipping it on a duplicate", async () => {
   const byId = await ev<{ slots: SlotChange[] }>(base, "compare-item", { item: 3 });
   assert.deepEqual(byId.slots.map((s) => [s.slot, s.equipped]), [["Helmet", null]]);

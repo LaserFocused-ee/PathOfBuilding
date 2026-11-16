@@ -85,6 +85,62 @@ return function(W)
 		end
 		local env = b.calcsTab.mainEnv
 		local out = b.calcsTab.mainOutput or {}
+		local class = b.spec.curClass
+		if b.spec.curAscendClassId == 0 and class and #(class.classes or {}) > 0 and (b.characterLevel or 1) >= 70 then
+			note(string.format("level %d with no ascendancy chosen: the figures carry no ascendancy nodes (the build file holds none)", b.characterLevel))
+		end
+		local cfgSet = b.configTab.configSets[b.configTab.activeConfigSetId]
+		for _, block in ipairs(cfgSet and cfgSet.customModsList or {}) do
+			local lines = {}
+			for line in W.strip(block.enabled ~= false and block.text or ""):gmatch("[^\n]+") do
+				if line:match("%S") then lines[#lines + 1] = line end
+			end
+			if #lines > 0 then
+				note("the Config tab's custom modifiers add \"" .. table.concat(lines, "; ") .. "\" with no item, node or skill behind them")
+			end
+		end
+		-- typed minion counts (Raise Spectre's count box) above the minion limit: Full DPS counts every typed one
+		local minions = {}
+		for _, skill in ipairs(env and env.player.activeSkillList or {}) do
+			local limitName = skill.minion and skill.minion.minionData and skill.minion.minionData.limit
+			local group = skill.socketGroup
+			if limitName and group and not skill.skillFlags.disable and group.includeInFullDPS then
+				local count = group.groupCount
+				for _, gem in ipairs(count and {} or group.gemList or {}) do
+					if gem.gemData and gem.gemData.grantedEffect == skill.activeEffect.grantedEffect then count = gem.count or 1 end
+				end
+				local limit = math.floor(env.modDB:Override(nil, limitName) or (calcLib.val(skill.skillModList, limitName, skill.skillCfg) * skill.skillModList:More(skill.skillCfg, "ActiveMinionLimit")))
+				local m = minions[limitName] or { count = 0, limit = 0, name = W.strip(skill.activeEffect.grantedEffect.name) }
+				m.count, m.limit, minions[limitName] = m.count + (count or 1), math.max(m.limit, limit), m
+			end
+		end
+		for _, m in pairs(minions) do
+			if m.limit > 0 and m.count > m.limit then
+				note(string.format("%s: %d minions counted in Full DPS against a limit of %d; Path of Building counts every typed one", m.name, m.count, m.limit))
+			end
+		end
+		-- more enabled gems in a slot's enabled groups than its item has sockets (abyss sockets left out)
+		local socketed = {}
+		for _, group in ipairs(b.skillsTab.socketGroupList) do
+			if group.slot and not group.source and group.enabled and group.slotEnabled ~= false then
+				local n = 0
+				for _, gem in ipairs(group.gemList or {}) do
+					if gem.gemData and gem.enabled ~= false then n = n + 1 end
+				end
+				socketed[group.slot] = (socketed[group.slot] or 0) + n
+			end
+		end
+		for slotName, n in pairs(socketed) do
+			local slot = b.itemsTab.slots[slotName]
+			local item = slot and b.itemsTab.items[slot.selItemId]
+			local sockets = 0
+			for _, sk in ipairs(item and item.sockets or {}) do
+				if sk.color ~= "A" then sockets = sockets + 1 end
+			end
+			if sockets > 0 and n > sockets then
+				note(string.format("%s %s holds %d enabled gems in %d sockets; Path of Building counts every gem", slotName, W.strip(item.name or ""), n, sockets))
+			end
+		end
 		if (out.sharedGuardAbsorbRate or 0) > 0 or out.AnyGuard then
 			note("a guard buff counts as always up in TotalEHP and maximum hit taken; disable its group for the guard-off figures")
 		end
@@ -313,12 +369,15 @@ return function(W)
 	end
 
 	-- The Calcs tab's sections with the rows and cells it draws (CalcSectionControl:DrawContent): the same visibility
-	-- checks and cell text, for the actor the tab shows. Collapsed state is a view setting and is ignored.
-	-- args: section? (a section id, else part of a subsection label, any case)
+	-- checks and cell text, for the actor the tab shows, in the sidebar's environment (mode calcs: the Calcs tab's own).
+	-- Collapsed state is a view setting and is ignored.
+	-- args: section? (a section id, else part of a subsection label, any case), mode? ("main"|"calcs")
 	function ops.sections(args)
 		local b = W.build()
 		local tab = b.calcsTab
-		local actor = tab.input.showMinion and tab.calcsEnv.minion or tab.calcsEnv.player
+		local env = args.mode == "calcs" and tab.calcsEnv or tab.mainEnv
+		local actor = tab.input.showMinion and env.minion or env.player
+		local function shown(obj) return tab:CheckFlag(obj, actor, env.player) end
 		local want = type(args.section) == "string" and args.section:lower() or nil
 		local labels, sections = {}, setmetatable({}, { __jsontype = "array" })
 		local byId = false -- a section id wins over label matches
@@ -334,15 +393,15 @@ return function(W)
 					if (subSec.label or ""):lower():find(want or "", 1, true) then match = true end
 				end
 			end
-			if match and tab:CheckFlag(sec) then
+			if match and shown(sec) then
 				local subs = setmetatable({}, { __jsontype = "array" })
 				for _, subSec in ipairs(sec.subSection) do
 					local rows = setmetatable({}, { __jsontype = "array" })
 					for _, rowData in ipairs(subSec.data) do
-						if tab:CheckFlag(rowData) then
+						if shown(rowData) then
 							local values = setmetatable({}, { __jsontype = "array" })
 							for _, colData in ipairs(rowData) do
-								if colData.format and tab:CheckFlag(colData) then
+								if colData.format and shown(colData) then
 									local ok, str = pcall(formatCalcStr, colData.format, actor, colData)
 									values[#values + 1] = ok and strip(tostring(str)) or ""
 								end
@@ -367,7 +426,7 @@ return function(W)
 			for i = 1, math.min(#labels, 30) do shown[i] = labels[i] end
 			W.fail("not_found", "no Calcs section matches " .. args.section .. "; sections: " .. table.concat(shown, ", "))
 		end
-		return { sections = sections }
+		return { skill = env.player.mainSkill and W.strip(env.player.mainSkill.activeEffect.grantedEffect.name), sections = sections }
 	end
 
 	-- Attribute requirements and resistances from the main output.

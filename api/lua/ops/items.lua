@@ -197,19 +197,25 @@ return function(W)
 
 	-- The hover text of an item in the Items tab's list (AddItemTooltip): its lines, a flask's effective stats with its
 	-- uptime, and what equipping it in each slot it fits would change.
-	-- Our estimate (not Path of Building's) of a utility flask's uptime with charges gained on critical strike, which the
-	-- tooltip leaves out: crits per second (main skill's Speed x HitChance x CritChance, one target) x the chance per crit
-	-- (the flask's own mods plus the build's, capped at 100%) x the charge gain modifier, plus the charges the tooltip counts
-	-- per second, against charges used per second (charges per use x the chance to consume / duration). The terms are the
-	-- tooltip's (ItemsTab:AddItemTooltip). ponytail: no in-game cooldown on crit charge gain, one target, no per-empty-flask
-	-- or ward-break charges; add them when a build needs them.
+	-- Our estimate (not Path of Building's) of a utility flask's uptime with charges gained on critical strike or on being
+	-- hit, which the tooltip leaves out: crits per second (main skill's Speed x HitChance x CritChance, one target) x the
+	-- chance per crit (the flask's own mods plus the build's, capped at 100%) plus the flask's own charges per crit
+	-- (Surgeon's "Recharges N Charges"), plus hits taken per second (one enemy skill use per enemy attack / cast time,
+	-- each one a hit) x the flask's charges when hit (Masochist's, Flagellant's; Path of Building parses neither line),
+	-- all x the charge gain modifier, plus the charges the tooltip counts per second, against charges used per second
+	-- (charges per use x the chance to consume / duration). The terms are the tooltip's (ItemsTab:AddItemTooltip).
+	-- ponytail: no in-game cooldown on charge gain, one target, no avoided hits, no per-empty-flask or ward-break charges;
+	-- add them when a build needs them.
 	local function flaskEstimate(b, item)
 		local fd, base = item.flaskData, item.base.flask
 		if not fd or not base or base.life or base.mana or not fd.duration or fd.duration <= 0 then return nil end
 		local modDB, out = b.calcsTab.mainEnv.modDB, b.calcsTab.mainOutput
-		local own = 0
+		local own, perCritCharges, perHitCharges = 0, 0, 0
 		for _, lines in ipairs({ item.enchantModLines, item.implicitModLines, item.explicitModLines, item.crucibleModLines }) do
 			for _, line in ipairs(lines or {}) do
+				local text = W.strip(line.line or ""):lower()
+				perHitCharges = perHitCharges + (tonumber(text:match("^gains? (%d+) charges? when you are hit by an enemy$")) or 0)
+				perCritCharges = perCritCharges + (tonumber(text:match("^recharges? (%d+) charges? when you deal a critical strike$")) or 0)
 				for _, mod in ipairs(line.modList or {}) do
 					if mod.name == "FlaskChargeOnCritChance" and mod.type == "BASE" then own = own + mod.value end
 				end
@@ -228,17 +234,19 @@ return function(W)
 		local generated = (modDB:Sum("BASE", nil, "FlaskChargesGenerated") + modDB:Sum("BASE", nil, "UtilityFlaskChargesGenerated")) * gainMod
 		local speed, hit, crit = out.Speed or 0, (out.HitChance or 100) / 100, (out.CritChance or 0) / 100
 		local critsPerSecond = speed * hit * crit
-		local gained = critsPerSecond * perCrit * gainMod + generated
+		local hitsTakenPerSecond = (out.enemySkillTime or 0) > 0 and 1 / out.enemySkillTime or 0
+		local gained = (critsPerSecond * (perCrit + perCritCharges) + hitsTakenPerSecond * perHitCharges) * gainMod + generated
 		local duration = fd.duration * (1 + modDB:Sum("INC", nil, "FlaskDuration") / 100)
 		local used = fd.chargesUsed * (1 + modDB:Sum("INC", nil, "FlaskChargesUsed") / 100)
 		local consume = 1 - math.min(modDB:Sum("BASE", nil, "FlaskChanceNotConsumeCharges"), 100) / 100
 		local needed = used * consume / duration
 		return {
-			source = "estimate by this API, not Path of Building; any in-game cooldown on charges gained on critical strike is not modelled",
+			source = "estimate by this API, not Path of Building; any in-game cooldown on charge gain is not modelled, and every enemy attack or cast counts as a hit taken",
 			chargesGainedPerSecond = gained, chargesNeededPerSecond = needed,
 			estimatedUptime = needed > 0 and math.min(gained / needed, 1) or 1,
 			inputs = { speed = speed, hitChance = hit, critChance = crit, critsPerSecond = critsPerSecond, flaskChanceOnCrit = own,
-				buildChanceOnCrit = global, gainModifier = gainMod, generatedPerSecond = generated, chargesPerUse = used,
+				buildChanceOnCrit = global, flaskChargesPerCrit = perCritCharges, hitsTakenPerSecond = hitsTakenPerSecond,
+				flaskChargesWhenHit = perHitCharges, gainModifier = gainMod, generatedPerSecond = generated, chargesPerUse = used,
 				chanceToConsume = consume, duration = duration },
 		}
 	end

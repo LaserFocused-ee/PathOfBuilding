@@ -336,7 +336,7 @@ void test("tooltip: an item's hover text, a flask's effective stats and uptime",
 
   // Our uptime estimate with charges gained on critical strike: the flask's own 33% counts for it, not as the build's,
   // even while the flask is active (Path of Building then adds its mods to the build's).
-  type Uptime = { chargesGainedPerSecond: number; chargesNeededPerSecond: number; estimatedUptime: number; source: string; inputs: { critsPerSecond: number; gainModifier: number; [k: string]: number } };
+  type Uptime = { chargesGainedPerSecond: number; chargesNeededPerSecond: number; estimatedUptime: number; source: string; inputs: { critsPerSecond: number; gainModifier: number; generatedPerSecond: number; hitsTakenPerSecond: number; [k: string]: number } };
   ok(await srv.call("POST", `/v1/skills/${id}/add-group`, { gems: [{ name: "Fireball" }], includeInFullDPS: true }));
   const surgeon = ok(await post<Brief>(id, "add", { text: "Rarity: MAGIC\nSurgeon's Silver Flask\n33% chance to gain a Flask Charge when you deal a Critical Strike", equip: "Flask 2" })).result.id;
   ok(await post(id, "set-active", { slot: "Flask 2", active: true }));
@@ -348,6 +348,30 @@ void test("tooltip: an item's hover text, a flask's effective stats and uptime",
   assert.ok(Math.abs(u.estimatedUptime - Math.min(u.chargesGainedPerSecond / u.chargesNeededPerSecond, 1)) < 1e-6);
   assert.match(u.source, /not Path of Building; any in-game cooldown/);
   assert.equal(ok(await srv.call<{ uptime?: Uptime }>("GET", `/v1/items/${id}/tooltip?item=${flask}`)).uptime?.inputs.flaskChanceOnCrit, 0, "Quicksilver has no crit charge mod");
+  // charges when hit (Masochist's; PoB parses the line to nothing): one hit per enemy attack or cast, 700 ms by default
+  const maso = ok(await post<Brief>(id, "add", { text: "Rarity: MAGIC\nMasochist's Granite Flask\nGain 2 Charges when you are Hit by an Enemy", equip: "Flask 3" })).result.id;
+  const m = ok(await srv.call<{ uptime?: Uptime }>("GET", `/v1/items/${id}/tooltip?item=${maso}`)).uptime;
+  assert.ok(m, "Granite is a utility flask");
+  assert.deepEqual([m.inputs.flaskChargesWhenHit, m.inputs.flaskChargesPerCrit, m.inputs.flaskChanceOnCrit], [2, 0, 0]);
+  assert.ok(Math.abs(m.inputs.hitsTakenPerSecond - 1 / 0.7) < 1e-6, String(m.inputs.hitsTakenPerSecond));
+  assert.ok(Math.abs(m.chargesGainedPerSecond - (m.inputs.hitsTakenPerSecond * 2 * m.inputs.gainModifier + m.inputs.generatedPerSecond)) < 1e-6);
+  assert.ok(m.estimatedUptime > 0);
+});
+
+void test("warnings: engine notes for no ascendancy, custom modifiers, typed minion counts and gems over sockets", async () => {
+  const id = ok(await srv.call<{ build: { id: string } }>("POST", "/v1/builds", { className: "Witch", level: 95, treeVersion: "3_30" })).build.id;
+  ok(await srv.call("POST", `/v1/config/${id}/set-custom-mods`, { groups: [{ title: "Flat", text: "+100 to maximum Life" }, { title: "Off", enabled: false, text: "+5 to maximum Mana" }] }));
+  ok(await post(id, "add", { text: "Rarity: NORMAL\nSilk Gloves\nSockets: B-B-B-B", equip: "Gloves" }));
+  ok(await srv.call("POST", `/v1/skills/${id}/add-group`, { slot: "Gloves", gems: [{ name: "Raise Zombie", count: 20 }, { name: "Minion Damage" }, { name: "Melee Splash" }, { name: "Brutality" }, { name: "Feeding Frenzy" }, { name: "Elemental Army", enabled: false }], includeInFullDPS: true }));
+  const w = ok(await srv.call<{ warnings: string[] }>("GET", `/v1/stats/${id}/warnings`)).warnings.filter((x) => x.startsWith("Engine note:"));
+  const limit = Number(ok(await srv.call<{ output: Record<string, number> }>("GET", `/v1/stats/${id}/output?fields=ActiveMinionLimit`)).output.ActiveMinionLimit);
+  assert.deepEqual(w, [
+    "Engine note: Gloves Silk Gloves holds 5 enabled gems in 4 sockets; Path of Building counts every gem",
+    `Engine note: Raise Zombie: 20 minions counted in Full DPS against a limit of ${limit}; Path of Building counts every typed one`,
+    "Engine note: level 95 with no ascendancy chosen: the figures carry no ascendancy nodes (the build file holds none)",
+    "Engine note: the Config tab's custom modifiers add \"+100 to maximum Life\" with no item, node or skill behind them",
+  ]);
+  assert.ok(limit > 0 && limit < 20, String(limit));
 });
 
 void test("warnings: engine notes for lines Path of Building scales twice or does not model", async () => {
