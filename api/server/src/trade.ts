@@ -82,8 +82,15 @@ export interface LimiterState {
 /** "a:b:c,d:e:f" -> [[a,b,c],[d,e,f]] (the X-Rate-Limit-* header form). */
 const triples = (v: string | null): number[][] => (v ?? "").split(",").filter(Boolean).map((t) => t.split(":").map(Number));
 
-const limited = (policy: Policy, ms: number): ApiError =>
-  new ApiError("rate_limited", `the trade ${policy} budget is used up for now; try again in ${Math.ceil(ms / 1000)}s`, { retryAfterSeconds: Math.max(1, Math.ceil(ms / 1000)) });
+/** A refusal by this server's own pacing: nothing was sent to the site (`sent: false`), unlike the site's own 429. */
+const limited = (policy: Policy, priority: Priority, ms: number, late = false): ApiError => {
+  const s = Math.max(1, Math.ceil(ms / 1000));
+  const how = priority === "background" && !late ? "; a background call is refused rather than kept waiting (priority interactive waits up to 60 s)" : "";
+  const why = late
+    ? `the call's time ran out behind earlier trade ${policy} requests`
+    : `this server keeps ${priority} trade ${policy} requests to ${SHARE[priority] * 100}% of the trade site's rate limit, and that share is spent`;
+  return new ApiError("rate_limited", `nothing sent: ${why}; send again in ${s}s${how}`, { retryAfterSeconds: s, sent: false });
+};
 
 export class TradeLimiter {
   private readonly p: Record<Policy, PolicyState>;
@@ -115,20 +122,27 @@ export class TradeLimiter {
    * Sends one request under the policy's lock (one in flight per policy), after waiting for its pace. A background caller
    * never waits: it is refused when anyone is queued or the pace says wait. An interactive caller waits until `deadline`.
    */
-  async run(policy: Policy, priority: Priority, deadline: number, send: () => Promise<Response>): Promise<Response> {
+  async run(policy: Policy, priority: Priority, deadline: number, send: () => Promise<Response>, queue = false): Promise<Response> {
     const p = this.p[policy];
-    if (priority === "background" && (p.queued > 0 || this.wait(policy, priority) > 0)) throw limited(policy, Math.max(1000, this.wait(policy, priority)));
+    // `queue`: a background caller waits for its pace (outside the lock, behind anyone queued) until `deadline`.
+    for (;;) {
+      if (priority !== "background") break;
+      const wait = Math.max(p.queued > 0 ? 1000 : 0, this.wait(policy, priority));
+      if (wait <= 0) break;
+      if (!queue || this.now() + wait > deadline) throw limited(policy, priority, wait);
+      await this.sleep(wait);
+    }
     const prev = p.lock;
     let release = (): void => undefined;
     p.lock = new Promise<void>((r) => (release = r));
     p.queued++;
     try {
       await prev;
-      if (this.now() > deadline) throw limited(policy, 1000); // the request ahead took the time
+      if (this.now() > deadline) throw limited(policy, priority, 1000, true); // the request ahead took the time
       for (;;) {
         const wait = this.wait(policy, priority);
         if (wait <= 0) break;
-        if (priority === "background" || this.now() + wait > deadline) throw limited(policy, wait);
+        if (priority === "background" || this.now() + wait > deadline) throw limited(policy, priority, wait);
         await this.sleep(wait);
       }
       const now = this.now();
@@ -211,6 +225,8 @@ export interface TradeAsk {
   /** ms since epoch: an interactive caller waits for the pace until then. */
   deadline: number;
   userAgent: string;
+  /** A background caller waits for its pace too, until the deadline (the later searches of one call). */
+  queue?: boolean;
 }
 
 export interface TradeSearch extends TradeAsk {
@@ -482,7 +498,7 @@ export class TradeClient {
         if (e instanceof ApiError) throw e; // the browser transport's own words (tab gone, off the site)
         throw new ApiError("upstream_fetch_failed", `request to ${site} failed: ${(e as Error).name}`);
       }
-    }).catch((e: unknown) => {
+    }, s.queue).catch((e: unknown) => {
       if (!sent && HOURLY.has(policy)) {
         if (last === undefined) this.asked.delete(policy);
         else this.asked.set(policy, last);

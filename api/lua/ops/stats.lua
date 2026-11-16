@@ -44,23 +44,119 @@ return function(W)
 	end
 	W.sidebar = sidebar
 
-	-- key -> number map of the sidebar, used for before/after diffs.
+	-- key -> number map of the sidebar, used for before/after diffs. The sidebar hides some rows (Combined DPS when it
+	-- equals Hit DPS, Full DPS with no group ticked); these headline figures are always in it.
+	local headline = { "FullDPS", "CombinedDPS", "TotalDPS", "TotalDotDPS", "TotalEHP", "Life", "EnergyShield" }
 	function W.sidebarValues(b)
 		local values = {}
 		for _, row in ipairs((sidebar(b))) do
 			if row.key and row.value then values[row.key] = row.value end
 		end
+		local out = b.calcsTab.mainEnv and b.calcsTab.mainEnv.player.output or {}
+		for _, k in ipairs(headline) do
+			if values[k] == nil and type(out[k]) == "number" then values[k] = out[k] end
+		end
 		return values
 	end
 
+	-- Notes on figures Path of Building's own calculation is known to get wrong or leave out for this build (upstream
+	-- behaviour, not changed here), added after PoB's own warnings. Each starts "Engine note:".
+	local function template(t)
+		return (t:gsub("%(%-?[%d%.]+%-%-?[%d%.]+%)", "#"):gsub("%-?[%d%.]+", "#"))
+	end
+	local function engineNotes(b)
+		local notes = {}
+		local function note(text) notes[#notes + 1] = "Engine note: " .. text end
+		-- "Limited to 1 Runegraft of X": PoB does not enforce the limit, every copy counts
+		local seen = {}
+		for _, node in pairs(b.spec.allocNodes or {}) do
+			for _, line in ipairs(node.isTattoo and node.sd or {}) do
+				local n, what = line:match("^Limited to (%d+) (.+)$")
+				if n then
+					seen[what] = seen[what] or { limit = tonumber(n), count = 0 }
+					seen[what].count = seen[what].count + 1
+				end
+			end
+		end
+		for what, v in pairs(seen) do
+			if v.count > v.limit then
+				note(string.format("%s is allocated %d times; the game allows %d, Path of Building counts every copy", what, v.count, v.limit))
+			end
+		end
+		local env = b.calcsTab.mainEnv
+		local out = b.calcsTab.mainOutput or {}
+		if (out.sharedGuardAbsorbRate or 0) > 0 or out.AnyGuard then
+			note("a guard buff counts as always up in TotalEHP and maximum hit taken; disable its group for the guard-off figures")
+		end
+		if env and env.modDB and env.modDB:Sum("BASE", nil, "LeftActiveMagicUtilityFlasks", "RightActiveMagicUtilityFlasks") > 0 then
+			note("the belt's magic utility flasks apply always, ticked Active or not; toggling them changes nothing")
+		end
+		for slot, item in pairs(env and env.player.itemList or {}) do
+			local label = slot .. " " .. strip(item.name or "")
+			for _, list in ipairs({ item.implicitModLines, item.explicitModLines, item.enchantModLines }) do
+				for _, ml in ipairs(list or {}) do
+					if ml.extra and item:CheckModLineVariant(ml) then
+						note(label .. ": Path of Building does not model \"" .. strip(ml.line) .. "\"")
+					end
+				end
+			end
+			-- A crafted item on a magnitude base (Focused Amulet) whose stored lines already carry the magnitude: PoB
+			-- scales the stored line again (Item.lua: crafted items' lines are the affix rolls before magnitude).
+			if item.affixes and #(item.modMagnitudeMods or {}) > 0 then
+				for _, ml in ipairs(item.explicitModLines or {}) do
+					if ml.valueScalar and ml.valueScalar > 1 then
+						local key = template(ml.line)
+						for _, list in ipairs({ item.prefixes or {}, item.suffixes or {} }) do
+							for _, affix in ipairs(list) do
+								local mod = item.affixes[affix.modId]
+								for _, l in ipairs(mod or {}) do
+									if template(l) == key then
+										local most = tonumber(itemLib.applyRange(l, 1):match("%-?[%d%.]+"))
+										local stored = tonumber(ml.line:match("%-?[%d%.]+"))
+										if most and stored and math.abs(stored) > math.abs(most) then
+											note(string.format("%s: \"%s\" is above its affix's maximum %s, so the line already carries the item's magnitude and Path of Building scales it again (x%g); re-enter the line at the affix's roll", label, ml.line, most, ml.valueScalar))
+										end
+									end
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+		table.sort(notes)
+		return notes
+	end
+	W.engineNotes = engineNotes
+
+	-- An output key, or "Minion.X": the minion's X as the player's output carries it (output.Minion).
+	function W.outputField(output, k)
+		if output[k] ~= nil then return output[k] end
+		local m = k:match("^Minion%.(.+)$")
+		if m and type(output.Minion) == "table" then return output.Minion[m] end
+		return nil
+	end
+
+	local function withNotes(b, warnings)
+		for _, n in ipairs(engineNotes(b)) do warnings[#warnings + 1] = n end
+		return warnings
+	end
+
 	function ops.sidebar()
-		local rows, warnings = sidebar(W.build())
-		return { stats = rows, warnings = warnings }
+		local b = W.build()
+		local rows, warnings = sidebar(b)
+		return { stats = rows, warnings = withNotes(b, warnings) }
+	end
+
+	-- The sidebar values the mutations and evaluations diff (W.sidebarValues), for the server's compare_builds.
+	function ops.values()
+		return { values = object(W.sidebarValues(W.build())) }
 	end
 
 	function ops.warnings()
-		local _, warnings = sidebar(W.build())
-		return { warnings = warnings }
+		local b = W.build()
+		local _, warnings = sidebar(b)
+		return { warnings = withNotes(b, warnings) }
 	end
 
 	-- args: fields? (list of output keys), actor? ("player"|"minion"), mode? ("main"|"calcs")
@@ -72,7 +168,9 @@ return function(W)
 		local out = object({})
 		if type(args.fields) == "table" and #args.fields > 0 then
 			for _, k in ipairs(args.fields) do
-				if type(k) == "string" and actor.output[k] ~= nil then out[k] = W.plain(actor.output[k]) end
+				local v = nil
+				if type(k) == "string" then v = W.outputField(actor.output, k) end
+				if v ~= nil then out[k] = W.plain(v) end
 			end
 		else
 			for k, v in pairs(actor.output) do
@@ -132,24 +230,50 @@ return function(W)
 		return { mainSocketGroup = origGroup, groups = groups, fullDPS = { FullDPS = o.FullDPS, FullDotDPS = o.FullDotDPS, skills = full } }
 	end
 
-	-- args: key, actor? Breakdown rows from the Calcs-mode environment (what the Calcs tab shows).
+	-- args: key, actor?, mode? ("main": the sidebar's main skill, default; "calcs": the skill picked on the Calcs tab).
+	-- Breakdown rows as the Calcs tab draws them. The main env carries breakdowns too (CalcSetup buildBreakdown for
+	-- MAIN and CALCS). PoB keeps a damage type's rows under the type (Cold for ColdMin/ColdMax) and an attack's under
+	-- MainHand/OffHand; FullDPS has none, so its rows are the Full DPS skill list.
+	local hitTypes = { Physical = true, Lightning = true, Cold = true, Fire = true, Chaos = true }
+	local function findBreakdown(bd, key)
+		if not bd then return nil end
+		if bd[key] ~= nil then return bd[key] end
+		local dt = key:match("^(%a-)M[ai][nx]$")
+		if dt and hitTypes[dt] and bd[dt] ~= nil then return bd[dt] end
+		local hands
+		for _, h in ipairs({ "MainHand", "OffHand" }) do
+			local v = type(bd[h]) == "table" and findBreakdown(bd[h], key)
+			if v then hands = hands or {}; hands[h] = v end
+		end
+		return hands
+	end
 	function ops.breakdown(args)
 		if type(args.key) ~= "string" then W.fail("invalid_input", "key is required") end
 		local b = W.build()
-		local actor = b.calcsTab.calcsEnv and b.calcsTab.calcsEnv[args.actor == "minion" and "minion" or "player"]
-		local bd = actor and actor.breakdown and actor.breakdown[args.key]
+		local env = args.mode == "calcs" and b.calcsTab.calcsEnv or b.calcsTab.mainEnv
+		local actor = env and env[args.actor == "minion" and "minion" or "player"]
+		local bd = actor and findBreakdown(actor.breakdown, args.key)
+		if bd == nil and args.key == "FullDPS" and actor and type(actor.output.SkillDPS) == "table" then
+			bd = {}
+			for _, sk in ipairs(actor.output.SkillDPS) do
+				bd[#bd + 1] = { name = sk.name, dps = sk.dps, count = sk.count, skillPart = strip(sk.skillPart), source = strip(sk.source) }
+			end
+		end
+		local ms = actor and actor.mainSkill
+		local skill = ms and ms.activeEffect and ms.activeEffect.grantedEffect.name or nil
 		if bd == nil then
 			-- Path of Building writes a breakdown only where the Calcs tab draws one, and some only when the figure is more
 			-- than its base (Life); name the value and the breakdowns that start with the key (ManaRegen: ManaRegenRecovery).
 			local value, near = actor and actor.output[args.key], {}
 			for k in pairs(actor and actor.breakdown or {}) do
-				if type(k) == "string" and k ~= args.key and k:sub(1, #args.key) == args.key then near[#near + 1] = k end
+				-- TotalDot without a stacking DoT is the sum of the per-type DoTs (ColdDot, ...), each with its own rows
+				if type(k) == "string" and k ~= args.key and (k:sub(1, #args.key) == args.key or (args.key == "TotalDot" and k:match("^%a+Dot$"))) then near[#near + 1] = k end
 			end
 			table.sort(near)
 			W.fail("not_found", "no breakdown for " .. args.key .. (type(value) == "number" and string.format(" (its value is %s)", value) or "")
-				.. (#near > 0 and ("; breakdowns that start with it: " .. table.concat(near, ", ", 1, math.min(#near, 10))) or ""))
+				.. (#near > 0 and ("; breakdowns that start with it" .. (args.key == "TotalDot" and " or make it up" or "") .. ": " .. table.concat(near, ", ", 1, math.min(#near, 10))) or ""))
 		end
-		return { key = args.key, value = W.plain(actor.output[args.key]), breakdown = W.plain(bd) }
+		return { key = args.key, skill = skill, value = W.plain(actor.output[args.key]), breakdown = W.plain(bd) }
 	end
 
 	-- The non-damaging ailments the main skill's hits apply to the enemy set in the config (enemyIsBoss), read from the
@@ -157,7 +281,7 @@ return function(W)
 	-- the boss type). PoB does not apply this to the build: it applies the config's conditionShockEffect (and the like).
 	function ops.ailments()
 		local b = W.build()
-		local actor = b.calcsTab.calcsEnv and b.calcsTab.calcsEnv.player
+		local actor = b.calcsTab.mainEnv and b.calcsTab.mainEnv.player
 		local out, bd = actor and actor.output or {}, actor and actor.breakdown or {}
 		local list = setmetatable({}, { __jsontype = "array" })
 		for _, name in ipairs({ "Shock", "Chill", "Scorch", "Brittle", "Sap" }) do
@@ -172,8 +296,8 @@ return function(W)
 				end
 			end
 		end
-		return { enemy = b.configTab.input.enemyIsBoss or "Pinnacle", skill = b.calcsTab.calcsEnv and b.calcsTab.calcsEnv.player.mainSkill
-			and W.strip(b.calcsTab.calcsEnv.player.mainSkill.activeEffect.grantedEffect.name), ailments = list }
+		return { enemy = b.configTab.input.enemyIsBoss or "Pinnacle", skill = b.calcsTab.mainEnv and b.calcsTab.mainEnv.player.mainSkill
+			and W.strip(b.calcsTab.mainEnv.player.mainSkill.activeEffect.grantedEffect.name), ailments = list }
 	end
 
 	-- The experience multiplier table of the character level box's hover (Build.lua characterLevel.tooltipFunc).

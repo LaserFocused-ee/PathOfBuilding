@@ -329,6 +329,10 @@ void test("tooltip: an item's hover text, a flask's effective stats and uptime",
   assert.deepEqual([t.item, t.name], [flask, "Quicksilver Flask"]);
   assert.deepEqual(t.lines.slice(t.lines.indexOf("Effective flask stats:")), ["Effective flask stats:", "Flask uptime: 0% average, 0% minimum", "Activating this flask will give you:", "+39% Movement Speed Modifier"], "no charges generated per second: uptime 0");
   fails(await srv.call("GET", `/v1/items/${id}/tooltip?item=99`), 404, "not_found");
+  // by slot of the active item set instead of item id
+  assert.equal(ok(await srv.call<{ item: number }>("GET", `/v1/items/${id}/tooltip?slot=Flask%201`)).item, flask);
+  fails(await srv.call("GET", `/v1/items/${id}/tooltip?slot=Flask%203`), 404, "not_found");
+  fails(await srv.call("GET", `/v1/items/${id}/tooltip`), 400, "invalid_input");
 
   // Our uptime estimate with charges gained on critical strike: the flask's own 33% counts for it, not as the build's,
   // even while the flask is active (Path of Building then adds its mods to the build's).
@@ -344,4 +348,20 @@ void test("tooltip: an item's hover text, a flask's effective stats and uptime",
   assert.ok(Math.abs(u.estimatedUptime - Math.min(u.chargesGainedPerSecond / u.chargesNeededPerSecond, 1)) < 1e-6);
   assert.match(u.source, /not Path of Building; any in-game cooldown/);
   assert.equal(ok(await srv.call<{ uptime?: Uptime }>("GET", `/v1/items/${id}/tooltip?item=${flask}`)).uptime?.inputs.flaskChanceOnCrit, 0, "Quicksilver has no crit charge mod");
+});
+
+void test("warnings: engine notes for lines Path of Building scales twice or does not model", async () => {
+  const id = await newWitch();
+  // stored as the game shows it (+2, +48%), not as the affix rolls (+1, +24%): PoB applies the 100% magnitude again
+  const focused = ["Rarity: RARE", "Doubled", "Focused Amulet", "Crafted: true", "Prefix: {range:0.5}GlobalSkillGemLevel1", "Suffix: {range:0.208}GlobalDamageOverTimeMultiplier1h5",
+    "Implicits: 4", "-1 Prefix Modifier allowed", "-2 Suffix Modifiers allowed", "Implicit Modifiers Cannot Be Changed", "100% increased Explicit Modifier magnitudes",
+    "+48% to Damage over Time Multiplier", "+2 to Level of all Skill Gems"].join("\n");
+  ok(await post(id, "add", { text: focused, equip: "Amulet" }));
+  ok(await post(id, "add", { text: "Rarity: UNIQUE\nHeadhunter\nLeather Belt\nImplicits: 1\n+30 to maximum Life\nWhen you Kill a Rare monster, you gain its Modifiers for 60 seconds", equip: "Belt" }));
+  const w = ok(await srv.call<{ warnings: string[] }>("GET", `/v1/stats/${id}/warnings`)).warnings.filter((x) => x.startsWith("Engine note:"));
+  assert.deepEqual(w, [
+    "Engine note: Amulet Doubled, Focused Amulet: \"+2 to Level of all Skill Gems\" is above its affix's maximum 1, so the line already carries the item's magnitude and Path of Building scales it again (x2); re-enter the line at the affix's roll",
+    "Engine note: Amulet Doubled, Focused Amulet: \"+48% to Damage over Time Multiplier\" is above its affix's maximum 26, so the line already carries the item's magnitude and Path of Building scales it again (x2); re-enter the line at the affix's roll",
+    "Engine note: Belt Headhunter, Leather Belt: Path of Building does not model \"When you Kill a Rare monster, you gain its Modifiers for 60 seconds\"",
+  ]);
 });

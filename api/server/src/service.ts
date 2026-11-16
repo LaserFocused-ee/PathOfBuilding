@@ -65,7 +65,7 @@ const listingsReply = z.object({
 
 type StatValue = number | boolean | string;
 const statValue = z.union([z.number(), z.boolean(), z.string()]);
-const sidebarReply = z.object({ stats: z.array(z.looseObject({ key: z.string().optional(), value: z.number().optional() })) });
+const valuesReply = z.object({ values: z.record(z.string(), statValue) });
 const outputReply = z.object({ output: z.record(z.string(), statValue) });
 
 /** One entry of character-window/get-characters (the fields the Import tab reads). */
@@ -369,16 +369,11 @@ export class Service {
     return { result: { id, revision: meta.revision, history: [...meta.history].reverse() }, warnings: [] };
   }
 
-  /** What differs between two builds: the stats of `other` against this build's (stats.sidebar of each; stats.output when `fields` names keys). */
+  /** What differs between two builds: the stats of `other` against this build's (stats.values of each, what the mutations diff; stats.output when `fields` names keys). */
   async compareBuilds(id: string, other: string, fields?: string[]): Promise<Output> {
     const stats = async (build: string) => {
-      const r = fields ? await this.read(build, "stats.output", { fields }) : await this.read(build, "stats.sidebar", {});
-      const values = new Map<string, StatValue>();
-      if (fields) {
-        for (const [k, v] of Object.entries(outputReply.parse(r.result).output)) values.set(k, v);
-      } else {
-        for (const s of sidebarReply.parse(r.result).stats) if (s.key !== undefined && s.value !== undefined) values.set(s.key, s.value);
-      }
+      const r = fields ? await this.read(build, "stats.output", { fields }) : await this.read(build, "stats.values", {});
+      const values = new Map<string, StatValue>(Object.entries(fields ? outputReply.parse(r.result).output : valuesReply.parse(r.result).values));
       return { values, warnings: r.warnings };
     };
     const [a, b] = [await stats(id), await stats(other)];
@@ -507,7 +502,8 @@ export class Service {
       const cached = r !== undefined;
       if (!r) {
         try {
-          r = await this.trade.search({ ...ask, priority: i.priority, deadline, userAgent });
+          // after the first search, a background call's later ones wait for its pace inside the call (nothing sent meanwhile)
+          r = await this.trade.search({ ...ask, priority: i.priority, deadline, userAgent, queue: searches.length > 0 });
         } catch (e) {
           if (!(e instanceof ApiError)) throw e;
           stopped = { code: e.code, message: e.message, ...e.details };

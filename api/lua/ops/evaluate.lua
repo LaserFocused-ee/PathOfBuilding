@@ -150,7 +150,10 @@ return function(W)
 	local function itemOf(tab, args)
 		if args.text ~= nil then
 			if type(args.text) ~= "string" or not args.text:match("%S") then bad("text is the item's text") end
-			local item = new("Item"):Item(W.withUniqueRadius(args.text))
+			local text = args.text
+			-- a bare base name ("Painted Tower Shield") is that base with no mods, as a Normal item
+			if not text:find("\n") and not text:match("^%s*Rarity:") then text = "Rarity: NORMAL\n" .. text:match("^%s*(.-)%s*$") end
+			local item = new("Item"):Item(W.withUniqueRadius(text))
 			if not item.base then bad("Path of Building could not read this item (unknown base?)") end
 			item:NormaliseQuality()
 			item:BuildModList()
@@ -192,7 +195,19 @@ return function(W)
 				end
 			end
 		end
-		if args.removeNodes ~= nil then override.removeNodes = nodeSet(b.spec, args.removeNodes) end
+		if args.removeNodes ~= nil then
+			override.removeNodes = nodeSet(b.spec, args.removeNodes)
+			local granted = b.calcsTab.mainEnv and b.calcsTab.mainEnv.grantedPassives or {}
+			for node in pairs(override.removeNodes) do
+				local name = W.strip(node.dn) .. " (" .. node.id .. ")"
+				if not node.alloc and not granted[node.id] then bad(name .. " is not allocated, nor granted by an item") end
+				local socket = node.alloc and tab.sockets[node.id]
+				local jewel = socket and socket.selItemId and tab.items[socket.selItemId]
+				if changesTree(jewel) then
+					bad(name .. " holds a cluster, timeless or radius-changing jewel, which rebuilds the tree: the calculator would keep its effect; compare_item measures the socket without it")
+				end
+			end
+		end
 		if args.slot ~= nil then
 			local slot = slotOf(tab, args.slot, true)
 			local item = itemOf(tab, args)
@@ -221,7 +236,17 @@ return function(W)
 		end
 		if next(override) == nil then bad("nothing to evaluate: give nodes, an item for a slot, a flask, a tincture or conditions") end
 		local fields = fieldsOf(args)
-		local calcFunc, calcBase = calculator(b)
+		local rawCalc, calcBase = calculator(b)
+		-- CalcSetup leaves out a node granted by an item (anoint, Forbidden Flame/Flesh) when removeNodes[node.id] is set,
+		-- but an allocated node when removeNodes[node] is: the set passed on carries both keys.
+		local function calcFunc(o)
+			if not o.removeNodes then return rawCalc(o) end
+			local c, both = {}, {}
+			for k, v in pairs(o) do c[k] = v end
+			for node in pairs(o.removeNodes) do both[node], both[node.id] = true, true end
+			c.removeNodes = both
+			return rawCalc(c)
+		end
 		local before = values(b, calcBase, fields)
 		local res = { changed = diff(before, values(b, calcFunc(override), fields)), dotCap = dotCapOf(calcBase) }
 		-- As the tree's hover: a node to add brings the path that reaches it, a node to remove the nodes that depend on it.
@@ -397,7 +422,8 @@ return function(W)
 		if type(args.weights) ~= "table" or #args.weights == 0 then bad("weights is a list of { stat, weight }") end
 		local out = {}
 		for _, w in ipairs(args.weights) do
-			local entry = powerStat(type(w) == "table" and w.stat or nil)
+			-- any number of the build's output weighs (GetFromOutput reads output[stat], MinionX from output.Minion)
+			local entry = powerStat(type(w) == "table" and w.stat or nil, true)
 			if not entry.stat or entry.ignoreForItems then bad("stat " .. tostring(w.stat) .. " cannot weigh items") end
 			local mult = tonumber(w.weight)
 			if not mult or mult < 0.01 or mult > 1 then bad("a weight is from 0.01 to 1 (the popup's slider)") end

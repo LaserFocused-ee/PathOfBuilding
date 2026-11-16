@@ -58,8 +58,10 @@ void test("what_if nodes: adding a node equals allocating it; removing a leaf eq
   assert.deepEqual(added.changed, {
     AverageBurstDamage: { before: 5177.7875, after: 5563.7 },
     AverageHit: { before: 2588.89375, after: 2781.85 },
+    CombinedDPS: { before: 7672.7473304598, after: 8325.4583566924 },
     IgniteDPS: { before: 1839.1067471265, after: 2057.0230233591 },
     TotalDPS: { before: 5833.6405833333, after: 6268.4353333333 },
+    TotalDotDPS: { before: 1839.1067471265, after: 2057.0230233591 },
     WithIgniteDPS: { before: 7672.7473304598, after: 8325.4583566924 },
   });
   const real = await mutate("tree", await dup(base), "allocate", { nodes: [44983] });
@@ -95,12 +97,14 @@ void test("what_if nodes by name, removal and fields", async () => {
   assert.deepEqual(removed.changed, {
     AverageBurstDamage: { before: 5177.7875, after: 4574.575 },
     AverageHit: { before: 2588.89375, after: 2287.2875 },
+    CombinedDPS: { before: 7672.7473304598, after: 6427.8683240261 },
     FireMaximumHitTaken: { before: 1120, after: 1003 },
     FireResist: { before: -25, after: -40 },
     IgniteDPS: { before: 1839.1067471265, after: 1487.3273240261 },
     ManaPerSecondCost: { before: 37.18, after: 35.64 },
     Speed: { before: 2.2533333333333, after: 2.16 },
     TotalDPS: { before: 5833.6405833333, after: 4940.541 },
+    TotalDotDPS: { before: 1839.1067471265, after: 1487.3273240261 },
     TotalEHP: { before: 1055.0637436429, after: 1028.955343551 },
     WithIgniteDPS: { before: 7672.7473304598, after: 6427.8683240261 },
   });
@@ -119,11 +123,13 @@ void test("what_if nodes by name, removal and fields", async () => {
 void test("what_if conditions equal the configuration option; a flask toggle equals its Active box", async () => {
   const onslaught = await ev<{ changed: Changed }>(base, "what-if", { conditions: ["Onslaught"] });
   assert.deepEqual(onslaught.changed, {
+    CombinedDPS: { before: 7672.7473304598, after: 8798.5090309034 },
     EffectiveMovementSpeedMod: { before: 1, after: 1.2 },
     IgniteDPS: { before: 1839.1067471265, after: 1894.7923642368 },
     ManaPerSecondCost: { before: 37.18, after: 44 },
     Speed: { before: 2.2533333333333, after: 2.6666666666667 },
     TotalDPS: { before: 5833.6405833333, after: 6903.7166666667 },
+    TotalDotDPS: { before: 1839.1067471265, after: 1894.7923642368 },
     WithIgniteDPS: { before: 7672.7473304598, after: 8798.5090309034 },
   });
   assert.deepEqual(onslaught.changed, (await mutate("config", await dup(base), "set", { values: { buffOnslaught: true } })).changed);
@@ -153,6 +159,7 @@ void test("what_if an item in a slot equals equipping it for real, by text and b
     AverageBurstDamage: { before: 5177.7875, after: 6012.1375 },
     AverageHit: { before: 2588.89375, after: 3006.06875 },
     ColdMaximumHitTaken: { before: 969, after: 1123 },
+    CombinedDPS: { before: 7672.7473304598, after: 8612.7816637931 },
     EnergyShield: { before: 38, after: 266 },
     FireMaximumHitTaken: { before: 1120, after: 1696 },
     FireResist: { before: -25, after: 5 },
@@ -281,4 +288,20 @@ void test("compare_item with a trade listing: the text and gain are trade.search
   } finally {
     await trade.close();
   }
+});
+
+void test("what_if removeNodes: a node an item grants (anoint) is left out; a node neither allocated nor granted is refused", async () => {
+  const id = await dup(base);
+  const anointed = `${amulet}\nAllocates Heart of Flame`;
+  await mutate("items", id, "add", { text: anointed, equip: "Amulet" });
+  const fields = ["CombinedDPS", "Life"];
+  const removed = await ev<{ changed: Changed }>(id, "what-if", { removeNodes: ["Heart of Flame"], fields });
+  const plain = await ev<{ changed: Changed }>(id, "what-if", { slot: "Amulet", text: amulet, fields });
+  assert.ok(removed.changed.CombinedDPS, "the anoint's damage goes");
+  assert.deepEqual(removed.changed, plain.changed, "removing the granted node equals the amulet without its anoint");
+  const notThere = await srv.call("POST", `/v1/evaluate/${base}/what-if`, { removeNodes: ["Heart of Flame"] });
+  assert.deepEqual([notThere.status, notThere.body.error?.message], [400, "Heart of Flame (60501) is not allocated, nor granted by an item"]);
+  // a bare base name is that base, Normal, with no mods
+  const bare = await ev<{ changed: Changed }>(base, "what-if", { slot: "Helmet", text: "Hubris Circlet", fields: ["EnergyShield"] });
+  assert.ok((bare.changed.EnergyShield?.after ?? 0) > (bare.changed.EnergyShield?.before ?? 0), JSON.stringify(bare.changed));
 });

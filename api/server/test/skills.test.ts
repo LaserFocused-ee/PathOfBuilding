@@ -138,7 +138,7 @@ void test("update_group, move_group, delete_gem, delete_group", async () => {
   ok(await post(id, "add-group", frost));
 
   const p = ok(await post(id, "update-group", { group: 2, label: "Frost", includeInFullDPS: true }));
-  assert.deepEqual(p.changed.FullDPS, { before: null, after: 1108.9278846154 });
+  assert.deepEqual(p.changed.FullDPS, { before: 0, after: 1108.9278846154 }); // FullDPS is always diffed, 0 while the sidebar hides it
   assert.deepEqual((await skills(id)).groups.map((g) => [g.label, g.includeInFullDPS, g.enabled]), [["Fireball", false, true], ["Frost", true, true]]);
   const both = ok(await post(id, "update-group", { group: 1, includeInFullDPS: true }));
   assert.deepEqual(both.changed.FullDPS, { before: 1108.9278846154, after: 5051.349728746 });

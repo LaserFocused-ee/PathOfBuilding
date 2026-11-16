@@ -239,6 +239,9 @@ void test("item_mods refuses what it cannot answer: unknown or empty slots, bad 
   await fail({ slot: "Ring 3" }, /Ring 3 is not in use/);
   await fail({ slot: "Body Armour", weights: [] }, /weights/);
   await fail({ slot: "Body Armour", weights: [{ stat: "NoSuchStat", weight: 1 }] }, /unknown stat NoSuchStat/);
+  // Any number of the build's output weighs, not only the power stat list (the DoT builds' TotalDotDPS).
+  const dot = await items(base, { slot: "Body Armour", weights: [{ stat: "TotalDotDPS", weight: 1 }], limit: 2 });
+  assert.deepEqual(dot.weights, [{ stat: "TotalDotDPS", weight: 1 }]);
   await fail({ slot: "Body Armour", weights: [{ stat: "Life", weight: 2 }] }, /weight/);
   await fail({ slot: "Body Armour", quality: 1.5 }, /quality/);
   await fail({ slot: "Body Armour", quality: -0.1 }, /quality/);

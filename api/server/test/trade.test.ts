@@ -58,6 +58,12 @@ void test("limiter: paces at half of the stated window for interactive callers, 
   await assert.rejects(l.run("search", "background", far, ok200()), (e: ApiError) => e.code === "rate_limited", "background has 2 of 8");
   await l.run("search", "interactive", far, ok200(rules("8:10:60", "3:10:0")));
   assert.deepEqual(c.slept, [10_000], "interactive still had budget when background had none");
+  // queue: a background caller waits for its pace instead (a call's later searches), never past its deadline
+  const refused = await l.run("search", "background", far, ok200()).catch((e: ApiError) => e);
+  assert.deepEqual([refused instanceof ApiError && refused.details?.sent, refused instanceof ApiError && /^nothing sent: this server keeps background trade search requests to 25% of the trade site's rate limit/.test(refused.message)], [false, true]);
+  await assert.rejects(l.run("search", "background", c.t + 1_000, ok200(), true), (e: ApiError) => e.code === "rate_limited", "the pace is past the deadline");
+  await l.run("search", "background", far, ok200(rules("8:10:60", "1:10:0")), true);
+  assert.deepEqual(c.slept, [10_000, 10_000], "waited for the window, then sent");
 });
 
 void test("limiter: one request at a time per policy; background is refused while anyone is queued", async () => {

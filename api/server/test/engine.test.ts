@@ -59,6 +59,12 @@ void test("fixture build (OccVortex, tree 3_13) loads with its real stats", asyn
   const regen = await srv.call("GET", `/v1/stats/${occ}/breakdown?key=ManaRegen`);
   assert.equal(regen.status, 404);
   assert.match(regen.body.error?.message ?? "", /^no breakdown for ManaRegen \(its value is [\d.]+\); breakdowns that start with it: .*ManaRegenRecovery/);
+  // the sidebar's main skill; a damage type's Min key gives the type's rows; FullDPS the Full DPS skill list (none ticked here)
+  const cold = ok(await srv.call<{ skill: string; value: number; breakdown: Record<string, unknown> }>("GET", `/v1/stats/${occ}/breakdown?key=ColdMin`));
+  assert.deepEqual([cold.skill, cold.breakdown["2"]], ["Vortex", "1376 to 2064 (base damage from skill)"]);
+  assert.deepEqual(ok(await srv.call("GET", `/v1/stats/${occ}/breakdown?key=FullDPS`)), { key: "FullDPS", skill: "Vortex", value: 0, breakdown: [] });
+  const dot = await srv.call("GET", `/v1/stats/${occ}/breakdown?key=TotalDot`);
+  assert.match(dot.body.error?.message ?? "", /^no breakdown for TotalDot \(its value is [\d.]+\); breakdowns that start with it or make it up: .*ColdDot/);
   const skills = ok(await srv.call<{ mainSocketGroup: number; groups: Array<{ index: number; mainSkill?: string; output?: { TotalDPS?: number } }> }>("GET", `/v1/stats/${occ}/skills`));
   const vortex = skills.groups.find((g) => g.index === skills.mainSocketGroup);
   assert.equal(vortex?.mainSkill, "Vortex");

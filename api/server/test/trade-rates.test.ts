@@ -111,7 +111,7 @@ void test("trade client: callers at the same time share one fetch, another realm
   const ask = (deadline = c.t + 600_000) => ({ priority: "interactive" as const, deadline, userAgent: "Path of Building/test (api; fork)" });
   const convert = () => Promise.resolve({ divine: 1 });
   // the limiter refuses a caller whose deadline has passed before anything is sent: the hour's gate is not used up
-  await assert.rejects(client.currencyRates("pc", LEAGUE, ask(c.t - 1), convert), (e: ApiError) => e.code === "rate_limited" && /static budget/.test(e.message));
+  await assert.rejects(client.currencyRates("pc", LEAGUE, ask(c.t - 1), convert), (e: ApiError) => e.code === "rate_limited" && /^nothing sent: the call's time ran out behind earlier trade static requests/.test(e.message));
   assert.equal(recorded.sent.length, 0);
   const [a, b, x, d] = await Promise.allSettled([client.currencyRates("pc", LEAGUE, ask(), convert), client.currencyRates("pc", LEAGUE, ask(), convert), client.currencyRates("xbox", LEAGUE, ask(), convert), client.currencyRates("pc", LEAGUE, ask(), convert)]);
   assert.deepEqual([a, b, d].map((r) => r.status === "fulfilled" && r.value.rates), [{ divine: 1 }, { divine: 1 }, { divine: 1 }], "the pc callers share the one answer");

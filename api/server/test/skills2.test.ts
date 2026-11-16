@@ -100,6 +100,8 @@ void test("minion, minion skill and the spectre library", async () => {
   assert.deepEqual([fs.result.minion, fs.result.minionSkills], [2, ["Default Attack", "Enfeeble", "Projectile Weakness"]]);
   assert.deepEqual([fs.changed["Minion.Life"], fs.changed["Minion.Speed"], fs.changed["Minion.AverageDamage"]], [{ before: 6243, after: 6659 }, { before: 0.76628352490421, after: 0.50125313283208 }, { before: 82.849375, after: 125.733125 }]);
   assert.deepEqual(await output(id, "Life,Speed", "minion"), { Life: 6659, Speed: 0.50125313283208 });
+  // the player's output names the minion's figures Minion.X, as the changed diffs do
+  assert.deepEqual(ok(await srv.call<{ output: Record<string, number> }>("GET", `/v1/stats/${id}/output?fields=Minion.Life,Life`)).output["Minion.Life"], 6659);
 
   // The minion's skill, by number: Enfeeble has a cooldown and no damage.
   const enfeeble = ok(await setOptions(id, { minionSkill: 2 }));

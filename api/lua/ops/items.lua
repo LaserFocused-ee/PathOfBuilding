@@ -246,7 +246,12 @@ return function(W)
 	function ops.tooltip(args)
 		local b = W.build()
 		local tab = b.itemsTab
-		local item = itemOf(tab, args.item)
+		local id = args.item
+		if args.slot ~= nil then
+			id = slotOf(tab, args.slot).selItemId
+			if not id or id == 0 then W.fail("not_found", args.slot .. " holds no item") end
+		end
+		local item = itemOf(tab, id)
 		return { item = item.id, name = W.strip(item.name), lines = W.tooltip(function(t) tab:AddItemTooltip(t, item) end), uptime = flaskEstimate(b, item) }
 	end
 

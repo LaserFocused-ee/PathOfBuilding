@@ -99,3 +99,27 @@ void test("loadout_stats: each loadout's figures without switching to it; add_gr
   assert.equal(on?.fullDpsGroups, 1);
   assert.ok((on?.output.FullDPS ?? 0) > 0, JSON.stringify(on?.output));
 });
+
+void test("loadouts match on an older tree version, through colour codes and doubled spaces, and by {n} links", async () => {
+  const id = ok(await srv.call<{ build: { id: string } }>("POST", "/v1/builds", { className: "Witch", ascendancy: "Elementalist", level: 90, treeVersion: "3_29" })).build.id;
+  ok(await post(id, "skills/:id/add-group", { gems: [{ name: "Fireball" }] }));
+  // Path of Building lists this tree as "[3.29] ^3Map  Set", which equals no set title, so its own dropdown has none.
+  ok(await post(id, "tree/:id/spec-rename", { index: 1, title: "^3Map  Set" }));
+  ok(await post(id, "items/:id/set-rename", { index: 1, title: "Map Set" }));
+  ok(await post(id, "skills/:id/set-rename", { index: 1, title: "^xFF0000Map Set" }));
+  ok(await post(id, "config/:id/set-rename", { index: 1, title: "Map Set " }));
+  ok(await post(id, "tree/:id/spec-copy", { index: 1, title: "Boss {2}" }));
+  for (const tab of ["items", "skills", "config"]) {
+    ok(await post(id, `${tab}/:id/set-copy`, { index: 1, title: "Bossing {2}" }));
+  }
+  assert.deepEqual((await list(id)).loadouts, ["Map Set", "Boss {2}"]);
+  assert.equal((await list(id)).active, "Map Set");
+
+  const boss = ok(await post<{ result: { active: string; sets: Sets } }>(id, "loadouts/:id/activate", { name: "Boss {2}" }));
+  assert.deepEqual(boss.result, { active: "Boss {2}", sets: { tree: "Boss {2}", items: "Bossing {2}", skills: "Bossing {2}", config: "Bossing {2}" } });
+  // the raw title also finds it
+  const map = ok(await post<{ result: { active: string } }>(id, "loadouts/:id/activate", { name: "^3Map  Set" }));
+  assert.equal(map.result.active, "Map Set");
+  const rows = ok(await srv.call<{ loadouts: Array<{ name: string }> }>("GET", `/v1/loadouts/${id}/stats`)).loadouts;
+  assert.deepEqual(rows.map((r) => r.name), ["Map Set", "Boss {2}"]);
+});

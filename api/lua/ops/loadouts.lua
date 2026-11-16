@@ -5,17 +5,85 @@ return function(W)
 	local main = W.main
 	local ops = {}
 
-	local function isEntry(v) return type(v) == "string" and v ~= "No Loadouts" and not v:match("^%^7%^7") end
+	-- Our own matching of Build.lua SyncLoadouts: PoB's dropdown misses loadouts whose tree is on an older tree version
+	-- (it shows "[3.29] Title", which no set title equals), titles that differ only in colour codes or spacing
+	-- ("Lvl 100  Ring" against "Lvl 100 Ring"), and its own handler fails to switch some it lists. Titles are compared
+	-- with colour codes taken out and spaces collapsed; "{id}" links pair sets as PoB pairs them.
+	local function norm(t)
+		return ((t or "Default"):gsub("%^x%x%x%x%x%x%x", ""):gsub("%^%d", ""):gsub("%s+", " "):match("^%s*(.-)%s*$"))
+	end
+	local function linkOf(title)
+		local ids = (title or ""):match("%{([%w,]+)%}")
+		if not ids then return nil end
+		local name = norm((title:gsub("%{[%w,]+%}", "")))
+		return ids, name == "" and "Default" or name
+	end
 
+	-- name -> { spec index, item set id, skill set id, config set id }, in the order the trees are listed.
 	local function loadouts(b)
-		b:SyncLoadouts()
-		local drop = b.controls.buildLoadouts
-		local list = {}
-		for _, v in ipairs(drop.list) do
-			if isEntry(v) then list[#list + 1] = v end
+		local tabs = {
+			{ b.itemsTab.itemSetOrderList, b.itemsTab.itemSets },
+			{ b.skillsTab.skillSetOrderList, b.skillsTab.skillSets },
+			{ b.configTab.configSetOrderList, b.configTab.configSets },
+		}
+		local byTitle, byLink = {}, {}
+		for t, tab in ipairs(tabs) do
+			byTitle[t], byLink[t] = {}, {}
+			for _, id in ipairs(tab[1]) do
+				local title = tab[2][id].title
+				local ids = linkOf(title)
+				if ids then
+					for l in ids:gmatch("[^,]+") do byLink[t][l] = byLink[t][l] or id end
+				else
+					local k = norm(title)
+					byTitle[t][k] = byTitle[t][k] or id
+				end
+			end
 		end
-		local selected = drop.list[drop.selIndex]
-		return list, isEntry(selected) and selected or nil
+		local function pick(t, map, key)
+			if #tabs[t][1] == 1 then return tabs[t][1][1] end
+			return map[t][key]
+		end
+		local list, sets = {}, {}
+		local function add(name, spec, map, key)
+			if sets[name] then return end
+			local i, s, c = pick(1, map, key), pick(2, map, key), pick(3, map, key)
+			if i and s and c then
+				list[#list + 1] = name
+				sets[name] = { spec, i, s, c }
+			end
+		end
+		for spec, s in ipairs(b.treeTab.specList) do
+			local ids, name = linkOf(s.title)
+			if ids then
+				for l in ids:gmatch("[^,]+") do add(name .. " {" .. l .. "}", spec, byLink, l) end
+			else
+				add(norm(s.title), spec, byTitle, norm(s.title))
+			end
+		end
+		local cur = { b.treeTab.activeSpec, b.itemsTab.activeItemSetId, b.skillsTab.activeSkillSetId, b.configTab.activeConfigSetId }
+		local selected
+		for _, n in ipairs(list) do
+			local v = sets[n]
+			if not selected and v[1] == cur[1] and v[2] == cur[2] and v[3] == cur[3] and v[4] == cur[4] then selected = n end
+		end
+		return list, selected, sets
+	end
+
+	-- Switches each tab to its set, as the dropdown's handler does.
+	local function switch(b, v)
+		if b.treeTab.activeSpec ~= v[1] then b.treeTab:SetActiveSpec(v[1]) end
+		if b.itemsTab.activeItemSetId ~= v[2] then b.itemsTab:SetActiveItemSet(v[2]) end
+		if b.skillsTab.activeSkillSetId ~= v[3] then b.skillsTab:SetActiveSkillSet(v[3]) end
+		if b.configTab.activeConfigSetId ~= v[4] then b.configTab:SetActiveConfigSet(v[4]) end
+		b:SyncLoadouts()
+	end
+
+	local function find(b, name)
+		local list, _, sets = loadouts(b)
+		local v = sets[name] or sets[norm(name)]
+		if not v then W.fail("not_found", "no loadout " .. tostring(name) .. "; loadouts: " .. (#list > 0 and table.concat(list, ", ") or "none")) end
+		return v, sets[name] and name or norm(name)
 	end
 
 	local function titleOf(set) return set and set.title or "Default" end
@@ -34,16 +102,11 @@ return function(W)
 		return { loadouts = list, active = selected or W.json.null, sets = active(b) }
 	end
 
-	-- args: name (as `list` gives it). The dropdown entry.
+	-- args: name (as `list` gives it). Switches the tree, item set, skill set and config set.
 	ops.activate = W.mutation(function(args, b)
-		local list = loadouts(b)
-		local found
-		for _, v in ipairs(list) do if v == args.name then found = v end end
-		if not found then W.fail("not_found", "no loadout " .. tostring(args.name) .. "; loadouts: " .. table.concat(list, ", ")) end
-		W.choose(b.controls.buildLoadouts, function(v) return v == found end)
-		local _, selected = loadouts(b)
-		if selected ~= found then W.fail("worker_error", "Path of Building did not switch to " .. found) end
-		return { active = found, sets = active(b) }
+		local v, name = find(b, args.name)
+		switch(b, v)
+		return { active = name, sets = active(b) }
 	end)
 
 	-- args: names? (default every loadout), fields? (output keys; default below). Each loadout is picked in the dropdown and
@@ -54,23 +117,23 @@ return function(W)
 		local b = W.build()
 		local list = loadouts(b)
 		local names = type(args.names) == "table" and #args.names > 0 and args.names or list
-		for _, n in ipairs(names) do
-			local known = false
-			for _, v in ipairs(list) do if v == n then known = true end end
-			if not known then W.fail("not_found", "no loadout " .. tostring(n) .. "; loadouts: " .. table.concat(list, ", ")) end
-		end
+		local picks = {}
+		for i, n in ipairs(names) do picks[i] = { find(b, n) } end
 		local fields = type(args.fields) == "table" and #args.fields > 0 and args.fields or defaultFields
 		local prev = { b.treeTab.activeSpec, b.itemsTab.activeItemSetId, b.skillsTab.activeSkillSetId, b.configTab.activeConfigSetId }
 		local rows = setmetatable({}, { __jsontype = "array" })
 		local ok, err = pcall(function()
-			for _, n in ipairs(names) do
-				W.choose(b.controls.buildLoadouts, function(v) return v == n end)
+			for _, p in ipairs(picks) do
+				local n = p[2]
+				switch(b, p[1])
 				b.buildFlag = true
 				W.pump()
 				b = W.build()
 				local output, groups = setmetatable({}, { __jsontype = "object" }), 0
 				for _, k in ipairs(fields) do
-					if type(k) == "string" and b.calcsTab.mainOutput[k] ~= nil then output[k] = W.plain(b.calcsTab.mainOutput[k]) end
+					local v = nil
+					if type(k) == "string" then v = W.outputField(b.calcsTab.mainOutput, k) end
+					if v ~= nil then output[k] = W.plain(v) end
 				end
 				for _, g in ipairs(b.skillsTab.socketGroupList) do
 					if g.enabled and g.includeInFullDPS then groups = groups + 1 end
@@ -141,11 +204,10 @@ return function(W)
 			manage(function() b.configTab:OpenConfigSetManagePopup() end, first, "copy",
 				position(b.configTab.configSetOrderList, b.configTab.activeConfigSetId), name)
 		end
-		local after = loadouts(b)
-		local entry
-		for _, v in ipairs(after) do if v == name or v:match("^%[[^%]]+%] (.*)$") == name then entry = v end end
+		local after, _, sets = loadouts(b)
+		local entry = sets[norm(name)] and norm(name)
 		if not entry then W.fail("worker_error", "the new loadout " .. name .. " is not listed") end
-		W.choose(b.controls.buildLoadouts, function(v) return v == entry end)
+		switch(b, sets[entry])
 		-- A tab that had one set matched every tree; with two it no longer does, and loadouts that relied on it drop out.
 		local still, dropped = {}, {}
 		for _, v in ipairs(after) do still[v] = true end

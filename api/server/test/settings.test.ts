@@ -164,7 +164,7 @@ void test("ui_invoke: select, set_state, set_text and click on config, build and
   ok(await srv.call("POST", `/v1/skills/${id}/update-group`, { group: 1, label: "Fireball" }));
   rev = await revisionOf(id);
   const full = ok(await invoke(id, { tab: "skills", control: "includeInFullDPS", operation: "set_state", value: true }));
-  assert.deepEqual([full.revision, full.changed.FullDPS], [++rev, { before: null, after: 2848.5965107973 }]);
+  assert.deepEqual([full.revision, full.changed.FullDPS], [++rev, { before: 0, after: 2848.5965107973 }]);
 
   // set_text and click on the build tab: the level box, then the Auto/Manual button
   const lvl = ok(await invoke(id, { tab: "build", control: "characterLevel", operation: "set_text", value: "80" }));
