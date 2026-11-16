@@ -74,6 +74,17 @@ void test("lookups page with offset and limit; the whole config catalogue fits a
   assert.equal(seen.size, c1.total, "pages cover every option once");
 });
 
+void test("lookup gem_trade: the trade site's type for a gem, a transfigured one by its base and discriminator", async () => {
+  type GemTrade = { gem: string; type: unknown; query: { type: unknown; filters?: unknown } };
+  const blight = ok(await srv.call<GemTrade>("GET", "/v1/lookup/gem-trade?name=Blight%20of%20Contagion&level=21&quality=20&corrupted=true"));
+  assert.deepEqual([blight.gem, blight.query.type], ["Blight of Contagion", { option: "Blight", discriminator: "alt_x" }]);
+  assert.deepEqual(blight.query.filters, { misc_filters: { filters: { gem_level: { min: 21 }, quality: { min: 20 }, corrupted: { option: "true" } } } });
+  assert.equal(ok(await srv.call<GemTrade>("GET", "/v1/lookup/gem-trade?name=Spell%20Echo")).query.type, "Spell Echo Support");
+  assert.equal(ok(await srv.call<GemTrade>("GET", "/v1/lookup/gem-trade?name=Vaal%20Grace")).query.type, "Vaal Grace");
+  const none = await srv.call("GET", "/v1/lookup/gem-trade?name=Nope");
+  assert.deepEqual([none.status, none.body.error?.code], [404, "not_found"]);
+});
+
 void test("every route refuses an unknown parameter, naming the ones it takes", async () => {
   for (const r of routes) {
     const path = r.path.replace(":id", fresh).replace(":nodeId", "1");
@@ -86,7 +97,7 @@ void test("every route refuses an unknown parameter, naming the ones it takes", 
 });
 
 // Query values for routes that need them, per build (OccVortex is on tree 3_13, before masteries).
-const readParams = (id: string): Record<string, string> => ({ key: "Life", query: "Life", nodeId: id === fresh ? "16123" : "46842", to: "Arcane Potency", group: "1", gem: "1", item: "1", tab: "config", socket: "41263", node: "37671", table: "keystones", base: "Vaal Regalia", jewel: "Lethal Pride", seed: "10000", conqueror: "Kaom" });
+const readParams = (id: string): Record<string, string> => ({ key: "Life", query: "Life", nodeId: id === fresh ? "16123" : "46842", to: "Arcane Potency", group: "1", gem: "1", item: "1", tab: "config", socket: "41263", node: "37671", table: "keystones", base: "Vaal Regalia", jewel: "Lethal Pride", seed: "10000", conqueror: "Kaom", name: "Fireball" });
 
 /** Path and query for one read-only GET route on a build. */
 const readUrl = (r: (typeof routes)[number], id: string): string => {

@@ -547,5 +547,31 @@ return function(W)
 		return { rates = rates }
 	end
 
+	-- The trade search for a skill gem by the trade site's naming, built without sending it: a transfigured gem (Blight of
+	-- Contagion) is its base gem's type with the site's discriminator (alt_x, alt_y, alt_z, from the variant id BlightAltX),
+	-- a support is "<name> Support"; gem level, quality and corrupted are misc filters. Run it with trade search.
+	-- args: name, level?, quality?, corrupted? (bool; absent: either), listed? (status, default securable), league?, realm?
+	function ops.gem_trade(args)
+		local want = type(args.name) == "string" and args.name:gsub("%s+[Ss]upport$", ""):lower() or W.fail("invalid_input", "name is a gem name")
+		local gem
+		for _, g in pairs(data.gems) do
+			if g.name:lower() == want then gem = g break end
+		end
+		if not gem then W.fail("not_found", "no gem named " .. args.name .. "; lookup gems finds names") end
+		local support = gem.grantedEffect and gem.grantedEffect.support
+		local typeOf = function(g) return g.baseTypeName or (support and (g.name .. " Support")) or g.name end
+		local alt = gem.variantId and gem.variantId:match("Alt(%u)$")
+		local base = alt and data.gems[gem.gameId]
+		local tradeType = alt and { option = base and typeOf(base) or gem.name:match("^(.-) of ") or gem.name, discriminator = "alt_" .. alt:lower() } or typeOf(gem)
+		local filters = {}
+		if args.level ~= nil then filters.gem_level = { min = tonumber(args.level) } end
+		if args.quality ~= nil then filters.quality = { min = tonumber(args.quality) } end
+		if args.corrupted ~= nil then filters.corrupted = { option = args.corrupted and "true" or "false" } end
+		local query = { status = { option = args.listed or "securable" }, type = tradeType }
+		if next(filters) then query.filters = { misc_filters = { filters = filters } } end
+		return { gem = gem.name, type = tradeType, query = query, search = { query = query, sort = { price = "asc" } },
+			link = W.tradeLink(args.realm or "pc", args.league, query) }
+	end
+
 	return ops
 end

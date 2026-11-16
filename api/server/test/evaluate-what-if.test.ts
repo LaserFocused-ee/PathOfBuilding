@@ -66,6 +66,10 @@ void test("what_if nodes: adding a node equals allocating it; removing a leaf eq
   });
   const real = await mutate("tree", await dup(base), "allocate", { nodes: [44983] });
   assert.deepEqual(added.changed, real.changed, "the what-if is the engine's own change");
+  // a mastery with no effect chosen would read the calculator's own pick: refused, naming set_mastery
+  const mastery = await srv.call("POST", `/v1/evaluate/${base}/what-if`, { addNodes: [16123] });
+  assert.deepEqual([mastery.status, mastery.body.error?.code], [400, "invalid_input"]);
+  assert.match(mastery.body.error?.message ?? "", /is a mastery: pick its effect with tree set_mastery/);
   const keystone = await ev<{ changed: Changed }>(base, "what-if", { addNodes: ["Elemental Overload"], fields: ["CombinedDPS"] });
   assert.deepEqual(keystone.changed, (await ev<{ changed: Changed }>(base, "what-if", { addNodes: [22088], fields: ["CombinedDPS"] })).changed, "a name and its id are the same node");
 });
@@ -87,6 +91,7 @@ void test("what_if nodes with their paths, as the tree's hover: the path an adde
   assert.match(refused.body.error?.message ?? "", /would also remove 3 other nodes that hang from it \(4 in all\)/);
   const gone = await mutate("tree", cutting, "deallocate", { nodes: [4184], force: true });
   assert.deepEqual(cut.withPaths?.changed, gone.changed, "with its dependents the what-if is the engine's own deallocation");
+  assert.deepEqual(cut.changed, gone.changed, "the top-level figure takes the dependents along too");
   assert.deepEqual([(gone.result as { count?: number }).count, (gone.result as { removed?: Array<{ id: number }> }).removed?.map((n) => n.id).sort()], [4, cut.paths[0]?.nodes.map((n) => n.id).sort()], "the answer lists what went, the what-if's dependents");
   const leaf = await ev<Paths>(base, "what-if", { removeNodes: [30225] });
   assert.deepEqual([leaf.paths[0]?.points, leaf.withPaths], [1, undefined]);

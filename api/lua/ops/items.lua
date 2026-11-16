@@ -79,16 +79,22 @@ return function(W)
 					pool[k] = (pool[k] or 0) + 1
 				end
 			end
+			local matched = {} -- the mods counted: { mod = affix data, crafted = from the bench }
 			-- a mod of several lines counts once when all its lines are left in `pool`
-			local function takeMulti(mods, pool)
+			local function takeMulti(mods, pool, bench)
 				for _, mod in ipairs(mods) do
 					local keys, all = {}, true
 					for i, line in ipairs(mod) do keys[i] = norm(line); if (pool[keys[i]] or 0) == 0 then all = false end end
 					if all then
 						for _, k in ipairs(keys) do pool[k] = pool[k] - 1 end
-						counts[mod.type] = counts[mod.type] + 1
+						matched[#matched + 1] = { mod = mod, crafted = bench }
 					end
 				end
+			end
+			-- one-line mods by line: the mod, or false when a prefix and a suffix both match
+			local function addSingle(map, mod)
+				local k = norm(mod[1])
+				if map[k] == nil then map[k] = mod elseif map[k] and map[k].type ~= mod.type then map[k] = false end
 			end
 			local single, multi = {}, {}
 			-- a cluster jewel's notables weigh by its enchant's tags, not the base's: the whole cluster pool counts
@@ -96,7 +102,7 @@ return function(W)
 			for id, mod in pairs(item.affixes) do
 				if (mod.type == "Prefix" or mod.type == "Suffix") and (cluster or item:GetModSpawnWeight(mod) > 0) then
 					if #mod == 1 then
-						local k = norm(mod[1]); single[k] = (single[k] == nil or single[k] == mod.type) and mod.type or false
+						addSingle(single, mod)
 					elseif #mod > 1 then
 						multi[#multi + 1] = { id = id, mod = mod }
 					end
@@ -104,24 +110,54 @@ return function(W)
 			end
 			table.sort(multi, function(x, y) return x.id < y.id end)
 			for i, entry in ipairs(multi) do multi[i] = entry.mod end
-			-- Bench crafts (ModMaster, no spawn weights) for the item's type: crafted lines are matched to them first, so a
-			-- two-line craft (+# to Armour, +# to maximum Energy Shield) is one prefix; what is left joins the other lines.
-			local bench = {}
+			-- Bench crafts (ModMaster, no spawn weights) for the item's type: crafted lines are matched to them first, on the
+			-- craft's own side (the bench's Non-Channelling mana cost craft is a prefix, the rolled one a suffix), so a
+			-- two-line craft (+# to maximum Life, Regenerate # Mana per second) is one prefix; what is left joins the other lines.
+			local bench, benchSingle = {}, {}
 			for _, mod in ipairs(data.masterMods) do
 				if (mod.type == "Prefix" or mod.type == "Suffix") and mod.types and mod.types[item.type] then
-					if #mod > 1 then
-						bench[#bench + 1] = mod
-					elseif #mod == 1 then
-						local k = norm(mod[1])
-						if single[k] == nil then single[k] = mod.type end
+					if #mod > 1 then bench[#bench + 1] = mod elseif #mod == 1 then addSingle(benchSingle, mod) end
+				end
+			end
+			takeMulti(bench, crafted, true)
+			for k, n in pairs(crafted) do
+				local mod = benchSingle[k] or single[k]
+				for _ = 1, n do
+					if mod then matched[#matched + 1] = { mod = mod, crafted = true } else left[k] = (left[k] or 0) + 1 end
+				end
+			end
+			takeMulti(multi, left)
+			for k, n in pairs(left) do
+				for _ = 1, n do
+					if single[k] then matched[#matched + 1] = { mod = single[k] } end
+				end
+			end
+			local groups, craftedCount, multimod = {}, 0, false
+			for _, m in ipairs(matched) do
+				counts[m.mod.type] = counts[m.mod.type] + 1
+				groups[m.mod.group or ""] = (groups[m.mod.group or ""] or 0) + 1
+				if m.crafted then
+					craftedCount = craftedCount + 1
+					if m.mod.group == "ItemGenerationCanHaveMultipleCraftedMods" then multimod = true end
+				end
+			end
+			for group, n in pairs(groups) do
+				if group ~= "" and n > 1 then out[#out + 1] = string.format("%d mods of the %s group; an item can have one", n, group) end
+			end
+			-- PoB's data has one group per mod, not the game's mod families: a bench craft of several lines (the Upgraded
+			-- life and mana regeneration craft) also blocks the plain mod of its first line, which shares its first stat.
+			for _, c in ipairs(matched) do
+				if c.crafted and #c.mod > 1 and c.mod.statOrder then
+					for _, m in ipairs(matched) do
+						if m ~= c and not m.crafted and m.mod.statOrder and m.mod.statOrder[1] == c.mod.statOrder[1] then
+							out[#out + 1] = string.format("the bench craft of the %s group shares its first stat with the item's %s mod; the bench refuses it on such an item", c.mod.group, m.mod.group)
+						end
 					end
 				end
 			end
-			takeMulti(bench, crafted)
-			for k, n in pairs(crafted) do left[k] = (left[k] or 0) + n end
-			takeMulti(multi, left)
-			for k, n in pairs(left) do
-				if n > 0 and single[k] then counts[single[k]] = counts[single[k]] + n end
+			local craftLimit = multimod and 3 or 1
+			if craftedCount > craftLimit then
+				out[#out + 1] = string.format("%d crafted mods, more than the %d %s", craftedCount, craftLimit, multimod and "\"Can have up to 3 Crafted Modifiers\" allows" or "the bench allows without \"Can have up to 3 Crafted Modifiers\"")
 			end
 		end
 		if counts.Prefix > prefixLimit then out[#out + 1] = string.format("%d prefixes, more than the %d a %s %s can have", counts.Prefix, prefixLimit, item.rarity:lower(), item.type) end
@@ -444,13 +480,48 @@ return function(W)
 		return describe(tab, save(tab), true)
 	end)
 
-	-- args: item, text. The Edit... popup's text, saved over the item.
+	-- The item sets (index, title) whose slots hold the item, and the active set's slots that do.
+	local function holders(tab, id)
+		local list, here = {}, {}
+		for i, setId in ipairs(tab.itemSetOrderList) do
+			local set, held = tab.itemSets[setId], false
+			for name, slot in pairs(tab.slots) do
+				local entry = set[name]
+				local sel = setId == tab.activeItemSetId and slot.selItemId or (entry and entry.selItemId)
+				if sel == id then
+					held = true
+					if setId == tab.activeItemSetId then here[#here + 1] = name end
+				end
+			end
+			if held then list[#list + 1] = { index = i, title = set.title or "Default", active = setId == tab.activeItemSetId } end
+		end
+		table.sort(here)
+		return list, here
+	end
+
+	-- args: item, text, activeSetOnly?. The Edit... popup's text, saved over the item; every item set holding the item sees
+	-- the change (`sharedBy` lists them). activeSetOnly: when another set holds the item too, the text is saved as a new
+	-- item put in the active set's slots instead, and the other sets keep the old one.
 	ops.edit = W.mutation(function(args, b)
 		local tab = b.itemsTab
 		itemOf(tab, args.item)
+		local list, here = holders(tab, args.item)
+		local others = 0
+		for _, s in ipairs(list) do if not s.active then others = others + 1 end end
 		local item = fromRaw(tab, args.text)
+		if args.activeSetOnly and others > 0 then
+			local new = save(tab, "none")
+			for _, name in ipairs(here) do tab.slots[name]:SetSelItemId(new.id) end
+			tab:PopulateSlots()
+			tab:AddUndoState()
+			local out = describe(tab, new, true)
+			out.copiedFrom, out.sharedBy = args.item, (holders(tab, new.id))
+			return out
+		end
 		item.id = args.item
-		return describe(tab, save(tab), true)
+		local out = describe(tab, save(tab), true)
+		out.sharedBy = list
+		return out
 	end)
 
 	-- args: item, notables ([name]; one per anoint slot, in order; [] removes the anoints). The item's Anoint... buttons and popup.

@@ -198,6 +198,16 @@ export class TradeLimiter {
       return { policy, remaining: { interactive: i.left, background: b.left }, retryAfterSeconds: { interactive: i.wait, background: b.wait }, windows };
     });
   }
+
+  /** Whether a trade search (a search and its fetches) may go now at each priority, or the seconds to wait: both policies at once. */
+  searchNow(): Record<Priority, { ok: boolean; waitSeconds: number }> {
+    const both = this.state().filter((s) => s.policy === "search" || s.policy === "fetch");
+    const per = (priority: Priority) => {
+      const waitSeconds = Math.max(...both.map((s) => s.retryAfterSeconds[priority]));
+      return { ok: waitSeconds === 0 && both.every((s) => s.remaining[priority] > 0), waitSeconds };
+    };
+    return { interactive: per("interactive"), background: per("background") };
+  }
 }
 
 /** One fetched listing: what the answer shows, and the entry Path of Building's conversion reads (no seller fields). */

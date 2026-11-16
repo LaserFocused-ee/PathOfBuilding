@@ -107,6 +107,31 @@ void test("add_rare from a template; modify ranges, quality and sockets; edit re
   const e = ok(await post<Detail>(id, "edit", { item: 2, text: "Rarity: UNIQUE\nGoldrim\nLeather Cap\n+10% to Item Rarity\n+30% to all Elemental Resistances" }));
   assert.deepEqual([e.result.id, e.result.explicits, e.result.equipped], [2, ["+10% to Item Rarity", "+30% to all Elemental Resistances"], ["Helmet"]]);
   assert.deepEqual(await output(id, "ColdResist,Evasion"), { ColdResist: -30, Evasion: 48 });
+  assert.deepEqual((e.result as Detail & { sharedBy: unknown }).sharedBy, [{ index: 1, title: "Default", active: true }]);
+});
+
+void test("edit: an item two item sets hold lists both; activeSetOnly copies it into the active set and leaves the other set's", async () => {
+  type Edited = Detail & { sharedBy: Array<{ index: number; active: boolean }>; copiedFrom?: number };
+  const id = await newWitch();
+  const cap = ok(await post<Brief>(id, "add", { text: "Rarity: NORMAL\nLeather Cap", equip: "Helmet" })).result.id;
+  ok(await post(id, "set-copy", { index: 1 }));
+  ok(await post(id, "set-activate", { index: 2 }));
+  const text = "Rarity: RARE\nNew Cap\nLeather Cap\n+50 to maximum Life";
+  const copied = ok(await post<Edited>(id, "edit", { item: cap, text, activeSetOnly: true }));
+  assert.notEqual(copied.result.id, cap);
+  assert.deepEqual([copied.result.copiedFrom, copied.result.equipped, copied.result.sharedBy.map((x) => x.index)], [cap, ["Helmet"], [2]]);
+  assert.equal((await get(id, cap)).explicits.length, 0, "the old item is unchanged");
+  const listed = ok(await srv.call<{ slots: Array<{ slot: string; item: number | null }> }>("GET", `/v1/items/${id}/list?itemSet=1`)).slots.find((x) => x.slot === "Helmet");
+  assert.equal(listed?.item, cap, "set 1 keeps the old item");
+  const shared = ok(await post<Edited>(id, "edit", { item: cap, text }));
+  assert.deepEqual([shared.result.id, shared.result.sharedBy], [cap, [{ index: 1, title: "Default", active: false }]], "edited in place; only set 1 holds it now");
+  // a skill or config set switch leaves the item set alone (loadouts activate is what switches all four)
+  for (const area of ["skills", "config"]) {
+    ok(await srv.call("POST", `/v1/${area}/${id}/set-new`, { title: "Two" }));
+    ok(await srv.call("POST", `/v1/${area}/${id}/set-activate`, { index: 2 }));
+  }
+  const sets = ok(await srv.call<{ sets: Array<{ index: number; active: boolean }> }>("GET", `/v1/items/${id}/list`)).sets;
+  assert.equal(sets.find((x) => x.active)?.index, 2);
 });
 
 void test("modify picks a unique's variant; catalyst on a crafted amulet raises its Life", async () => {
@@ -314,12 +339,19 @@ void test("warnings: more suffixes than a rare can have, eldritch implicits with
   // a bench craft of two lines (ModMaster, no spawn weight) is one prefix, next to a rolled line of the same stat
   const belt = ["Rarity: RARE", "Budget Girdle", "Crystal Belt", "Item Level: 84", "Implicits: 1", "+70 to maximum Energy Shield", "+45 to maximum Energy Shield", "+60 to maximum Mana", "+53 to Strength", "+42% to Cold Resistance", "+42% to Lightning Resistance"];
   assert.equal(await add([...belt, "{crafted}+285 to Armour", "{crafted}+25 to maximum Energy Shield"].join("\n")), undefined, "the Armour and Energy Shield craft is one prefix");
-  assert.deepEqual(await add([...belt, "+285 to Armour", "{crafted}+25 to maximum Energy Shield"].join("\n")), ["4 prefixes, more than the 3 a rare Belt can have"], "a rolled Armour line is not part of the craft");
+  assert.deepEqual(await add([...belt, "+285 to Armour", "{crafted}+25 to maximum Energy Shield"].join("\n")), ["2 mods of the EnergyShield group; an item can have one", "4 prefixes, more than the 3 a rare Belt can have"], "a rolled Armour line is not part of the craft; the lone Energy Shield craft repeats the rolled one's group");
+  // the proof run's ring: the Upgraded life and mana regeneration craft (one prefix) next to a rolled life prefix
+  const life = ["+60 to maximum Life", "+42 to maximum Mana", "+40% to Cold Resistance", "+30% to Chaos Resistance", "+35 to Intelligence"];
+  assert.deepEqual(await add(ring([...life, "{crafted}+45 to maximum Life", "{crafted}Regenerate 4 Mana per second"])), ["the bench craft of the BaseLifeAndManaRegen group shares its first stat with the item's IncreasedLife mod; the bench refuses it on such an item"]);
+  // bench crafts count on their own side: the Non-Channelling mana cost craft is a prefix (rolled, it is a suffix)
+  assert.equal(await add(ring(["+60 to maximum Life", "+42 to maximum Mana", "+40% to Cold Resistance", "+30% to Fire Resistance", "+35 to Intelligence", "{crafted}Non-Channelling Skills have -7 to Total Mana Cost"])), undefined);
+  assert.deepEqual(await add(ring(["+60 to maximum Life", "+40% to Cold Resistance", "+30% to Fire Resistance", "{crafted}Non-Channelling Skills have -7 to Total Mana Cost", "{crafted}15% increased Cast Speed"])), ["2 crafted mods, more than the 1 the bench allows without \"Can have up to 3 Crafted Modifiers\""]);
+  assert.equal(await add(ring(["+60 to maximum Life", "+40% to Cold Resistance", "{crafted}Can have up to 3 Crafted Modifiers", "{crafted}Non-Channelling Skills have -7 to Total Mana Cost", "{crafted}15% increased Cast Speed"])), undefined, "the multimod craft allows three");
   // cluster notables weigh by the enchant's tags; three prefix notables are one too many, two plus a suffix notable are legal
   const cluster = (notables: string[]) => ["Rarity: RARE", "C", "Large Cluster Jewel", "Item Level: 84", "Adds 8 Passive Skills", "2 Added Passive Skills are Jewel Sockets", "Added Small Passive Skills grant: 12% increased Lightning Damage", ...notables.map((n) => `1 Added Passive Skill is ${n}`)].join("\n");
   assert.deepEqual(await add(cluster(["Overshock", "Thunderstruck", "Prismatic Heart"])), ["3 prefixes, more than the 2 a rare Jewel can have"]);
   assert.equal(await add(cluster(["Overshock", "Thunderstruck", "Widespread Destruction"])), undefined, "Widespread Destruction is a suffix");
-  assert.equal((await list(id)).items.filter((i) => (i as { warnings?: string[] }).warnings).length, 4, "the list carries them");
+  assert.equal((await list(id)).items.filter((i) => (i as { warnings?: string[] }).warnings).length, 6, "the list carries them");
 });
 
 void test("tooltip: an item's hover text, a flask's effective stats and uptime", async () => {
@@ -358,16 +390,19 @@ void test("tooltip: an item's hover text, a flask's effective stats and uptime",
   assert.ok(m.estimatedUptime > 0);
 });
 
-void test("warnings: engine notes for no ascendancy, custom modifiers, typed minion counts and gems over sockets", async () => {
+void test("warnings: engine notes for no ascendancy, custom modifiers, typed minion counts, gems over sockets and a trigger support's level limit", async () => {
   const id = ok(await srv.call<{ build: { id: string } }>("POST", "/v1/builds", { className: "Witch", level: 95, treeVersion: "3_30" })).build.id;
   ok(await srv.call("POST", `/v1/config/${id}/set-custom-mods`, { groups: [{ title: "Flat", text: "+100 to maximum Life" }, { title: "Off", enabled: false, text: "+5 to maximum Mana" }] }));
   ok(await post(id, "add", { text: "Rarity: NORMAL\nSilk Gloves\nSockets: B-B-B-B", equip: "Gloves" }));
   ok(await srv.call("POST", `/v1/skills/${id}/add-group`, { slot: "Gloves", gems: [{ name: "Raise Zombie", count: 20 }, { name: "Minion Damage" }, { name: "Melee Splash" }, { name: "Brutality" }, { name: "Feeding Frenzy" }, { name: "Elemental Army", enabled: false }], includeInFullDPS: true }));
+  ok(await srv.call("POST", `/v1/skills/${id}/add-group`, { gems: [{ name: "Cast when Damage Taken", level: 20 }, { name: "Steelskin", level: 20 }, { name: "Empower", level: 2 }] }));
   const w = ok(await srv.call<{ warnings: string[] }>("GET", `/v1/stats/${id}/warnings`)).warnings.filter((x) => x.startsWith("Engine note:"));
   const limit = Number(ok(await srv.call<{ output: Record<string, number> }>("GET", `/v1/stats/${id}/output?fields=ActiveMinionLimit`)).output.ActiveMinionLimit);
   assert.deepEqual(w, [
     "Engine note: Gloves Silk Gloves holds 5 enabled gems in 4 sockets; Path of Building counts every gem",
     `Engine note: Raise Zombie: 20 minions counted in Full DPS against a limit of ${limit}; Path of Building counts every typed one`,
+    "Engine note: Steelskin level 21 needs character level 72, over Cast when Damage Taken's limit of 70: the game does not trigger it, Path of Building counts it",
+    "Engine note: a guard buff counts as always up in TotalEHP and maximum hit taken; disable its group for the guard-off figures",
     "Engine note: level 95 with no ascendancy chosen: the figures carry no ascendancy nodes (the build file holds none)",
     "Engine note: the Config tab's custom modifiers add \"+100 to maximum Life\" with no item, node or skill behind them",
   ]);

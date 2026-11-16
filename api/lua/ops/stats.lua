@@ -119,6 +119,24 @@ return function(W)
 				note(string.format("%s: %d minions counted in Full DPS against a limit of %d; Path of Building counts every typed one", m.name, m.count, m.limit))
 			end
 		end
+		-- Cast when Damage Taken and the like support only skills up to a level requirement
+		-- (local_support_gem_max_skill_level_requirement_to_support, which PoB does not map)
+		for _, skill in ipairs(env and env.player.activeSkillList or {}) do
+			local active = skill.activeEffect
+			local row = active and (active.grantedEffectLevel or active.grantedEffect.levels[active.level])
+			for _, sup in ipairs(skill.effectList or {}) do
+				local ge = sup.grantedEffect
+				if ge and ge.support and row and row.levelRequirement then
+					for i, stat in ipairs(ge.stats or {}) do
+						local level = stat == "local_support_gem_max_skill_level_requirement_to_support" and (sup.grantedEffectLevel or ge.levels[sup.level])
+						local limit = level and level[i]
+						if limit and row.levelRequirement > limit then
+							note(string.format("%s level %d needs character level %d, over %s's limit of %d: the game does not trigger it, Path of Building counts it", W.strip(active.grantedEffect.name), active.level, row.levelRequirement, W.strip(ge.name), limit))
+						end
+					end
+				end
+			end
+		end
 		-- more enabled gems in a slot's enabled groups than its item has sockets (abyss sockets left out)
 		local socketed = {}
 		for _, group in ipairs(b.skillsTab.socketGroupList) do

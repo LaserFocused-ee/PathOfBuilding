@@ -66,6 +66,17 @@ void test("limiter: paces at half of the stated window for interactive callers, 
   assert.deepEqual(c.slept, [10_000, 10_000], "waited for the window, then sent");
 });
 
+void test("limiter: searchNow is ok only when the search and fetch policies both have room", async () => {
+  const { c, now, sleep } = clock();
+  const l = new TradeLimiter(now, sleep);
+  const far = c.t + 600_000;
+  assert.deepEqual(l.searchNow(), { interactive: { ok: true, waitSeconds: 0 }, background: { ok: true, waitSeconds: 0 } });
+  for (let i = 0; i < 2; i++) await l.run("fetch", "interactive", far, ok200(rules("8:10:60", `${i + 1}:10:0`)));
+  assert.deepEqual(l.searchNow().background, { ok: false, waitSeconds: 10 }, "fetch's background share is spent while search has room");
+  assert.equal(l.state().find((s) => s.policy === "search")?.retryAfterSeconds.background, 0);
+  assert.deepEqual(l.searchNow().interactive, { ok: true, waitSeconds: 0 });
+});
+
 void test("limiter: one request at a time per policy; background is refused while anyone is queued", async () => {
   const l = new TradeLimiter();
   let release = (): void => undefined;

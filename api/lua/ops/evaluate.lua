@@ -207,6 +207,10 @@ return function(W)
 			override.addNodes = nodeSet(b.spec, args.addNodes)
 			-- another ascendancy's (or class's) node has no path; the calculator would leave it out and answer nothing
 			for node in pairs(override.addNodes) do
+				-- the calculator would apply a mastery's stats with no effect chosen (a phantom figure)
+				if node.type == "Mastery" and not node.alloc then
+					bad(W.strip(node.dn) .. " (" .. node.id .. ") is a mastery: pick its effect with tree set_mastery (effects: tree mastery_options) on a copy, then measure the copy")
+				end
 				if not node.alloc and not node.path then
 					bad(W.strip(node.dn) .. " (" .. node.id .. ") cannot be reached from the tree" .. (node.ascendancyName and (": it is a node of " .. node.ascendancyName .. ", not of this build's ascendancy") or ""))
 				end
@@ -264,16 +268,26 @@ return function(W)
 			c.removeNodes = both
 			return rawCalc(c)
 		end
+		-- a removal takes the nodes that depend on it too, as deallocating does (the tree's hover shows the same)
+		local asked = override.removeNodes
+		if asked then
+			override.removeNodes = {}
+			for node in pairs(asked) do
+				for _, n in ipairs(node.alloc and node.depends or { node }) do override.removeNodes[n] = true end
+				override.removeNodes[node] = true
+			end
+		end
 		local before = values(b, calcBase, fields)
 		local res = { changed = diff(before, values(b, calcFunc(override), fields)), dotCap = dotCapOf(calcBase) }
 		-- As the tree's hover: a node to add brings the path that reaches it, a node to remove the nodes that depend on it.
 		-- `withPaths` is the same evaluation with those, `points` the nodes it adds or removes.
-		if override.addNodes or override.removeNodes then
+		if override.addNodes or asked then
 			local wide, paths, extra = {}, {}, false
+			local sets = { addNodes = override.addNodes, removeNodes = asked }
 			for key, list in pairs({ addNodes = "path", removeNodes = "depends" }) do
-				if override[key] then
+				if sets[key] then
 					wide[key] = {}
-					for node in pairs(override[key]) do
+					for node in pairs(sets[key]) do
 						local chain = (key == "addNodes" and not node.alloc and W.allocPath(node)) or (key == "removeNodes" and node.alloc and node.depends) or { node }
 						local names = {}
 						for _, n in ipairs(chain) do
@@ -773,6 +787,8 @@ return function(W)
 		local helpers = require("Classes.TradeHelpers")
 		return requests:buildUrl(tradeHost .. "trade/search", realm, league) .. "/" .. helpers.B64GzipEncode(json.encode(query))
 	end
+
+	W.tradeLink = tradeLink
 
 	-- The mods of an item mod list that carry `group` and the stat order `order` (a QueryMods key is "<statOrder>_<group>").
 	local function sourceMods(list, key)

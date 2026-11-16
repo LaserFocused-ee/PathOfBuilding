@@ -439,7 +439,7 @@ export class Service {
   async tradeLeagues(i: { realm: TradeRealm; priority: Priority }): Promise<Output> {
     const userAgent = await this.tradeUserAgent();
     const r = await this.trade.leagues(i.realm, { priority: i.priority, deadline: Date.now() + TRADE_CALL_MS, userAgent });
-    return { result: { realm: i.realm, ...r, limiter: this.trade.limiter.state() }, warnings: [] };
+    return { result: { realm: i.realm, ...r, searchNow: this.trade.limiter.searchNow(), limiter: this.trade.limiter.state() }, warnings: [] };
   }
 
   /** The trade league's currency rates in divines, as Path of Building converts the exchange (TradeQuery:PullCXData), an hour's cache. */
