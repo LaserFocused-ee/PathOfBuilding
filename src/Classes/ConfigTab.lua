@@ -10,6 +10,13 @@ local m_floor = math.floor
 local s_upper = string.upper
 
 local varList = require("Modules.ConfigOptions")
+-- Inputs where 0 is a real value: an absent input means "use the computed value", so a 0 must be saved.
+local allowZeroVars = { }
+for _, varData in ipairs(varList) do
+	if varData.type == "countAllowZero" then
+		allowZeroVars[varData.var] = true
+	end
+end
 local configVisibility = require("Modules.ConfigVisibility")
 local configModBrowser = require("Modules.ConfigModBrowser")
 
@@ -968,8 +975,8 @@ function ConfigTabClass:Save(xml)
 		t_insert(xml, child)
 
 		for k, v in pairsSortByKey(configSet.input) do
-			-- This override distinguishes an explicit zero from the automatic missing-life assumption.
-			if k == "missingUnreservedLifePercent" or v ~= self:GetDefaultState(k, type(v)) then
+			-- An explicit zero differs from an absent input (which uses the computed value, e.g. maximum charges).
+			if allowZeroVars[k] or v ~= self:GetDefaultState(k, type(v)) then
 				local node = { elem = "Input", attrib = { name = k } }
 				if type(v) == "number" then
 					node.attrib.number = tostring(v)

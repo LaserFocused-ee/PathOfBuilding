@@ -359,7 +359,7 @@ void test("tooltip: an item's hover text, a flask's effective stats and uptime",
   const flask = ok(await post<Brief>(id, "add", { text: "Rarity: MAGIC\nQuicksilver Flask", equip: "Flask 1" })).result.id;
   const t = ok(await srv.call<{ item: number; name: string; lines: string[] }>("GET", `/v1/items/${id}/tooltip?item=${flask}`));
   assert.deepEqual([t.item, t.name], [flask, "Quicksilver Flask"]);
-  assert.deepEqual(t.lines.slice(t.lines.indexOf("Effective flask stats:")), ["Effective flask stats:", "Flask uptime: 0% average, 0% minimum", "Activating this flask will give you:", "+39% Movement Speed Modifier"], "no charges generated per second: uptime 0");
+  assert.deepEqual(t.lines.slice(t.lines.indexOf("Effective flask stats:")), ["Effective flask stats:", "Flask uptime: 0% (estimate with charges gained on critical strike and on being hit; see uptime)", "Activating this flask will give you:", "+39% Movement Speed Modifier"], "no charges generated per second: uptime 0");
   fails(await srv.call("GET", `/v1/items/${id}/tooltip?item=99`), 404, "not_found");
   // by slot of the active item set instead of item id
   assert.equal(ok(await srv.call<{ item: number }>("GET", `/v1/items/${id}/tooltip?slot=Flask%201`)).item, flask);
@@ -378,6 +378,8 @@ void test("tooltip: an item's hover text, a flask's effective stats and uptime",
   assert.ok(Math.abs(u.chargesNeededPerSecond - 40 / 7.2) < 1e-9);
   assert.ok(Math.abs(u.chargesGainedPerSecond - u.inputs.critsPerSecond * 0.33 * u.inputs.gainModifier) < 1e-6);
   assert.ok(Math.abs(u.estimatedUptime - Math.min(u.chargesGainedPerSecond / u.chargesNeededPerSecond, 1)) < 1e-6);
+  const surgeonLines = ok(await srv.call<{ lines: string[] }>("GET", `/v1/items/${id}/tooltip?item=${surgeon}`)).lines;
+  assert.deepEqual(surgeonLines.filter((l) => l.startsWith("Flask uptime:")), [`Flask uptime: ${Math.floor(u.estimatedUptime * 100)}% (estimate with charges gained on critical strike and on being hit; see uptime)`], "one uptime answer");
   assert.match(u.source, /not Path of Building; any in-game cooldown/);
   assert.equal(ok(await srv.call<{ uptime?: Uptime }>("GET", `/v1/items/${id}/tooltip?item=${flask}`)).uptime?.inputs.flaskChanceOnCrit, 0, "Quicksilver has no crit charge mod");
   // charges when hit (Masochist's; PoB parses the line to nothing): one hit per enemy attack or cast, 700 ms by default

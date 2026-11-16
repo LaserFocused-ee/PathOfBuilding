@@ -240,6 +240,16 @@ void test("stats.sections lists the Calcs tab's sections as displayed and filter
   assert.match(none.body.error?.message ?? "", /sections: View Skill Details, Skill Hit Damage/);
 });
 
+void test("config: an override of 0 survives save and duplicate (an absent box means the computed value)", async () => {
+  const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
+  const id = ok(await srv.call<Created>("POST", "/v1/builds/import/xml", { xml })).build.id;
+  const zeros = { overrideInspirationCharges: 0, overrideBloodCharges: 0, sigilOfPowerStages: 0, enemyLightningResist: 0 };
+  ok(await srv.call("POST", `/v1/config/${id}/set`, { values: zeros }));
+  const dup = ok(await srv.call<Created>("POST", `/v1/builds/${id}/duplicate`, {})).build.id;
+  const values = ok(await srv.call<{ values: Record<string, unknown> }>("GET", `/v1/config/${dup}/get`)).values;
+  assert.deepEqual(Object.fromEntries(Object.keys(zeros).map((k) => [k, values[k]])), zeros);
+});
+
 void test("stats.ailments: the shock the main skill applies to the configured enemy", async () => {
   const xml = await readFile(join(FIXTURES, "witch-elementalist-3_30.xml"), "utf8");
   const id = ok(await srv.call<Created>("POST", "/v1/builds/import/xml", { xml })).build.id;

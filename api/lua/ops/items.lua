@@ -296,7 +296,15 @@ return function(W)
 			if not id or id == 0 then W.fail("not_found", args.slot .. " holds no item") end
 		end
 		local item = itemOf(tab, id)
-		return { item = item.id, name = W.strip(item.name), lines = W.tooltip(function(t) tab:AddItemTooltip(t, item) end), uptime = flaskEstimate(b, item) }
+		local lines, uptime = W.tooltip(function(t) tab:AddItemTooltip(t, item) end), flaskEstimate(b, item)
+		-- one uptime answer: Path of Building's line leaves out charges on critical strike and on being hit, so it gives way
+		-- to the estimate
+		for i, line in ipairs(uptime and lines or {}) do
+			if line:match("^Flask uptime:") then
+				lines[i] = string.format("Flask uptime: %d%% (estimate with charges gained on critical strike and on being hit; see uptime)", math.floor(uptime.estimatedUptime * 100))
+			end
+		end
+		return { item = item.id, name = W.strip(item.name), lines = lines, uptime = uptime }
 	end
 
 	-- Saves the display item with the Save / Add to build button; a new item goes where `equip` says.
