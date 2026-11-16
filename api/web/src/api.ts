@@ -26,6 +26,11 @@ export function isBuildId(id: string | null): id is string {
   return id !== null && BUILD_ID.test(id);
 }
 
+// Builds that tools keep for their own reading ("ref: ...", "advisor: ..."); the list hides them by default.
+export function isToolBuild(name: string): boolean {
+  return /^(ref|advisor):/i.test(name.trimStart());
+}
+
 async function call<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
   const response = await fetch(path, {
     method,

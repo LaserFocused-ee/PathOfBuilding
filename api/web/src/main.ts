@@ -2,7 +2,7 @@
 // (pob-web's driver) and keeps it in step with the server (sync.ts).
 import { Driver } from "pob-driver/driver";
 import { pageFetch } from "./account-import.ts";
-import { api, ApiError, type BuildMeta, isBuildId } from "./api.ts";
+import { api, ApiError, type BuildMeta, isBuildId, isToolBuild } from "./api.ts";
 import { buildContent } from "./content.ts";
 import { safeExternalUrl } from "./links.ts";
 import { endSession, sessionGate } from "./session.ts";
@@ -65,6 +65,8 @@ async function signOut(button: HTMLElement) {
   text(button, "Sign-out failed: still signed in. Try again");
 }
 
+const SHOW_TOOL_BUILDS = "pob-web.show-reference-builds";
+
 async function listPage(note = "") {
   show("list");
   $("#signout-list").onclick = (e) => void signOut(e.currentTarget as HTMLElement);
@@ -79,18 +81,38 @@ async function listPage(note = "") {
     return;
   }
   show("list");
-  text(status, builds.length ? note : "No builds stored yet. Create or import one through the API.");
-  list.replaceChildren(...builds.map((b) => {
-    const li = document.createElement("li");
-    const a = document.createElement("a");
-    a.href = `?build=${encodeURIComponent(b.id)}`;
-    a.textContent = b.name;
-    const meta = document.createElement("span");
-    meta.className = "meta";
-    meta.textContent = `revision ${b.revision} · ${new Date(b.updatedAt).toLocaleString()}`;
-    li.append(a, meta);
-    return li;
-  }));
+  const toggle = $("#show-tool-builds") as HTMLInputElement;
+  const hiddenCount = builds.filter((b) => isToolBuild(b.name)).length;
+  $("#tool-builds").hidden = hiddenCount === 0;
+  text($("#tool-builds-count"), `Show reference builds (${hiddenCount})`);
+  toggle.checked = localStorage.getItem(SHOW_TOOL_BUILDS) === "1";
+  const render = () => {
+    const shown = toggle.checked ? builds : builds.filter((b) => !isToolBuild(b.name));
+    text(
+      status,
+      !builds.length
+        ? "No builds stored yet. Create or import one through the API."
+        : shown.length
+        ? note
+        : "Only reference builds are stored. Tick Show reference builds to list them.",
+    );
+    list.replaceChildren(...shown.map((b) => {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = `?build=${encodeURIComponent(b.id)}`;
+      a.textContent = b.name;
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = `revision ${b.revision} · ${new Date(b.updatedAt).toLocaleString()}`;
+      li.append(a, meta);
+      return li;
+    }));
+  };
+  toggle.onchange = () => {
+    localStorage.setItem(SHOW_TOOL_BUILDS, toggle.checked ? "1" : "0");
+    render();
+  };
+  render();
 }
 
 async function viewPage(id: string) {

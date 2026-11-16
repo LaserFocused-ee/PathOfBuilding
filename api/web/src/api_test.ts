@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import { api, ApiError, isBuildId } from "./api.ts";
+import { api, ApiError, isBuildId, isToolBuild } from "./api.ts";
 
 interface Seen {
   path: string;
@@ -99,4 +99,13 @@ Deno.test("signOut sends DELETE /v1/session", async () => {
     assertEquals(seen[0].path, "/v1/session");
     assertEquals(seen[0].init.method, "DELETE");
   });
+});
+
+Deno.test("isToolBuild picks only names that start with ref: or advisor:", () => {
+  for (const name of ["ref: Righteous Fire", "advisor: watch copy", " REF:x", "Advisor:"]) {
+    assertEquals(isToolBuild(name), true, name);
+  }
+  for (const name of ["Talupoegg", "my ref: notes", "reference build", "advisor plan", ""]) {
+    assertEquals(isToolBuild(name), false, name);
+  }
 });
